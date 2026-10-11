@@ -111,6 +111,26 @@ no binary-only dependencies (AMD64 port preparation).
   string table (capture, never list), `/offset` long names (resolve),
   trailing-`/` strip. 659/659 members list and extract byte-exact on
   `LIBCMT.LIB` (official extracts a single mangled file).
+- CP/M LBR support (`ARCHIVETYPE_LBR` 63, `CLbrTool`/`COpenLbr`):
+  128-byte sectors, 32-byte entries (status 0/0xFE/0xFF, 8.3 blank-padded
+  names, LE index/length/CRC, LU86 date layout, pad count at [26]).
+  Detection = directory control-entry fatal rule (active + blank name +
+  index 0 + non-zero length fitting the file) + 128-byte-multiple size.
+  Members are stored verbatim (CCITT CRC over full sectors + CRC
+  high-first must be zero) or SQ-squeezed (`76 FF` + BE16 checksum +
+  NUL name + Huffman tree/bits, raw output, no NCR layer — validated by
+  decoding `SHAR.CQ` to 12115 bytes of C source in Python first).
+  `cpmshar.lbr`: 3/3 members list and extract byte-exact. Crunched
+  (`76 FE/FD`) members list but skip extraction (no sample to verify
+  against — known gap). CP/M dates convert to DOS dates (pre-1980 → 0);
+  `uOSType` 15 matches LZH `C`.
+- Adding a new provider requires: `XxxTool.h/.cpp` + `OpenArchive/OpenXxx.h
+  /.cpp`, `SOURCE=` blocks in `XacRett.dsp` (pure ASCII, Edit-safe;
+  `genbuild.ps1` picks them up automatically, `genlink.ps1` globs the
+  obj dir), `ARCHIVETYPE_*` + `NUM_ARCHIVETYPE` in `XacRett.h`, includes
+  + `DllSub` pair + `ArcNameToNum` branch in `XacRett.cpp`
+  (byte-script only — SJIS file; routine names end with the SJIS suffix
+  `93 57 8A 4A`, same as every other tool).
 - DllTest command parsing: `XacRett()` needs `-n1 -o1 -j`; `type` numbers
   are `ARCHIVETYPE_*` in `XacRett.h` (AR=5, ARC=2).
 - Known gaps (untouched): JCALG1 is clean-room and unverified; SQX

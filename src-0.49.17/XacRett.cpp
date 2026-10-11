@@ -60,6 +60,7 @@ using namespace std;   //こいつを入れないと使えません。
 #include "JamTool.h"
 #include "AsdTool.h"
 #include "ArTool.h"
+#include "LbrTool.h"
 #include "CpioTool.h"
 #include "ZacTool.h"
 #include "MacBinTool.h"
@@ -127,6 +128,7 @@ using namespace std;   //こいつを入れないと使えません。
 #include "OpenArchive\OpenPackz.h"
 #include "OpenArchive\OpenImp.h"
 #include "OpenArchive\OpenAr.h"
+#include "OpenArchive\OpenLbr.h"
 #include "OpenArchive\OpenIs.h"
 #include "OpenArchive\OpenBlz.h"
 #include "OpenArchive\OpenAlz.h"
@@ -540,6 +542,10 @@ void DllSub(void)//ロードする
 
 	t=t->AddTail( new CArTool );
 	o=o->AddTail( new COpenAr);
+	ArchiveListMap[t]=o;
+
+	t=t->AddTail( new CLbrTool );
+	o=o->AddTail( new COpenLbr);
 	ArchiveListMap[t]=o;
 
 	t=t->AddTail( new CSplTool );
@@ -1192,6 +1198,8 @@ int ArcNameToNum(LPCSTR buffer )
 		return ARCHIVETYPE_SQX;
 	else if (lstrcmp(buffer,"Neo_ASK 展開")==0)
 		return ARCHIVETYPE_ASK;
+	else if (lstrcmp(buffer,"Lbr 展開")==0)
+		return ARCHIVETYPE_LBR;
 	else
 		return ARCHIVETYPE_UNKNOWN ;
 }

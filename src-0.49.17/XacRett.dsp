@@ -335,6 +335,10 @@ SOURCE=.\LzhTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\LbrTool.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\MacBinTool.cpp
 # End Source File
 # Begin Source File
@@ -581,6 +585,10 @@ SOURCE=.\LzhDecoder2.h
 # Begin Source File
 
 SOURCE=.\LzhTool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\LbrTool.h
 # End Source File
 # Begin Source File
 
@@ -915,6 +923,10 @@ SOURCE=.\OpenArchive\OpenJc1.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\OpenArchive\OpenLbr.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\OpenArchive\OpenLzh.cpp
 # End Source File
 # Begin Source File
@@ -1136,6 +1148,10 @@ SOURCE=.\OpenArchive\OpenJam.h
 # Begin Source File
 
 SOURCE=.\OpenArchive\OpenJc1.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenLbr.h
 # End Source File
 # Begin Source File
 

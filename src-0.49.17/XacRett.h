@@ -267,7 +267,8 @@ typedef struct {
 #define ARCHIVETYPE_APK		60
 #define ARCHIVETYPE_SQX		61
 #define ARCHIVETYPE_ASK		62
+#define ARCHIVETYPE_LBR	63
 
-#define NUM_ARCHIVETYPE		62
+#define NUM_ARCHIVETYPE		63
 
 #endif
