@@ -1,24 +1,24 @@
 # Microsoft Developer Studio Project File - Name="XacRett" - Package Owner=<4>
 # Microsoft Developer Studio Generated Build File, Format Version 6.00
-# ** 嚙課嚙踝蕭嚙褓蕭嚙褐蕭嚙踝蕭嚙踝蕭嚙踝蕭 **
+# ** DO NOT EDIT **
 
 # TARGTYPE "Win32 (x86) Dynamic-Link Library" 0x0102
 
 CFG=XacRett - Win32 Debug
-!MESSAGE 嚙踝蕭嚙踝蕭?L嚙踝蕭嚙踝蕭珩嚙諒改蕭???嚙踝蕭嚙豌蕭嚙踝蕭B 嚙踝蕭嚙踝蕭嚙踝蕭蛩猼嚙衝蕭嚙踝蕭嚙踝蕭?嚙踝蕭?踝蕭??嚙?NMAKE 嚙踝蕭嚙篇嚙緘嚙踝蕭嚙衝蕭嚙踝蕭嚙踝蕭嚙踝蕭嚙畿
-!MESSAGE [珩嚙諒改蕭?抴嚙踝蕭嚙賠堆蕭] 嚙踝蕭嚙踝蕭?嚙踝蕭g嚙緘嚙踝蕭嚙衝蕭嚙編嚙踝蕭嚙衝蕭嚙踝蕭嚙踝蕭嚙踝蕭
+!MESSAGE This is not a valid makefile. To build this project using NMAKE,
+!MESSAGE use the Export Makefile command and run
 !MESSAGE 
 !MESSAGE NMAKE /f "XacRett.mak".
 !MESSAGE 
-!MESSAGE NMAKE 嚙諒蕭嚙編嚙踝蕭嚙褕嚙踝蕭嚙踝蕭嚙緩嚙踝蕭?嚙踝蕭?嚙?
-!MESSAGE 嚙踝蕭嚙踝蕭嚙?袉?嚙踝蕭牉???嚙踝蕭嚙窯嚙踝蕭嚙豌蕭嚙畿嚙踝蕭:
+!MESSAGE You can specify a configuration when running NMAKE
+!MESSAGE by defining the macro CFG on the command line. For example:
 !MESSAGE 
 !MESSAGE NMAKE /f "XacRett.mak" CFG="XacRett - Win32 Debug"
 !MESSAGE 
-!MESSAGE 嚙瘢嚙踝蕭嚙蝓嚙踝蕭嚙踝蕭嚙踝蕭嚙?荌嚙踝蕭:
+!MESSAGE Possible choices for configuration are:
 !MESSAGE 
-!MESSAGE "XacRett - Win32 Release" ("Win32 (x86) Dynamic-Link Library" 嚙緘)
-!MESSAGE "XacRett - Win32 Debug" ("Win32 (x86) Dynamic-Link Library" 嚙緘)
+!MESSAGE "XacRett - Win32 Release" (based on "Win32 (x86) Dynamic-Link Library")
+!MESSAGE "XacRett - Win32 Debug" (based on "Win32 (x86) Dynamic-Link Library")
 !MESSAGE 
 
 # Begin Project
@@ -192,29 +192,98 @@ SOURCE=.\FrzTool.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\GcaTool.cpp
+SOURCE=.\GcaSDK\gca_api.cpp
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
-SOURCE=.\GcaSDK\gca_api.cpp
-# End Source File
-# Begin Source File
 SOURCE=.\GcaSDK\gca_arc.cpp
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
+
 SOURCE=.\GcaSDK\gca_bwt.cpp
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
+
 SOURCE=.\GcaSDK\gca_cod.cpp
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
+
 SOURCE=.\GcaSDK\gca_numb.cpp
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
+
 SOURCE=.\GcaSDK\gca_numv.cpp
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
+
 SOURCE=.\GcaSDK\gca_stage.cpp
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\GcaTool.cpp
 # End Source File
 # Begin Source File
 
@@ -629,12 +698,11 @@ SOURCE=.\zlib\adler32.c
 # Begin Source File
 
 SOURCE=.\zlib\crc32.c
-  # SUBTRACT CPP /YX /Yc /Yu
-  # End Source File
-  # Begin Source File
-  
-SOURCE=.\zlib\crc32.h
 # SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\zlib\crc32.h
 # End Source File
 # Begin Source File
 
@@ -657,12 +725,11 @@ SOURCE=.\zlib\inffixed.h
 # Begin Source File
 
 SOURCE=.\zlib\inflate.c
-  # SUBTRACT CPP /YX /Yc /Yu
-  # End Source File
-  # Begin Source File
-  
-SOURCE=.\zlib\inflate.h
 # SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\zlib\inflate.h
 # End Source File
 # Begin Source File
 
@@ -1179,6 +1246,16 @@ SOURCE=.\unsqx\cx_audio.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\fdi\fdi.cpp
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\jcalg1lib\jcalg1.cpp
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
 SOURCE=.\unsqx\mm_coder.c
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
@@ -1194,49 +1271,18 @@ SOURCE=.\unsqx\sqx_dec.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\unsqx\sqx_os.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\unsqx\sqx_vars.c
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
 
 SOURCE=.\unsqx\SQXcrc32.c
-  # SUBTRACT CPP /YX /Yc /Yu
-  # End Source File
-  # Begin Source File
-  
-SOURCE=.\unsqx\WIN32_INC.C
-  # SUBTRACT CPP /YX /Yc /Yu
-  # End Source File
-  # Begin Source File
-  
-SOURCE=.\unsqx\sqx_os.h
-  # SUBTRACT CPP /YX /Yc /Yu
-  # End Source File
-  # Begin Source File
-  
-SOURCE=.\yz32lib\yz32lib_v1.cpp
-  # SUBTRACT CPP /YX /Yc /Yu
-  # End Source File
-  # Begin Source File
-  
-SOURCE=.\ZData\zdata.c
-  # SUBTRACT CPP /YX /Yc /Yu
-  # End Source File
-  # Begin Source File
-  
-SOURCE=.\ZData\zdatas.h
-  # SUBTRACT CPP /YX /Yc /Yu
-  # End Source File
-  # Begin Source File
-  
-SOURCE=.\fdi\fdi.cpp
-  # SUBTRACT CPP /YX /Yc /Yu
-  # End Source File
-  # Begin Source File
-  
-SOURCE=.\jcalg1lib\jcalg1.cpp
-  # SUBTRACT CPP /YX /Yc /Yu
-  # End Source File
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
 # Begin Source File
 
 SOURCE=.\unsqx\t_coder.c
@@ -1246,6 +1292,25 @@ SOURCE=.\unsqx\t_coder.c
 
 SOURCE=.\unsqx\uarde.c
 # SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\unsqx\WIN32_INC.C
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\yz32lib\yz32lib_v1.cpp
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\ZData\zdata.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\ZData\zdatas.h
 # End Source File
 # End Group
 # Begin Group "Header"
@@ -1311,13 +1376,6 @@ SOURCE=.\unsqx\uarde.h
 # Begin Group "os"
 
 # PROP Default_Filter ""
-# Begin Source File
-
-# unsqx\os\sqx_os.c is superseded by unsqx\WIN32_INC.C (same OS layer);
-# keeping both would duplicate every os_* symbol
-#SOURCE=.\unsqx\os\sqx_os.c
-# SUBTRACT CPP /YX /Yc /Yu
-# End Source File
 # Begin Source File
 
 SOURCE=.\unsqx\os\sqx_os.h
@@ -1400,10 +1458,28 @@ SOURCE=.\unsqx\crypt\md5c.c
 # Begin Source File
 
 SOURCE=.\libbzip2\blocksort.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=.\libbzip2\bzlib.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
@@ -1416,18 +1492,97 @@ SOURCE=.\libbzip2\bzlib_private.h
 # Begin Source File
 
 SOURCE=.\libbzip2\crctable.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=.\libbzip2\decompress.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=.\libbzip2\huffman.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
 SOURCE=.\libbzip2\randtable.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# End Group
+# Begin Group "YZ1"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\yz32lib\yz32lib.cpp
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\yz32lib\yzDecode.cxx
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\yz32lib\yzFileDe.cxx
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
 # End Source File
 # End Group
 # Begin Source File
