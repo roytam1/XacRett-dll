@@ -90,6 +90,7 @@ bool COpenImp::Find_Sub(INDIVIDUALINFO *lpSubInfo)
 	//î•ñŠi”[
 	
 	lstrcpy(lpSubInfo->szFileName,outname);
+	lstrcpy(lpSubInfo->szMode,"IMP");
 	lpSubInfo->dwCRC=dirent.crc;
 	lpSubInfo->dwOriginalSize=dirent.esize;
 	lpSubInfo->dwCompressedSize=0;//imp.ih.csize;

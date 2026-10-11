@@ -28,7 +28,9 @@ bool COpenZoo::read_Sub(INDIVIDUALINFO *lpSubInfo)
 	lpSubInfo->dwCRC = direntry.file_crc;
 	lpSubInfo->dwOriginalSize = direntry.org_size;
 	lstrcpy(lpSubInfo->szAttribute , "A---W");
-	//lstrcpy(lpSubInfo->szMode,"");
+	if(direntry.packing_method==0) lstrcpy(lpSubInfo->szMode,"stored");
+	else if(direntry.packing_method==1) lstrcpy(lpSubInfo->szMode,"LZW");
+	else lstrcpy(lpSubInfo->szMode,"?");
 
 	lstrcpy(lpSubInfo->szFileName,direntry.dirname);
 	lpSubInfo->szFileName[direntry.dirlen-1] = 0x5C;

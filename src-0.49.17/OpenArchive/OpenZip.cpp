@@ -24,6 +24,17 @@ bool COpenZip::Find_sub(INDIVIDUALINFO *lpSubInfo)
 		return false;
 
 	lstrcpy(lpSubInfo->szFileName,hdr.fnm);
+	switch(hdr.mhd){
+	case Stored: lstrcpy(lpSubInfo->szMode,"stored"); break;
+	case Shrunk: lstrcpy(lpSubInfo->szMode,"shrunk"); break;
+	case Reduced1: lstrcpy(lpSubInfo->szMode,"reduce1"); break;
+	case Reduced2: lstrcpy(lpSubInfo->szMode,"reduce2"); break;
+	case Reduced3: lstrcpy(lpSubInfo->szMode,"reduce3"); break;
+	case Reduced4: lstrcpy(lpSubInfo->szMode,"reduce4"); break;
+	case Imploded: lstrcpy(lpSubInfo->szMode,"implod"); break;
+	case Deflated: lstrcpy(lpSubInfo->szMode,"deflate"); break;
+	default: lstrcpy(lpSubInfo->szMode,"?"); break;
+	}
 	lpSubInfo->dwCRC = hdr.crc;
 	lpSubInfo->dwCompressedSize = hdr.csz;
 	lpSubInfo->dwOriginalSize = hdr.usz;

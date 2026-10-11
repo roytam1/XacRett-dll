@@ -31,7 +31,7 @@ bool COpenMime::Find_sub(INDIVIDUALINFO *lpSubInfo)
 	skip();
 	lpSubInfo->dwCompressedSize=ftell(fp)-nowpos;
 	lpSubInfo->dwOriginalSize =lpSubInfo->dwCompressedSize/1.3686;
-	//lstrcpy(lpSubInfo->szMode,"");
+	lstrcpy(lpSubInfo->szMode,"stored");
 	return true;
 }
 

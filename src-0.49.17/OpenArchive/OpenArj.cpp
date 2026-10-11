@@ -76,7 +76,7 @@ bool COpenArj::FindSub(INDIVIDUALINFO *lpSubInfo)
 	lpSubInfo->dwCompressedSize = ahdr.h_Compsize;
 	lpSubInfo->dwCRC = ahdr.h_FileCRC;
 	lpSubInfo->dwOriginalSize = ahdr.h_Origsize;
-	//lstrcpy(lpSubInfo->szMode,"");
+	wsprintf(lpSubInfo->szMode,"m%u",ahdr.h_Method);
 
 	lstrcpy(lpSubInfo->szAttribute ,"----W");
 	if (ahdr.h_Attrib & FILE_ATTRIBUTE_READONLY)

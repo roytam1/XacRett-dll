@@ -151,6 +151,7 @@ bool COpenCpio::Find_sub(INDIVIDUALINFO *lpSubInfo)
 		FileTimeToDosDateTime(&ft,&lpSubInfo->wDate,&lpSubInfo->wTime);
 	}
 	lstrcpy(lpSubInfo->szAttribute,"A---W");
+	lstrcpy(lpSubInfo->szMode,"stored");
 	double tmp1 = (double)lpSubInfo->dwOriginalSize;
 	double tmp2 = (double)lpSubInfo->dwCompressedSize;
 	if (lpSubInfo->dwOriginalSize > 0 && lpSubInfo->dwCompressedSize > 0){

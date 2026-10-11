@@ -44,7 +44,20 @@ bool COpenArc::FindSub(INDIVIDUALINFO *lpSubInfo)
 	}
 
 	lstrcpy(lpSubInfo->szFileName,hdr.name);
-	//lstrcpy(lpSubInfo->szMode,"");
+	switch(hdr.method){
+	case 1:
+	case 2: lstrcpy(lpSubInfo->szMode,"stored"); break;
+	case 3: lstrcpy(lpSubInfo->szMode,"packed"); break;
+	case 4: lstrcpy(lpSubInfo->szMode,"squeezd"); break;
+	case 5:
+	case 6:
+	case 7: lstrcpy(lpSubInfo->szMode,"crunch"); break;
+	case 8: lstrcpy(lpSubInfo->szMode,"dynamic"); break;
+	case 9: lstrcpy(lpSubInfo->szMode,"squash"); break;
+	case 10: lstrcpy(lpSubInfo->szMode,"crush"); break;
+	case 11: lstrcpy(lpSubInfo->szMode,"distil"); break;
+	default: lstrcpy(lpSubInfo->szMode,"?"); break;
+	}
 	fseek(COpenArc::fp,nextpos,SEEK_SET);
 	return true;
 }

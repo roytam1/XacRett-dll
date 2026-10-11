@@ -39,7 +39,7 @@ bool COpenBga::FindSub(INDIVIDUALINFO *lpSubInfo)
 	if (hdr.attrib & FILE_ATTRIBUTE_ARCHIVE)
 		lpSubInfo->szAttribute[0] = 'A';
 
-	//lstrcpy(lpSubInfo->szMode,"");
+	lstrcpy(lpSubInfo->szMode,"BGA");
 
 	lstrcpy(lpSubInfo->szFileName , hdr.name);
 	lpSubInfo->wDate = hdr.date;

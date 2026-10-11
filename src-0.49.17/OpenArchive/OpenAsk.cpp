@@ -6,6 +6,7 @@ bool COpenAsk::FindFirst(INDIVIDUALINFO *lpSubInfo)
 	m_info.clear();
 	LPCSTR ext=kiutil::pathExt(szArcFileName);
 	INDIVIDUALINFO info={0};
+	lstrcpy(info.szMode,"stored");
 	if( 0==stricmp( ext,"ask" ) )
 	{
 		// LongFileNameŽæ“¾

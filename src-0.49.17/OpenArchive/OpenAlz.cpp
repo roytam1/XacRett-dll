@@ -42,6 +42,8 @@ bool COpenAlz::Find_sub(INDIVIDUALINFO *lpSubInfo)
 	if (lpSubInfo->dwOriginalSize > 0 && lpSubInfo->dwCompressedSize > 0){
 		lpSubInfo->wRatio = (WORD)((tmp2 *1000 / tmp1));
 	}
+	//AlzTool maps method&0x02 to deflate, 0 to stored
+	lstrcpy(lpSubInfo->szMode,(hdr.blz.method&0x02)?"deflate":"stored");
 
 	return true;
 }

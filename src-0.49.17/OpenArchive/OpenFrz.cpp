@@ -12,6 +12,7 @@ bool COpenFrz::FindFirst(INDIVIDUALINFO *lpSubInfo)
 	lpSubInfo->dwCompressedSize = (DWORD)filelength(fileno(COpenFrz::fp));
 	lstrcpy(lpSubInfo->szFileName,oriname);
 	lstrcpy(lpSubInfo->szAttribute,"A---W");
+	lstrcpy(lpSubInfo->szMode,"freeze");
 	//lstrcpy(lpSubInfo->szMode,"");
 
 	return true;

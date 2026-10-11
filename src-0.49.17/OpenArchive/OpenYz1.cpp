@@ -61,7 +61,7 @@ void COpenYz1::FindHeader(yzFileDecode* dec)
 		lstrcpy(COpenYz1::lpInfo[i].szFileName,p);
 
 		lstrcpy(COpenYz1::lpInfo[i].szAttribute ,"A---W");
-		lstrcpy(COpenYz1::lpInfo[i].szMode,"");
+		lstrcpy(COpenYz1::lpInfo[i].szMode,"YZ1");
 		COpenYz1::lpInfo[i].dwCompressedSize=0;
 		COpenYz1::lpInfo[i].dwCRC=0;
 		COpenYz1::lpInfo[i].uFlag=0;

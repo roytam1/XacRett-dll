@@ -36,7 +36,7 @@ bool COpenaPLib::FindFirst(INDIVIDUALINFO *lpSubInfo)
 	if (lpSubInfo->dwOriginalSize > 0 && lpSubInfo->dwCompressedSize > 0){
 		lpSubInfo->wRatio = (WORD)((tmp2 *1000 / tmp1));
 	}
-	//lstrcpy(lpSubInfo->szMode,"");
+	lstrcpy(lpSubInfo->szMode,"aPLib");
 	FILETIME lt;
 	if(!::FileTimeToLocalFileTime(&find.ftLastWriteTime,&lt))				 return false;
 	if(!::FileTimeToDosDateTime(&lt,&lpSubInfo->wDate,&lpSubInfo->wTime))return false;

@@ -98,7 +98,7 @@ bool COpenMacBin::Find_sub(INDIVIDUALINFO *lpSubInfo)
 		}
 
 		fseek( COpenMacBin::fp, next, SEEK_SET ); // ŽŸ‚Ìƒwƒbƒ_‚Ö
-		//lstrcpy(lpSubInfo->szMode,"");
+		lstrcpy(lpSubInfo->szMode,"stored");
 	return true;
 }
 

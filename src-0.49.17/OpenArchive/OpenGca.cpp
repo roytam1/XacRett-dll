@@ -57,7 +57,7 @@ bool COpenGca::set_Find(INDIVIDUALINFO *lpSubInfo)
 	if (lpSubInfo->dwOriginalSize > 0 && lpSubInfo->dwCompressedSize > 0){
 		lpSubInfo->wRatio = (WORD)((tmp2 *1000 / tmp1));
 	}
-	//lstrcpy(lpSubInfo->szMode,"");
+	lstrcpy(lpSubInfo->szMode,"GCA");
 	return true;
 
 }

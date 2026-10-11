@@ -43,6 +43,7 @@ bool COpenShar::Find_sub(INDIVIDUALINFO *lpSubInfo)
 		elen = strlen( end );
 		lstrcpy(lpSubInfo->szFileName,file);
 		lstrcpy(lpSubInfo->szAttribute,"A---W");
+		lstrcpy(lpSubInfo->szMode,"stored");
 		//lstrcpy(lpSubInfo->szMode,"");
 		// ƒf[ƒ^•””ò‚Î‚µ
 		while( true )

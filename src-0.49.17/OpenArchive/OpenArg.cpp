@@ -24,7 +24,7 @@ bool COpenArg::FindSub(INDIVIDUALINFO *lpSubInfo)
 	lpSubInfo->dwOriginalSize=(buf[17])+(buf[18]<<8)+(buf[19]<<16)+(buf[20]<<24);
 	buf[12]='\0';
 	lstrcpy(lpSubInfo->szFileName,(char*)buf);
-	//lstrcpy(lpSubInfo->szMode,"");
+	lstrcpy(lpSubInfo->szMode,"ARG");
 	lpSubInfo->wDate=(buf[15])+(buf[16]<<8);
 	lpSubInfo->wTime=(buf[13])+(buf[14]<<8);
 	double tmp1 = (double)lpSubInfo->dwOriginalSize;

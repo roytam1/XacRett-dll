@@ -11,6 +11,7 @@ bool COpenJam::FindFirst(INDIVIDUALINFO *lpSubInfo)
 	lpSubInfo->dwCompressedSize = (DWORD)filelength(fileno(COpenJam::fp));
 	lstrcpy(lpSubInfo->szFileName,outname);
 	lstrcpy(lpSubInfo->szAttribute,"A---W");
+	lstrcpy(lpSubInfo->szMode,"JAM");
 	//lstrcpy(lpSubInfo->szMode,"");
 	return true;
 }

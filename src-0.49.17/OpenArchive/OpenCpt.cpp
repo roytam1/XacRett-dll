@@ -39,6 +39,8 @@ bool COpenCpt::Find_sub(INDIVIDUALINFO *lpSubInfo)
 	lpSubInfo->dwCompressedSize=(hdr[76]<<24) + (hdr[77]<<16) + (hdr[78]<<8) + hdr[79];
 
 	lstrcpy(lpSubInfo->szAttribute,"A---W");
+	lstrcpy(lpSubInfo->szMode,
+		lpSubInfo->dwCompressedSize<lpSubInfo->dwOriginalSize?"packed":"stored");
 	double tmp1 = (double)lpSubInfo->dwOriginalSize;
 	double tmp2 = (double)lpSubInfo->dwCompressedSize;
 	if (lpSubInfo->dwOriginalSize > 0 && lpSubInfo->dwCompressedSize > 0){

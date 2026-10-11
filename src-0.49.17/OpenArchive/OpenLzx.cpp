@@ -74,6 +74,7 @@ bool COpenLzx::FindSub(INDIVIDUALINFO *lpSubInfo)
 			 (attributes & 8) ? 'e' : '-',
 			 (attributes & 4) ? 'd' : '-');*/
 		lstrcpy(lpSubInfo->szFileName,(char*)header_filename);
+		lstrcpy(lpSubInfo->szMode,"LZX");
 		/*if(header_comment[0])
 			printf(": \"%s\"\n", header_comment);*/
 		/*if((archive_header[12] & 1) && pack_size)

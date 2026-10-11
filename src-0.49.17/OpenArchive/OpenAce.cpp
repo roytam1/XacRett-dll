@@ -46,7 +46,8 @@ bool COpenAce::FindSub(INDIVIDUALINFO *lpSubInfo)
 
 		if( !(fhead.ATTR & _A_SUBDIR) )
 		{
-			//lstrcpy(lpSubInfo->szMode,"");
+			if(fhead.TECH.TYPE==0) lstrcpy(lpSubInfo->szMode,"stored");
+			else wsprintf(lpSubInfo->szMode,"m%u",fhead.TECH.TYPE);
 			lpSubInfo->dwCompressedSize = fhead.PSIZE;
 			lpSubInfo->dwCRC=fhead.CRC32;
 			lpSubInfo->dwOriginalSize=fhead.SIZE;

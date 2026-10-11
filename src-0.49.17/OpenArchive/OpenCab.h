@@ -3,6 +3,7 @@
 
 
 #include "OpenArchive.h"
+#include <vector>
 
 #define CAB_ATTRIB_READONLY  0x0001
 #define CAB_ATTRIB_HIDDEN    0x0002
@@ -57,6 +58,7 @@ private:
 	bool read_header( CAB_ENTRY &hdr,unsigned char* buf );
 
 	int iFiles;
+	std::vector<WORD> folderComp;// per-folder compression types (tcompTYPE_*)
 };
 
 #endif

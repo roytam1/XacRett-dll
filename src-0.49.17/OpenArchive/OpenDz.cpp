@@ -70,7 +70,7 @@ bool COpenDz::read_header(INDIVIDUALINFO *lpSubInfo)
 	lpSubInfo->dwCRC = fi.crc;
 
 	lstrcpy(lpSubInfo->szAttribute,"A---W");
-	//lstrcpy(lpSubInfo->szMode,"");
+	lstrcpy(lpSubInfo->szMode,fi.pak==0?"stored":"packed");
 
 	lstrcpy(lpSubInfo->szFileName,fi.nam);
 	if (!COpenDz::ver1)

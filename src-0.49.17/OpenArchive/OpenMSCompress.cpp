@@ -29,6 +29,7 @@ bool COpenMSCompress::FindFirst(INDIVIDUALINFO *lpSubInfo)
 	::FileTimeToDosDateTime(&find_f.ftLastWriteTime,&lpSubInfo->wDate,&lpSubInfo->wTime);
 
 	lstrcpy(lpSubInfo->szAttribute ,"A---W");
+	lstrcpy(lpSubInfo->szMode,"SZDD");
 	//lstrcpy(lpSubInfo->szMode,"");
 
 	return true;

@@ -26,6 +26,7 @@ bool COpenIsh::Find_sub(INDIVIDUALINFO *lpSubInfo)
 	lpSubInfo->wDate=(WORD)(h_LcTime>>16);
 	lpSubInfo->wTime=(WORD)h_LcTime;
 	lstrcpy(lpSubInfo->szAttribute,"A---W");
+	lstrcpy(lpSubInfo->szMode,"ISH");
 
 	double tmp1 = (double)lpSubInfo->dwOriginalSize;
 	double tmp2 = (double)lpSubInfo->dwCompressedSize;

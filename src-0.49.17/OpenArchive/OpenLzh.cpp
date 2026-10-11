@@ -40,7 +40,8 @@ bool COpenLzh::FindSub(INDIVIDUALINFO *lpSubInfo)
 	if (h_Attrib & FILE_ATTRIBUTE_ARCHIVE)
 		lpSubInfo->szAttribute[0] = 'A';
 
-	//lstrcpy(lpSubInfo->szMode,"");
+	//UNLHA32-style method id without the dashes ("lh5","lzs","pm1",...)
+	lstrcpyn(lpSubInfo->szMode,h_Method+1,4);
 	lstrcpy(lpSubInfo->szFileName,h_FileName);
 
 	if (h_OS=='M') lpSubInfo->uOSType=0;

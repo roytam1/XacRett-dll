@@ -62,7 +62,10 @@ bool COpenRar::FindSub(INDIVIDUALINFO *lpSubInfo)
 		if (NewLhd.FileAttr & FILE_ATTRIBUTE_ARCHIVE)
 			lpSubInfo->szAttribute[0] = 'A';
 
-		//lstrcpy(lpSubInfo->szMode,"");
+		//NewLhd.Method is '0'-'5' for old headers, 0-5 for new ones
+		{ int m=NewLhd.Method; if(m>='0') m-='0';
+		  if(m>=0&&m<=5) wsprintf(lpSubInfo->szMode,"m%d",m);
+		  else lstrcpy(lpSubInfo->szMode,"?"); }
 
 		lpSubInfo->uOSType=NewLhd.HostOS;
 

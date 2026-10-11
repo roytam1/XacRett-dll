@@ -25,7 +25,7 @@ bool COpenBz2::FindFirst(INDIVIDUALINFO *lpSubInfo)
 	lpSubInfo->wDate = 0;
 	lpSubInfo->wRatio = 0;
 	lpSubInfo->wTime = 0;
-	//lstrcpy(lpSubInfo->szMode,"");
+	lstrcpy(lpSubInfo->szMode,"bzip2");
 
 	return true;
 }

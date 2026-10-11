@@ -7,7 +7,7 @@ bool COpenAtoB::FindFirst(INDIVIDUALINFO *lpSubInfo)
 		0==stricmp(kiutil::pathExt(COpenAtoB::szArcFileName),"b2a") ? NULL : "a2b" );
 	lstrcpy(lpSubInfo->szAttribute,"A---W");
 	lpSubInfo->dwCompressedSize = (DWORD)filelength(fileno(fp));
-	//lstrcpy(lpSubInfo->szMode,"");
+	lstrcpy(lpSubInfo->szMode,"stored");
 	return true;
 }
 

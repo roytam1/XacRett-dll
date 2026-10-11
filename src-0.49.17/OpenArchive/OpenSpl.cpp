@@ -27,6 +27,7 @@ bool COpenSpl::FindFirst(INDIVIDUALINFO *lpSubInfo)
 	lpSubInfo->dwCompressedSize=(DWORD)filelength(fileno(COpenSpl::fp));
 	lpSubInfo->dwOriginalSize=usize;
 	lstrcpy(lpSubInfo->szAttribute,"A---W");
+	lstrcpy(lpSubInfo->szMode,"split");
 	//lstrcpy(lpSubInfo->szMode,"");
 	lstrcpy(lpSubInfo->szFileName,(char*)buf);
 

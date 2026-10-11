@@ -133,7 +133,8 @@ read:
 		lpSubInfo->szAttribute[3]= (realattrib & FA_RDONLY)	? 'R' : '-'; /* Read Only*/
 		lpSubInfo->szAttribute[4]='\0';
 
-		//lstrcpy(lpSubInfo->szMode,"");
+		//tar members are stored, not compressed
+		lstrcpy(lpSubInfo->szMode,"stored");
 		lstrcpy(lpSubInfo->szFileName,realfname);
 
 		struct tm* time=localtime((long*)&realupdate);

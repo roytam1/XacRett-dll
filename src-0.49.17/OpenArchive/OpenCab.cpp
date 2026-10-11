@@ -29,7 +29,16 @@ bool COpenCab::FindFirst(INDIVIDUALINFO *lpSubInfo)
 	if (hdr.attribs & FILE_ATTRIBUTE_ARCHIVE)
 		lpSubInfo->szAttribute[3] = 'A';
 
-	//lstrcpy(lpSubInfo->szMode,"");
+	{ WORD tc=0xFFFF;
+	  if(hdr.iFolder<COpenCab::folderComp.size())
+		tc=COpenCab::folderComp[hdr.iFolder]&0x000F;
+	  switch(tc){
+	  case 0: lstrcpy(lpSubInfo->szMode,"stored"); break;
+	  case 1: lstrcpy(lpSubInfo->szMode,"MSZIP"); break;
+	  case 2: lstrcpy(lpSubInfo->szMode,"Quantm"); break;
+	  case 3: lstrcpy(lpSubInfo->szMode,"LZX"); break;
+	  default: lstrcpy(lpSubInfo->szMode,"?"); break;
+	  } }
 
 	lpSubInfo->wDate = hdr.date;
 	lpSubInfo->wRatio = 0;
@@ -61,6 +70,17 @@ bool COpenCab::FindNext(INDIVIDUALINFO *lpSubInfo)
 		lpSubInfo->szAttribute[3] = 'D';
 	if (hdr.attribs & FILE_ATTRIBUTE_ARCHIVE)
 		lpSubInfo->szAttribute[3] = 'A';
+
+	{ WORD tc=0xFFFF;
+	  if(hdr.iFolder<COpenCab::folderComp.size())
+		tc=COpenCab::folderComp[hdr.iFolder]&0x000F;
+	  switch(tc){
+	  case 0: lstrcpy(lpSubInfo->szMode,"stored"); break;
+	  case 1: lstrcpy(lpSubInfo->szMode,"MSZIP"); break;
+	  case 2: lstrcpy(lpSubInfo->szMode,"Quantm"); break;
+	  case 3: lstrcpy(lpSubInfo->szMode,"LZX"); break;
+	  default: lstrcpy(lpSubInfo->szMode,"?"); break;
+	  } }
 
 	lpSubInfo->wDate = hdr.date;
 	lpSubInfo->wRatio = 0;
@@ -105,6 +125,23 @@ bool COpenCab::doHeader(unsigned char* buf )
 			if (hdr.cbCabinet == (DWORD) t )
 			{
 				COpenCab::iFiles = hdr.cFiles;
+				// remember per-folder compression types for szMode
+				COpenCab::folderComp.clear();
+				long folderPos = x-4+36;
+				if(hdr.flags & 0x0004)
+				{
+					BYTE res[4];
+					fseek(COpenCab::fp,x-4+36,SEEK_SET);
+					if(4==fread(res,1,4,COpenCab::fp))
+						folderPos += 4+res[0]+(res[1]<<8);
+				}
+				fseek(COpenCab::fp,folderPos,SEEK_SET);
+				for(int f=0;f<hdr.cFolders;f++)
+				{
+					BYTE fb[8];
+					if(8!=fread(fb,1,8,COpenCab::fp)) break;
+					COpenCab::folderComp.push_back((WORD)(fb[6]|(fb[7]<<8)));
+				}
 				fseek(COpenCab::fp,hdr.coffFiles+x-4,SEEK_SET);
 				return true;
 			}

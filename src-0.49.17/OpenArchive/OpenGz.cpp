@@ -69,6 +69,7 @@ bool COpenGz::FindFirst(INDIVIDUALINFO *lpSubInfo)
 	fread(&lpSubInfo->dwOriginalSize,4,1,COpenGz::fp);
 	lpSubInfo->dwCompressedSize=(DWORD)filelength(fileno(COpenGz::fp))-10;
 	lstrcpy(lpSubInfo->szAttribute ,"A---W");
+	lstrcpy(lpSubInfo->szMode,"deflate");
 	//lstrcpy(lpSubInfo->szMode,"");
 	return true;
 }

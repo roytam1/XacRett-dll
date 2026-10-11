@@ -128,6 +128,7 @@ void COpenIso::Listing(const BYTE* b,ISO_DIRECTORY_RECORD* dr,LPCSTR parent)
 				if(info.szFileName[l]=='.')
 					info.szFileName[l]=0;
 				info.dwOriginalSize=info.dwCompressedSize=ndr->size.l;
+			lstrcpy(info.szMode,"stored");
 				isoTimeToDosTime(&ndr->date,&info.wDate,&info.wTime);
 				m_info.push_back(info);
 			}

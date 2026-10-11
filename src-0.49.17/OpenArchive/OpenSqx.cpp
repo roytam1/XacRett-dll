@@ -229,6 +229,7 @@ void COpenSqx::AddAlNode(ARC_NODE* al)
 	memset(&info,0,sizeof(INDIVIDUALINFO));
 
 	lstrcpy(info.szFileName,al->szFName);
+	lstrcpy(info.szMode,"SQX");
 	info.dwCRC=al->uFileCRC;
 	info.dwCompressedSize=al->l64NewSize;
 	info.dwOriginalSize=al->l64OrigSize;

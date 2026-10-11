@@ -33,6 +33,7 @@ bool COpenZac::FindSub(INDIVIDUALINFO *lpSubInfo)
 
 	lstrcpy(lpSubInfo->szFileName,(char*)buf+1);
 	lstrcpy(lpSubInfo->szAttribute,"A---W");
+	lstrcpy(lpSubInfo->szMode,"stored");
 	//lstrcpy(lpSubInfo->szMode,"");
 	lpSubInfo->dwOriginalSize=zLen;
 

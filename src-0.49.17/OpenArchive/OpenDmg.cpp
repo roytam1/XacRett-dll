@@ -575,6 +575,7 @@ bool COpenDmg::hfsExpand( const BYTE* beg, const BYTE* end)
 						//kiutil::timeSet( outname, &lft );
 						info.dwCompressedSize=info.dwOriginalSize;
 						lstrcpy(info.szFileName,outname);
+						lstrcpy(info.szMode,"stored");
 						::FileTimeToDosDateTime(&ft,&info.wDate,&info.wTime);
 						m_info.push_back(info);
 					}

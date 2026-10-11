@@ -38,7 +38,7 @@ bool COpenAsd::FindSub(INDIVIDUALINFO *lpSubInfo)
 	// ヘッダ解析
 	int c = fgetc(COpenAsd::fp);
 	fread( buf, 1, c+14, COpenAsd::fp );
-	//lstrcpy(lpSubInfo->szMode,"");
+	lstrcpy(lpSubInfo->szMode,"ASD");
 
 	memcpy(lpSubInfo->szFileName, buf, c ), lpSubInfo->szFileName[c] = '\0';
 	lpSubInfo->dwOriginalSize =	// 元サイズ

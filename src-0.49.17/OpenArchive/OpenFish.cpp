@@ -33,7 +33,7 @@ bool COpenFish::FindSub(INDIVIDUALINFO *lpSubInfo)
 		lpSubInfo->wRatio = (WORD)((tmp2 *1000 / tmp1));
 	}
 	readsize+=lpSubInfo->dwCompressedSize;
-	//lstrcpy(lpSubInfo->szMode,"");
+	lstrcpy(lpSubInfo->szMode,"stored");
 
 	return true;
 }

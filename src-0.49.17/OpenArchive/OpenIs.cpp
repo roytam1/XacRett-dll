@@ -111,6 +111,7 @@ bool COpenIs::FindNext(INDIVIDUALINFO *lpSubInfo)
 	}
 	lpSubInfo->wDate=m_FileList[i].date;
 	lpSubInfo->wTime=m_FileList[i].time;
+	lstrcpy(lpSubInfo->szMode,m_FileList[i].cmprs?"deflate":"stored");
 
 	lstrcpy(lpSubInfo->szAttribute ,"----");
 	if (m_FileList[i].attr & FILE_ATTRIBUTE_READONLY)

@@ -31,7 +31,7 @@ bool COpenUnixDecoder::FindFirst(INDIVIDUALINFO *lpSubInfo)
 	lstrcpy(lpSubInfo->szFileName,outname);
 	lstrcpy(lpSubInfo->szAttribute,"A---W");
 	lpSubInfo->dwCompressedSize=(DWORD)filelength(fileno(fp));
-	//lstrcpy(lpSubInfo->szMode,"");
+	lstrcpy(lpSubInfo->szMode,"stored");
 	return true;
 }
 
