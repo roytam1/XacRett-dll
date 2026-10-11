@@ -6,6 +6,9 @@
 #include "stdafx.h"
 #include "DmgTool.h"
 #include "zlib/zlib.h"
+#ifdef _MSC_VER
+#pragma warning( disable : 4786 )
+#endif
 #include <algorithm>
 #include <map>
 #include <string>
@@ -336,7 +339,7 @@ bool CDmgTool::hfsExpand( const BYTE* beg, const BYTE* end, const char* destDir 
 
 	const BYTE* hdr = beg; beg -= 0x400;
 	const unsigned long BlockSize   = UInt32( hdr + 0x28 );
-	const unsigned long CatalogSize = UInt64( hdr + 0x110 + 0 );
+	const unsigned long CatalogSize = (unsigned long)UInt64( hdr + 0x110 + 0 );
 	const unsigned long CatalogPos  = BlockSize * UInt32(hdr+0x110+0x10);
 	const unsigned long FileCount   = UInt32( hdr + 0x20 );
 	const unsigned long FolderCount = UInt32( hdr + 0x24 );
@@ -559,7 +562,7 @@ bool CDmgTool::hfsExpand( const BYTE* beg, const BYTE* end, const char* destDir 
 							const unsigned long blockCount = UInt32(desc+0x6c+8*i);
 							for(int j=0; j!=blockCount; ++j)
 							{
-								unsigned long len = min(BlockSize, dsize);
+								unsigned long len = (size_t)min(BlockSize, dsize);
 								fwrite( beg+BlockSize*(startBlock+j), 1, len, fp );
 								dsize -= len;
 							}

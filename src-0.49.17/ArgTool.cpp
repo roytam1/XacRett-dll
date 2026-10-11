@@ -149,7 +149,8 @@ bool CArgTool::Extract( const char* fname,const char* ddir )
 						bits_begin();
 
 						// floor(iStatus bit‚¸‚Â)–256 ‚Ìƒe[ƒuƒ‹“Ç‚İ‚İ
-						FLOOR_ELEM feElem[256],*ptrFl=feElem;
+						FLOOR_ELEM feElem[256];
+						const FLOOR_ELEM *ptrFl=feElem;
 						int i,t,tmp;
 						for( i=0,t=0; i!=256; i++ )
 						{

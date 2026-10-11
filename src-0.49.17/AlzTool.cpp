@@ -87,9 +87,9 @@ bool CAlzTool::Extract( const char* fname,const char* ddir )
 							 0!=(hdr.flg&0x02), 0!=((hdr.flg)&0x04) );
 				break;
 			case EnhDeflated:
-				EnableDFL64(1);
+				zlibSwitchToDeflate64();
 				Inflate( hdr.usz, hdr.csz );
-				EnableDFL64(0);
+				zlibSwitchToDeflate_old();
 				break;
 			}
 

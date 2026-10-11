@@ -1,6 +1,7 @@
 
 #include "stdafx.h"
 #include "ZipTool.h"
+#include "libbzip2/bzlib.h"
 #include "zlib/zlib.h"
 
 //-- CZipTool 部分 -----------------------
@@ -86,7 +87,7 @@ bool CZipTool::Extract( const char* fname,const char* ddir )
 			switch( hdr.mhd )
 			{
 			case Stored:	 Unstore( hdr.usz, hdr.csz );	break;
-			case Deflated:	 Inflate( hdr.usz, hdr.csz );	break;
+			case Deflated:	 Inflate( hdr.usz, hdr.csz, false );	break;
 			case Shrunk:	Unshrink( hdr.usz, hdr.csz );	break;
 			case Reduced1:	Unreduce( hdr.usz, hdr.csz, 1 );	break;
 			case Reduced2:	Unreduce( hdr.usz, hdr.csz, 2 );	break;
@@ -96,11 +97,8 @@ bool CZipTool::Extract( const char* fname,const char* ddir )
 				Explode( hdr.usz, hdr.csz,
 							 0!=(hdr.flg&0x02), 0!=((hdr.flg)&0x04) );
 				break;
-			case EnhDeflated:
-				EnableDFL64(1);
-				Inflate( hdr.usz, hdr.csz );
-				EnableDFL64(0);
-				break;
+			case EnhDeflated:Inflate( hdr.usz, hdr.csz, true );	break;
+			case BZip2:		 UnBZip2( hdr.usz, hdr.csz );		break;
 			}
 
 			// 事後処理
@@ -227,11 +225,10 @@ bool CZipTool::read_init( const char* pwd, ZipLocalHeader* hdr )
 		for( int i=0; i!=RAND_HEAD_LEN; i++ )
 			zdecode( eh[i] );
 
-		// フラグによって、チェックに用いる値は違う
-		WORD checkerval = ((hdr->flg&8)==8 ? hdr->tim : (WORD)(hdr->crc>>16));
-
-		// 検査
-		if( (eh[RAND_HEAD_LEN-2] | (eh[RAND_HEAD_LEN-1]<<8)) == checkerval )
+		// The password check byte is a single byte taken from the PKWARE encryption header.
+		BYTE checkerval = BYTE(hdr->exl ? hdr->tim>>8 : hdr->crc>>24);
+		BYTE checkedval = eh[RAND_HEAD_LEN-1];
+		if( checkedval == checkerval )
 			ans = true;
 	}
 
@@ -272,7 +269,7 @@ bool CZipTool::read_header( ZipLocalHeader* hdr,unsigned char* buf )
 	char* pp;
 	for( pp=hdr->fnm; *pp!=0; pp++ );
 
-	if( hdr->mhd > Deflated || hdr->mhd==Tokenized )
+	if( hdr->mhd > BZip2 || hdr->mhd==Tokenized  || hdr->mhd==DclImploded )
 		{ if(del)delete [] buf; return false; }
 	if( pp-hdr->fnm != l )
 		{ if(del)delete [] buf; return false; }
@@ -330,7 +327,7 @@ void CZipTool::Unstore( DWORD usz, DWORD csz )
 // Deflate ： lzss+huffman。現在のpkzipのメソッド
 ////////////////////////////////////////////////////////////////
 
-void CZipTool::Inflate( DWORD usz, DWORD csz )
+void CZipTool::Inflate( DWORD usz, DWORD csz, bool defl64 )
 {
 	unsigned char* outbuf = CTool::common_buf;
 	unsigned char*  inbuf = CTool::common_buf + (XACR_BUFSIZE/2);
@@ -356,7 +353,8 @@ void CZipTool::Inflate( DWORD usz, DWORD csz )
 	zs.avail_in = insiz;
 
 	// スタート
-	inflateInit2( &zs, -15 );
+	if(defl64) zlibSwitchToDeflate64();
+	inflateInit2( &zs, (defl64 ? -16 : -15) );
 
 	// 書庫から入力し終わるまでループ
 	int err = Z_OK;
@@ -397,7 +395,10 @@ void CZipTool::Inflate( DWORD usz, DWORD csz )
 	{
 		err = inflate(&zs,Z_PARTIAL_FLUSH);
 		if( err!=Z_STREAM_END && err!=Z_OK )
+		{
+			zipwrite( outbuf, outsiz-zs.avail_out );
 			break;
+		}
 
 		zipwrite( outbuf, outsiz-zs.avail_out );
 		zs.next_out  = outbuf;
@@ -406,6 +407,7 @@ void CZipTool::Inflate( DWORD usz, DWORD csz )
 
 	// 終了
 	inflateEnd(&zs);
+	if(defl64) zlibSwitchToDeflate_old();
 }
 
 ////////////////////////////////////////////////////////////////
@@ -879,4 +881,79 @@ int CZipTool::ReadTree( sf_tree* tree )
 				return -1;
 		}
 	}
+}
+
+void CZipTool::UnBZip2( DWORD usz, DWORD csz )
+{
+	unsigned char* outbuf = CTool::common_buf;
+	unsigned char*  inbuf = CTool::common_buf + (XACR_BUFSIZE/2);
+//--------------------------------------------------------------------//
+
+	// libbz2準備
+	bz_stream bs = {0};
+
+	// 出力バッファ
+	int outsiz   = (XACR_BUFSIZE/2);
+	bs.next_out  = (char*)outbuf;
+	bs.avail_out = outsiz;
+
+	// 入力バッファ
+	int insiz = zipread( inbuf, (XACR_BUFSIZE/2) > csz ? csz : (XACR_BUFSIZE/2) );
+	if( insiz<=0 )
+		return;
+	csz        -= insiz;
+	bs.next_in  = (char*)inbuf;
+	bs.avail_in = insiz;
+
+	// スタート
+	BZ2_bzDecompressInit( &bs, 0, 0 );
+
+	// 書庫から入力し終わるまでループ
+	int err = BZ_OK;
+	while( csz )
+	{
+		while( bs.avail_out > 0 )
+		{
+			err = BZ2_bzDecompress( &bs );
+			if( err!=BZ_STREAM_END && err!=BZ_OK )
+				csz=0;
+			if( !csz )
+				break;
+
+			if( bs.avail_in<=0 )
+			{
+				int insiz = zipread( inbuf, (XACR_BUFSIZE/2) > csz ?
+												csz : (XACR_BUFSIZE/2) );
+				if( insiz<=0 )
+				{
+					err = BZ_STREAM_END;
+					csz = 0;
+					break;
+				}
+
+				csz        -= insiz;
+				bs.next_in  = (char*)inbuf;
+				bs.avail_in = insiz;
+			}
+		}
+
+		zipwrite( outbuf, outsiz-bs.avail_out );
+		bs.next_out  = (char*)outbuf;
+		bs.avail_out = outsiz;
+	}
+
+	// 出力残しを無くす。
+	while( err!=BZ_STREAM_END )
+	{
+		err = BZ2_bzDecompress( &bs );
+		if( err!=BZ_STREAM_END && err!=BZ_OK )
+			break;
+
+		zipwrite( outbuf, outsiz-bs.avail_out );
+		bs.next_out  = (char*)outbuf;
+		bs.avail_out = outsiz;
+	}
+
+	// 終了
+	BZ2_bzDecompressEnd( &bs );
 }

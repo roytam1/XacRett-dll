@@ -31,11 +31,13 @@ enum ZipMethod
 	Reduced2,
 	Reduced3,
 	Reduced4,
-	Imploded,	// 6
-	Tokenized,	// 7 ( not supported )
-	Deflated,	// 8
-	EnhDeflated,// 9 ( not supported )
-	DclImploded,//10 ( not supported )
+	Imploded,	//  6
+	Tokenized,	//  7 reserved
+	Deflated,	//  8
+	EnhDeflated,//  9
+	DclImploded,// 10 ( not supported )
+			// 11 reserved
+	BZip2=12,	// 12
 
 	Err=178     // this value is used by xacrett (^^;
 };
@@ -208,7 +210,7 @@ private: //-- Zip内部処理用 -----------------------
 // 展開アルゴリズム
 
 	void Unstore( DWORD usz, DWORD csz );
-	void Inflate( DWORD usz, DWORD csz );
+	void Inflate( DWORD usz, DWORD csz, bool defl64 );
 	void Unshrink( DWORD usz, DWORD csz );
 
 	// unreduce
@@ -220,6 +222,9 @@ private: //-- Zip内部処理用 -----------------------
 	void LoadTree( sf_tree* tree, int treesize );
 	int  ReadTree( sf_tree* tree );
 	void ReadLengths( sf_tree* tree );
+
+	// bzip2
+	void UnBZip2( DWORD usz, DWORD csz );
 
 // ヘッダ処理
 // 面倒なのでCentralDirectory系は一切無視！
