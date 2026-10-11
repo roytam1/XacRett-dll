@@ -1,18 +1,34 @@
 ///////////////////////////////////////////////////////////////////
 // zdatas.h
-//  
-// Static ZData definitions
+//
+// ZData API definitions (reconstructed, source-compatible).
 //
 // InstallShield Compression and Maintenance util
-// fOSSiL - 2000
+// Original binary by fOSSiL - 2000 (*Any use is authorized,
+// granted the proper credit is given*).
 //
-// *Any use is authorized, granted the proper credit is given*
+// This header + zdata.c reimplement the ZData 8-function API over
+// stock zlib (raw deflate, matching the original wire behavior).
+// It is a drop-in source replacement for the 32-bit-only COFF
+// object (zdata.lib) and is safe for AMD64 builds.
 //
-// No support will be provided for this code
+// API/behavior notes (verified against the original binary):
+//  - ZDataSetup(2, 0xfa372dea, 0) initializes; any other magic fails.
+//  - ZDataSetInfo ids: 1=buffer size, 3=callback param, 4=read func,
+//    5=write func, 6=buffer ptr. Unknown ids fail.
+//  - Compressed input framing ("new" style): a stream of chunks,
+//    each = u16LE length + raw deflate stream (no zlib header).
+//    Chunks decode independently; a zero length ends the stream.
+//    Decode failures of individual chunks are tolerated (skipped),
+//    matching the original: Decompress consumes all input and
+//    emits whatever decodes.
+//  - Pointer-carrying SetInfo values use ULONG_PTR so the API is
+//    64-bit clean (on x86 the __stdcall export names are unchanged).
 //
-
 #ifndef ZDATAS_INC
 #define ZDATAS_INC
+
+#include <windows.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,16 +42,20 @@ typedef struct tagZCOMPRESSBUF {
 #define ZDAPI		__stdcall
 #define ZDCALLBACK	__stdcall
 
+/* Callback prototypes (buffer, in/out length, user param) */
+typedef int (ZDCALLBACK *ZD_READ_CB)(void* pBuf, DWORD* pLen, void* pParam);
+typedef int (ZDCALLBACK *ZD_WRITE_CB)(void* pBuf, DWORD* pLen, void* pParam);
+
 // ZDataSetup(2, 0xfa372dea, 0)
 int ZDAPI ZDataSetup(DWORD, DWORD, DWORD);
 int ZDAPI ZDataUnSetup();
-// ZDataSetInfo(INFO_func, Param)
-int ZDAPI ZDataSetInfo(DWORD, DWORD);
+// ZDataSetInfo(INFO_xxx, value)
+int ZDAPI ZDataSetInfo(DWORD, ULONG_PTR);
 int ZDAPI ZDataGetLastError();
 // ZDataStart(SessionId)
 int ZDAPI ZDataStart(DWORD);
 int ZDAPI ZDataEnd();
-// ZDataCompress
+// ZDataCompress (see zdata.c; original observable behavior kept)
 int ZDAPI ZDataCompress(DWORD, LPZCOMPRESSBUF);
 // ZDataDecompress(SessionId)
 int ZDAPI ZDataDecompress(DWORD);

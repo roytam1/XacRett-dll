@@ -5,7 +5,7 @@
 
 
 //
-// ‰ğÍŒ‹‰ÊMEMO by K.INABA
+// ï¿½ï¿½ÍŒï¿½ï¿½ï¿½MEMO by K.INABA
 //
 /*
  ### .hdr ###
@@ -32,15 +32,15 @@
 #pragma pack(1)
 #endif
 
-// ƒwƒbƒ_ ( .cab .hdr )
+// ï¿½wï¿½bï¿½_ ( .cab .hdr )
 enum { LINK_NONE=0, LINK_PREV=1, LINK_NEXT=2, LINK_BOTH=3 };
 struct iscab_header {
 	DWORD   Signature;		// 00 ( []= 0x49, 0x53, 0x63, 0x28 )
 	DWORD   Version;		// 04
-	DWORD   LinkFlags;		// 08 (cab: ƒ}ƒ‹ƒ`ƒ{ƒŠƒ…[ƒ€ŠÖŒW)
-	DWORD   ofsCabDesc;		// 0c (hdr: iscab_desc‚Ìƒtƒ@ƒCƒ‹æ“ª‚©‚ç‚ÌˆÊ’u)
-	DWORD   cbCabDesc;		// 10 (hdr: iscab_desc‚ÌƒTƒCƒY)
-	__int64 ofsCompData;	// 14 (cab: ˆ³kƒf[ƒ^‚ÌˆÊ’u)
+	DWORD   LinkFlags;		// 08 (cab: ï¿½}ï¿½ï¿½ï¿½`ï¿½{ï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ÖŒW)
+	DWORD   ofsCabDesc;		// 0c (hdr: iscab_descï¿½Ìƒtï¿½@ï¿½Cï¿½ï¿½ï¿½æ“ªï¿½ï¿½ï¿½ï¿½ÌˆÊ’u)
+	DWORD   cbCabDesc;		// 10 (hdr: iscab_descï¿½ÌƒTï¿½Cï¿½Y)
+	__int64 ofsCompData;	// 14 (cab: ï¿½ï¿½ï¿½kï¿½fï¿½[ï¿½^ï¿½ÌˆÊ’u)
 	DWORD   FirstFile;		// 1c
 	DWORD   LastFile;		// 20
 	__int64 ofsFirstData;	// 24
@@ -51,7 +51,7 @@ struct iscab_header {
 	__int64 cbLastData;		// 4c
 };
 
-// î•ñ( .hdr )
+// ï¿½ï¿½ï¿½( .hdr )
 static const int CFG_MAX=0x47;
 struct iscab_desc {
 	DWORD ofsStrings;				// 0
@@ -76,7 +76,7 @@ struct iscab_desc {
 	DWORD ofsSTab;					// 27a
 };
 
-// Ši”[ƒtƒ@ƒCƒ‹î•ñ( .hdr )
+// ï¿½iï¿½[ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½( .hdr )
 #define DESC_SPLIT			1L
 #define DESC_ENCRYPTED		2L
 #define DESC_COMPRESSED		4L
@@ -311,15 +311,17 @@ bool CIsTool::extractAll()
 		return false;
 
 	ZDataSetup( 2, 0xfa372dea, 0 );
-	ZDataSetInfo( INFO_BUFFER_PTR,     (DWORD)CTool::common_buf );
+	// These carry pointers and function pointers. They must be cast to a
+	// pointer-sized type: a (DWORD) cast truncates them on 64-bit targets.
+	ZDataSetInfo( INFO_BUFFER_PTR,     (ULONG_PTR)CTool::common_buf );
 	ZDataSetInfo( INFO_BUFFER_SIZE,    XACR_BUFSIZE );
-	ZDataSetInfo( INFO_CALLBACK_PARAM, (DWORD)this );
-	ZDataSetInfo( INFO_WRITE_CALLBACK, (DWORD)_w_ );
-	ZDataSetInfo( INFO_READ_CALLBACK,  (DWORD)_r_ );
+	ZDataSetInfo( INFO_CALLBACK_PARAM, (ULONG_PTR)this );
+	ZDataSetInfo( INFO_WRITE_CALLBACK, (ULONG_PTR)_w_ );
+	ZDataSetInfo( INFO_READ_CALLBACK,  (ULONG_PTR)_r_ );
 
 	for( int i=0; i<m_FileNum; i++ )
 	{
-		if (m_Endflg) return true;//’Ç‰Á By Bonty
+		if (m_Endflg) return true;//ï¿½Ç‰ï¿½ By Bonty
 		if(!CheckStr(m_FileList[i].name))
 		{
 			if( (unsigned int)m_FileList[i].ofsData < (unsigned int)ftell(fp) )
@@ -361,7 +363,7 @@ void CIsTool::directCopy( bool crypt )
 	int rd;
 	while( 0 >= (rd=readArc( buf, 262144 )) )
 	{
-		if( crypt ) // •œ†
+		if( crypt ) // ï¿½ï¿½ï¿½ï¿½
 		{
 			int cS=rd;
 			unsigned char* cP=buf;
@@ -395,11 +397,11 @@ bool CIsTool::readInit()
 
 int CIsTool::readArc( void* buf, int siz )
 {
-	// ˆ³kŒãƒTƒCƒY•ª‚ÉŠù‚É“Ç‚İo‚µ‚Ä‚¢‚é
+	// ï¿½ï¿½ï¿½kï¿½ï¿½Tï¿½Cï¿½Yï¿½ï¿½ï¿½ÉŠï¿½ï¿½É“Ç‚İoï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½
 	if( m_sizeLimit<=0 )
 		return 0;
 
-	// ‘ŒÉ‚ªŠJ‚¯‚È‚©‚Á‚½‚çƒGƒ‰[
+	// ï¿½ï¿½ï¿½É‚ï¿½ï¿½Jï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Gï¿½ï¿½ï¿½[
 	if( fp==NULL )
 	{
 		iscab_header hdr;
@@ -411,29 +413,29 @@ int CIsTool::readArc( void* buf, int siz )
 		fseek( fp, (int)hdr.ofsCompData, SEEK_SET );
 	}
 
-	// ƒŠƒ~ƒbƒg‚ğ‰z‚¦‚È‚¢‚æ‚¤‚ÉAo—ˆ‚é‚¾‚¯“Ç‚ñ‚Å‚İ‚é
+	// ï¿½ï¿½ï¿½~ï¿½bï¿½gï¿½ï¿½ï¿½zï¿½ï¿½ï¿½È‚ï¿½ï¿½æ‚¤ï¿½ÉAï¿½oï¿½ï¿½ï¿½é‚¾ï¿½ï¿½ï¿½Ç‚ï¿½Å‚İ‚ï¿½
 	int gRd = (m_sizeLimit>siz ? siz : m_sizeLimit);
 	int rRd = fread( buf, 1, gRd, fp );
 
-	// ƒGƒ‰[
+	// ï¿½Gï¿½ï¿½ï¿½[
 	if( rRd<0 )
 		return -1;
 
-	// ‘S•”“Ç‚ß‚½ê‡
+	// ï¿½Sï¿½ï¿½ï¿½Ç‚ß‚ï¿½ï¿½ê‡
 	m_sizeLimit -= rRd;
 	if( rRd == gRd )
 		return rRd;
 
-	// EOF‚ª—ˆ‚½‚Á‚Û‚¢‚Ì‚ÅŸ‚Ìƒ{ƒŠƒ…[ƒ€‚Ö
+	// EOFï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Û‚ï¿½ï¿½Ì‚Åï¿½ï¿½Ìƒ{ï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½ï¿½
 	closeArc();
 
-	// ‘«‚è‚È‚¢•ª‚ğ“Ç‚ñ‚Å‚İ‚é
+	// ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½ï¿½ï¿½ï¿½Ç‚ï¿½Å‚İ‚ï¿½
 	int nRd = readArc( ((char*)buf)+rRd, siz-rRd );
 
-	// ƒGƒ‰[
+	// ï¿½Gï¿½ï¿½ï¿½[
 	if( nRd<0 )
 		return -1;
 
-	// “Ç‚ß‚½•ª‚¾‚¯•Ô‚·
+	// ï¿½Ç‚ß‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô‚ï¿½
 	return rRd + nRd;
 }
