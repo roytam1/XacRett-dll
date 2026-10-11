@@ -121,8 +121,16 @@ no binary-only dependencies (AMD64 port preparation).
   NUL name + Huffman tree/bits, raw output, no NCR layer — validated by
   decoding `SHAR.CQ` to 12115 bytes of C source in Python first).
   `cpmshar.lbr`: 3/3 members list and extract byte-exact. Crunched
-  (`76 FE/FD`) members list but skip extraction (no sample to verify
-  against — known gap). CP/M dates convert to DOS dates (pre-1980 → 0);
+  (`76 FE/FD`) members are v2.x adaptive LZW (9-12 bit MSB-first codes,
+  EOF 256 / RESET 257 / filler 258-259 / dict from 260, RLE90 layer,
+  table-full victim replacement — NOT the fixed-12-bit hash scheme of
+  ARC m5): header is magic + NUL-terminated name + ref/sig/err/spare
+  (sig >= 0x20 selects v2; the name runs to the first 00, then data;
+  checksum only when errdetect != 0). `crunch28.lbr`: 8/8 members
+  (6 crunched + 2 stored) list and extract byte-exact, verified against
+  80un's `uncrunch` (`TEMP\ref80un\crunch.py`, GPL, reference use only —
+  never vendor; our `LbrTool.cpp` port is clean-room). V1 crunch
+  (sig < 0x20) is rejected, not decoded. CP/M dates convert to DOS dates (pre-1980 → 0);
   `uOSType` 15 matches LZH `C`.
 - Adding a new provider requires: `XxxTool.h/.cpp` + `OpenArchive/OpenXxx.h
   /.cpp`, `SOURCE=` blocks in `XacRett.dsp` (pure ASCII, Edit-safe;

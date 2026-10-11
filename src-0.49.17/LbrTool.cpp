@@ -59,6 +59,365 @@ struct LbrSqNode
 #define LBR_SPEOF 256
 #define LBR_NUMVALS 257
 
+// ---- CP/M Crunch v2.x decoder (adaptive LZW + RLE90) ----
+// Container: 76 FE, NUL-terminated name, 4 bytes (ref/sig/err/spare),
+// MSB-first variable codes (9-12 bits), EOF code, zero-pad to byte,
+// LE16 checksum over final output bytes (only if errdetect != 0).
+// V2 only (siglevel >= 0x20); V1 (fixed 12-bit hash slots) unsupported.
+#define CR_EOF 256
+#define CR_RESET 257
+#define CR_MAXBITS 12
+#define CR_TABSIZE 4096
+#define CR_HASH 5003
+#define CR_HASHOV 0x200
+#define CR_EMPTY 0x80
+#define CR_USED 0x20
+#define CR_ROOT 0x80
+#define CR_FILLING 0
+#define CR_LASTPASS 0xFE
+#define CR_REPLACING 0xFF
+
+struct CrTable
+{
+	BYTE flags[CR_TABSIZE];
+	BYTE prefix[CR_TABSIZE];
+	BYTE suffix[CR_TABSIZE];
+	BYTE hashHi[CR_HASH+CR_HASHOV];
+	BYTE hashLo[CR_HASH+CR_HASHOV];
+	int nextCode;
+	int codeSize;
+	int threshold;
+	int state;
+};
+
+static void CrClear(CrTable* t)
+{
+	memset(t->flags,CR_EMPTY,CR_TABSIZE);
+	memset(t->prefix,0,CR_TABSIZE);
+	memset(t->suffix,0,CR_TABSIZE);
+	memset(t->hashHi,CR_EMPTY,CR_HASH+CR_HASHOV);
+	memset(t->hashLo,0,CR_HASH+CR_HASHOV);
+	t->hashHi[0] = 0x7F;// slot 0 never reads as empty
+	t->nextCode = 0;
+	t->codeSize = 9;
+	t->threshold = 1<<(9-8);
+	t->state = CR_FILLING;
+}
+
+static void CrHashAddr(int prefix, int suffix, unsigned* addr, unsigned* stride)
+{
+	unsigned shifted = ((unsigned)prefix<<4) & 0xFFFF;
+	unsigned lo = (unsigned)suffix ^ (shifted>>8);
+	unsigned hi = (0x60 + ((unsigned)prefix & 0x0F)) & 0xFF;
+	unsigned a = (((hi<<8)|lo) + 1) & 0xFFFF;
+	*addr = a;
+	*stride = (a + 0x8C75) & 0xFFFF;
+}
+
+static unsigned CrProbe(unsigned addr, unsigned stride)
+{
+	addr = (addr + stride) & 0xFFFF;
+	if((addr>>8) < 0x60)
+		addr = (addr + CR_HASH) & 0xFFFF;
+	return addr;
+}
+
+// slot index, or -1 when the address walked out of the table
+static int CrSlot(unsigned addr)
+{
+	if(addr < 0x6000 || addr >= 0x6000+CR_HASH+CR_HASHOV)
+		return -1;
+	return (int)(addr - 0x6000);
+}
+
+static void CrHashInsert(CrTable* t, int prefix, int suffix)
+{
+	unsigned addr, stride, k;
+	CrHashAddr(prefix,suffix,&addr,&stride);
+	for(k=0;k<CR_HASH;k++)
+	{
+		int slot = CrSlot(addr);
+		if(slot<0)
+			return;
+		if(t->hashHi[slot]==CR_EMPTY)
+		{
+			t->hashHi[slot] = (BYTE)((t->nextCode>>8)&0xFF);
+			t->hashLo[slot] = (BYTE)(t->nextCode & 0xFF);
+			return;
+		}
+		addr = CrProbe(addr,stride);
+	}
+}
+
+static void CrInsert(CrTable* t, int prefix, int suffix, int flag)
+{
+	CrHashInsert(t,prefix,suffix);
+	{
+		int code = t->nextCode;
+		if(code < CR_TABSIZE)
+		{
+			t->flags[code] = (BYTE)(flag | ((prefix>>8)&0xFF));
+			t->prefix[code] = (BYTE)(prefix & 0xFF);
+			t->suffix[code] = (BYTE)suffix;
+		}
+		t->nextCode = code+1;
+		if( (((t->nextCode+1)>>8)&0xFF) == t->threshold )
+		{
+			t->threshold = (t->threshold<<1)&0xFF;
+			if(t->codeSize+1 > CR_MAXBITS)
+				t->state = CR_LASTPASS;
+			else
+				t->codeSize++;
+		}
+	}
+}
+
+static void CrSeed(CrTable* t)
+{
+	int b;
+	CrClear(t);
+	for(b=0;b<256;b++)
+		CrInsert(t,0xFFFF,b,CR_USED);
+	for(b=0;b<4;b++)
+		CrInsert(t,0x7FFF,0,CR_USED);
+}
+
+static void CrReplace(CrTable* t, int prefix, int suffix)
+{
+	unsigned addr, stride, k;
+	CrHashAddr(prefix,suffix,&addr,&stride);
+	for(k=0;k<CR_HASH;k++)
+	{
+		int slot = CrSlot(addr);
+		int victim;
+		if(slot<0)
+			return;
+		if(t->hashHi[slot]==CR_EMPTY)
+			return;
+		victim = (t->hashHi[slot]<<8) | t->hashLo[slot];
+		if(victim < CR_TABSIZE && !(t->flags[victim] & CR_USED))
+		{
+			t->flags[victim] = (BYTE)((prefix>>8)&0xFF);
+			t->prefix[victim] = (BYTE)(prefix & 0xFF);
+			t->suffix[victim] = (BYTE)suffix;
+			return;
+		}
+		addr = CrProbe(addr,stride);
+	}
+}
+
+struct CrBits
+{
+	FILE* fp;
+	long left;// member bytes remaining
+	unsigned buf;
+	int have;
+};
+
+static int CrGetc(CrBits* b)
+{
+	int c;
+	if(b->left<=0)
+		return -1;
+	c = fgetc(b->fp);
+	if(c<0)
+		return -1;
+	b->left--;
+	return c;
+}
+
+// n-bit MSB-first code; CR_EOF when the member data runs out
+static int CrRead(CrBits* b, int n)
+{
+	while(b->have < n)
+	{
+		int c = CrGetc(b);
+		if(c<0)
+			return CR_EOF;
+		b->buf = (b->buf<<8) | (unsigned)c;
+		b->have += 8;
+	}
+	{
+		int code = (b->buf >> (b->have - n)) & ((1<<n)-1);
+		b->have -= n;
+		if(b->have>0)
+			b->buf &= (1<<b->have)-1;
+		else
+			b->buf = 0;
+		return code;
+	}
+}
+
+struct CrOut
+{
+	FILE* fp;
+	int prev;
+	int esc;
+	unsigned sum;
+	int tap;
+};
+
+static void CrPutc(CrOut* o, int b)
+{
+	int k;
+	if(o->esc)
+	{
+		o->esc = 0;
+		if(b==0)
+		{
+			fputc(0x90,o->fp);
+			if(o->tap) o->sum = (o->sum+0x90)&0xFFFF;
+		}
+		else
+		{
+			for(k=0;k<b-1;k++)
+			{
+				fputc(o->prev,o->fp);
+				if(o->tap) o->sum = (o->sum+o->prev)&0xFFFF;
+			}
+		}
+		return;
+	}
+	if(b==0x90)
+	{
+		o->esc = 1;
+		return;
+	}
+	fputc(b,o->fp);
+	if(o->tap) o->sum = (o->sum+b)&0xFFFF;
+	o->prev = b;
+}
+
+// Emit one code's string through the RLE layer. Returns 0 on corrupt input.
+static int CrEmit(CrTable* t, int code, int prev, int* firstByte, int* skip, CrOut* o)
+{
+	int stack[CR_TABSIZE+2];
+	int sp = 0;
+	for(;;)
+	{
+		int fl = t->flags[code];
+		if( (fl & ~CR_USED & 0xFF) == CR_EMPTY )
+		{
+			*skip = 1;
+			CrInsert(t,prev,*firstByte,CR_USED);
+			fl = t->flags[code];
+			if( (fl & ~CR_USED & 0xFF) == CR_EMPTY )
+				return 0;
+		}
+		if(sp > CR_TABSIZE)
+			return 0;
+		stack[sp++] = t->suffix[code];
+		if( fl & CR_ROOT )
+		{
+			*firstByte = t->suffix[code];
+			break;
+		}
+		code = ((fl & ~CR_USED & 0xFF)<<8) | t->prefix[code];
+		if(code >= CR_TABSIZE)
+			return 0;
+	}
+	while(sp>0)
+		CrPutc(o,stack[--sp]);
+	return 1;
+}
+
+// Decode one crunched (76 FE, v2.x) member to `out`.
+// `start` points at the member's first byte, `datasize` bounds the reads.
+static bool UnCrunchMember(FILE* lbr, long start, long datasize, FILE* out)
+{
+	CrBits br;
+	CrTable t;
+	CrOut o;
+	int prev, first, skip, replacing;
+	long pos;
+
+	fseek(lbr,start,SEEK_SET);
+	if(fgetc(lbr)!=0x76 || fgetc(lbr)!=0xFE)
+		return false;
+	pos = 2;
+	// NUL-terminated name (cap: must end inside the member)
+	for(;;)
+	{
+		int c;
+		if(pos >= datasize)
+			return false;
+		c = fgetc(lbr);
+		pos++;
+		if(c<0)
+			return false;
+		if(c==0)
+			break;
+		if(pos-2 > 128)
+			return false;
+	}
+	// ref/sig/err/spare
+	if(pos+4 > datasize)
+		return false;
+	fgetc(lbr);// reflevel (reference only)
+	{
+		int sig = fgetc(lbr);
+		if(sig<0x20)
+			return false;// v1 (fixed 12-bit hash slots) unsupported
+	}
+	int err = fgetc(lbr);
+	fgetc(lbr);// spare
+	pos += 4;
+
+	br.fp = lbr; br.left = datasize-pos; br.buf = 0; br.have = 0;
+	CrSeed(&t);
+	o.fp = out; o.prev = 0; o.esc = 0; o.sum = 0; o.tap = (err>0);
+	prev = 0xFFFF; first = 0; skip = 1; replacing = 0;
+	for(;;)
+	{
+		int code = CrRead(&br,t.codeSize);
+		while(code==258 || code==259)
+			code = CrRead(&br,t.codeSize);
+		if(code==CR_EOF)
+			break;
+		if(code==CR_RESET)
+		{
+			CrSeed(&t);
+			prev = 0xFFFF; skip = 1; replacing = 0;
+			continue;
+		}
+		if(code<0 || code>=CR_TABSIZE)
+			return false;
+		t.flags[code] |= CR_USED;
+		if(!CrEmit(&t,code,prev,&first,&skip,&o))
+			return false;
+		if(replacing)
+			CrReplace(&t,prev,first);
+		else
+		{
+			int was = skip;
+			skip = 0;
+			if(!was)
+				CrInsert(&t,prev,first,0);
+			if(t.state==CR_LASTPASS)
+				t.state = CR_REPLACING;
+			else if(t.state==CR_REPLACING)
+				replacing = 1;
+		}
+		prev = code;
+	}
+	if(o.esc)
+		o.esc = 0;// dangling escape is dropped
+	if(err>0)
+	{
+		// checksum follows the EOF zero-padding (already byte-aligned:
+		// the bit reader only ever consumed whole bytes)
+		int lo, hi;
+		if(br.left<2)
+			return false;
+		lo = fgetc(lbr); hi = fgetc(lbr);
+		if(lo<0 || hi<0)
+			return false;
+		if(o.sum != (unsigned)(lo|(hi<<8)))
+			return false;
+	}
+	return true;
+}
+
 // Decode one squeezed (SQ, magic 76 FF) member to `out`.
 // `start` points at the member's first byte. Returns true on clean EOF.
 static bool UnSqueezeMember(FILE* lbr, long start, FILE* out)
@@ -205,11 +564,9 @@ bool CLbrTool::Extract( const char* fname,const char* ddir )
 				else if((ext[1]=='z' || ext[1]=='Z')
 					&& magic[0]==0x76
 					&& (magic[1]==0xFE || magic[1]==0xFD))
-					kind = 2;// crunched (no sample; listed but skipped)
+					kind = 2;// crunched (v2.x adaptive LZW)
 			}
 		}
-		if(kind==2)
-			continue;
 
 		if (m_Endflg) return true;
 		if (!CheckStr(outname))
@@ -220,6 +577,8 @@ bool CLbrTool::Extract( const char* fname,const char* ddir )
 		if( !out )
 			continue;
 
+		// squeezed members carry their CRC over the compressed bytes;
+		// crunched members too (verified before decode)
 		bool ok = false;
 		if(kind==0)
 		{
@@ -245,7 +604,7 @@ bool CLbrTool::Extract( const char* fname,const char* ddir )
 		}
 		else
 		{
-			// squeezed: CRC-verify the compressed bytes first ...
+			// squeezed/crunched: CRC-verify the compressed bytes first ...
 			unsigned short c = 0;
 			unsigned long n;
 			fseek(lbr,start,SEEK_SET);
@@ -264,7 +623,12 @@ bool CLbrTool::Extract( const char* fname,const char* ddir )
 			}
 			// ... then decode
 			if(ok)
-				ok = UnSqueezeMember(lbr,start,out);
+			{
+				if(kind==1)
+					ok = UnSqueezeMember(lbr,start,out);
+				else
+					ok = UnCrunchMember(lbr,start,(long)fullsize,out);
+			}
 		}
 
 		fclose(out);
