@@ -12,7 +12,7 @@
 
 class COpenGca : public COpenArchive
 {
-public: //-- COpenArchive ï¿½ï¿½ï¿½ÊƒCï¿½ï¿½ï¿½^ï¿½[ï¿½tï¿½Fï¿½Cï¿½X -----------
+public: //-- COpenArchive ‹¤’ÊƒCƒ“ƒ^[ƒtƒFƒCƒX -----------
 
 	COpenGca() : COpenArchive( )
 	{COpenGca::fp=NULL;}

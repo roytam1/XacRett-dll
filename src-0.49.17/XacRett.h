@@ -2,7 +2,7 @@
 #define AFX_XACRETT_H__03ED6241_3976_11D4_8D96_A6394BD8C334__INCLUDED_
 
 
-//DLLï¿½Ìƒoï¿½[ï¿½Wï¿½ï¿½ï¿½ï¿½
+//DLL‚Ìƒo[ƒWƒ‡ƒ“
 #define DLLVERSION 49
 #define SUBDLLVERSION 17
 
@@ -29,7 +29,7 @@ typedef struct {
 	char  szAttribute[8];
 	char  szMode[8];
 } EXTRACTINGINFOEX, *LPEXTRACTINGINFOEX;
-/* ï¿½Eï¿½Bï¿½ï¿½ï¿½hï¿½Eï¿½ï¿½ï¿½bï¿½Zï¿½[ï¿½W */
+/* ƒEƒBƒ“ƒhƒEƒƒbƒZ[ƒW */
 #ifndef WM_ARCEXTRACT
 #define	WM_ARCEXTRACT			"wm_arcextract"
 #define	ARCEXTRACT_BEGIN		0
@@ -40,7 +40,7 @@ typedef struct {
 #define ARCEXTRACT_WRITEFILE_OPEN			20
 #endif
 
-// APIï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½lï¿½Èï¿½ï¿½l
+// API‚ğ¦‚·ˆê—l‚È”’l
 #if !defined(ISARC_FUNCTION_START)
 #define ISARC_FUNCTION_START				0
 #define ISARC								0	/* XacRett */
@@ -122,7 +122,7 @@ typedef struct {
 
 #endif	/* ISARC_FUNCTION_START */
 
-// ï¿½Gï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½bï¿½Zï¿½[ï¿½W
+// ƒGƒ‰[ƒƒbƒZ[ƒW
 #if !defined(ERROR_START)
 #define ERROR_START				0x8000
 /* WARNING */
@@ -203,7 +203,7 @@ typedef struct {
 #define ERROR_END	ERROR_BROKEN_DATA
 #endif /* ERROR_START */
 
-// ï¿½ï¿½ï¿½ÉŒ`ï¿½ï¿½
+// ‘ŒÉŒ`®
 #define ARCHIVETYPE_UNKNOWN 0
 #define ARCHIVETYPE_ACE		1
 #define ARCHIVETYPE_ARC		2
@@ -244,7 +244,7 @@ typedef struct {
 #define ARCHIVETYPE_SHAR	37
 #define ARCHIVETYPE_SPL		38
 #define ARCHIVETYPE_TAR		39
-#define ARCHIVETYPE_UUDECODE 40//ver0.48.10ï¿½ï¿½ï¿½ï¿½Ï‚ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½
+#define ARCHIVETYPE_UUDECODE 40//ver0.48.10‚©‚ç•Ï‚í‚Á‚Ä‚¢‚Ü‚·
 #define ARCHIVETYPE_YNC		41
 #define ARCHIVETYPE_ZAC		42
 #define ARCHIVETYPE_ZIP		43

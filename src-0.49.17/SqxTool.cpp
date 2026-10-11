@@ -23,7 +23,7 @@ int GetCryptKey(char* szCKey,char*,int){
 	strncpy(szCKey,szKey,strlen(szKey)>60?60:strlen(szKey)+1);
 	return 1;
 }
-int GetNetVolPath(char*,int){return 0;} //MVï¿½Í”ï¿½Î‰ï¿½ï¿½B
+int GetNetVolPath(char*,int){return 0;} //MV‚Í”ñ‘Î‰B
 void SetProgress(int){}
 /* os_close/os_open come from unsqx/os/sqx_os.h via SqxTool.h; declaring
    them again here conflicts (long os_close(void*) vs SLONG32 os_close(OS_FILE)). */
@@ -106,7 +106,7 @@ bool CSqxTool::Extract( const char* fname, const char* ddir )
 
 			//lProcessMember = ArcNodeMatches(&AlNode);
 			if (m_Endflg) return true;
-			//ï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½hï¿½Jï¿½[ï¿½hï¿½ï¿½ï¿½ï¿½
+			//ƒƒCƒ‹ƒhƒJ[ƒhˆ—
 			lProcessMember =CheckStr(AlNode.szFName);
 
 			if( (lProcessMember == OPTION_NONE) && (ArcStruct.iSolidFlag == OPTION_NONE) )

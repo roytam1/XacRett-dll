@@ -16,6 +16,13 @@
 /yzdec.exe
 /yzenc.exe
 
+# VC6 IDE user-local state (created when the .dsp is opened in the IDE)
+*.ncb
+*.opt
+*.plg
+Release/
+Debug/
+
 # Static libraries are intentionally NOT ignored: XacRett.dsp links
 # ZData/zdata.lib, unrar/UnRAR.lib, fdi/fdi.lib and
 # jcalg1lib/Jcalg1_static.lib, and those are prebuilt here.

@@ -94,13 +94,13 @@ bool CGcaTool::Extract( const char* fname,const char* ddir )
 		for (int i = -1 ; ++i!=filenum;)
 		{
 			filename = gca.GetFileName(i);
-			if (m_Endflg) return true;//ï¿½Ç‰ï¿½ By Bonty
-			//ï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½hï¿½Jï¿½[ï¿½hï¿½ï¿½ï¿½ï¿½
-			if (!CheckStr(filename.c_str()))//ï¿½Ç‰ï¿½ By Bonty
+			if (m_Endflg) return true;//’Ç‰Á By Bonty
+			//ƒƒCƒ‹ƒhƒJ[ƒhˆ—
+			if (!CheckStr(filename.c_str()))//’Ç‰Á By Bonty
 			{
 				continue;
 			}
-			if(arcproc)//SetOwnerWindowï¿½Ì‚ï¿½ï¿½ß‚Ìï¿½ï¿½ï¿½
+			if(arcproc)//SetOwnerWindow‚Ì‚½‚ß‚Ìˆ—
 			{
 				static EXTRACTINGINFO	info;
 				::memset(&info,0,sizeof(EXTRACTINGINFO));
