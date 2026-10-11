@@ -2,15 +2,18 @@
 #include "stdafx.h"
 #include "CabTool.h"
 #include "fdi/fdi.h"
-#pragma comment( lib, "fdi/fdi.lib" )
+// fdi.cpp is compiled straight into XacRett.dll (see XacRett.dsp), so the
+// prebuilt fdi/fdi.lib is neither shipped nor needed. The original pragma is
+// dropped so the linker does not try to pull the binary in.
+//#pragma comment( lib, "fdi/fdi.lib" )
 #include "XacRett.h"
 
-// –³—–î—SFX‚à‰ğ“€
+// ï¿½ï¿½ï¿½ï¿½ï¿½î—SFXï¿½ï¿½ï¿½ï¿½
 static int seeker=0;
 static int offhan=-1;
 static int offhan2=-1;
 
-// CallBack ’è‹`
+// CallBack ï¿½ï¿½`
 static FNALLOC(mymalloc)
 {
 	return (void*)new BYTE[cb];
@@ -59,13 +62,13 @@ static FNFDINOTIFY(mynotif)
 	switch( fdint )
 	{
 	case fdintCOPY_FILE:
-		if (((CCabTool*)pfdin->pv)->m_Endflg) return -1;//’Ç‰Á By Bonty
-		//ƒƒCƒ‹ƒhƒJ[ƒhˆ—
-		if (!((CCabTool*)pfdin->pv)->CheckStr(pfdin->psz1))//’Ç‰Á By Bonty
+		if (((CCabTool*)pfdin->pv)->m_Endflg) return -1;//ï¿½Ç‰ï¿½ By Bonty
+		//ï¿½ï¿½ï¿½Cï¿½ï¿½ï¿½hï¿½Jï¿½[ï¿½hï¿½ï¿½ï¿½ï¿½
+		if (!((CCabTool*)pfdin->pv)->CheckStr(pfdin->psz1))//ï¿½Ç‰ï¿½ By Bonty
 		{
 			return 0;
 		}
-		//SetOwnerWindow‚Ì‚½‚ß‚Ìˆ—
+		//SetOwnerWindowï¿½Ì‚ï¿½ï¿½ß‚Ìï¿½ï¿½ï¿½
 		if(((CCabTool*)pfdin->pv)->arcproc)
 		{
 			static EXTRACTINGINFO	info;
@@ -99,7 +102,7 @@ static FNFDINOTIFY(mynotif)
 
 int CCabTool::FindHeader( const char* fname, const BYTE* hdr, DWORD siz )
 {
-	// FDI‰Šú‰»
+	// FDIï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	FDICABINETINFO info;
 	ERF erf;
 	HFDI fdi=FDICreate( mymalloc,mymfree,myfopen,myfread,
@@ -107,11 +110,11 @@ int CCabTool::FindHeader( const char* fname, const BYTE* hdr, DWORD siz )
 	if( fdi==NULL )
 		return false;
 
-	// ŠJ‚­
+	// ï¿½Jï¿½ï¿½
 	int ans=-1, han=myfopen( const_cast<char*>(fname),
 					_O_BINARY|_O_RDONLY|_O_SEQUENTIAL,0 );
 
-	// ƒwƒbƒ_ŒŸõ
+	// ï¿½wï¿½bï¿½_ï¿½ï¿½ï¿½ï¿½
 	if( -1!=han )
 	{
 		if( siz>10 && hdr[0]=='M' && hdr[1]=='Z' )
@@ -156,7 +159,7 @@ bool CCabTool::Extract( const char* fname,const char* ddir )
 	unsigned char* buf = CTool::common_buf;
 //--------------------------------------------------------------------//
 
-	// ƒwƒbƒ_‚ğ’T‚·
+	// ï¿½wï¿½bï¿½_ï¿½ï¿½Tï¿½ï¿½
 	FILE* fp = fopen( fname,"rb" );
 	if( !fp )
 		return false;
@@ -168,14 +171,14 @@ bool CCabTool::Extract( const char* fname,const char* ddir )
 	if( seeker==-1 )
 		return false;
 
-	// FDI‰Šú‰»
+	// FDIï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	ERF erf;
 	HFDI fdi=FDICreate( mymalloc,mymfree,myfopen,myfread,
 					myfwrite,myfclose,myfseek,cpuUNKNOWN,&erf );
 	if( fdi==NULL )
 		return false;
 
-	// FDI‚É“n‚·‚½‚ß‚Éƒtƒ@ƒCƒ‹–¼•ªŠ„
+	// FDIï¿½É“nï¿½ï¿½ï¿½ï¿½ï¿½ß‚Éƒtï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	int y,d;
 	kiutil::pathSplit( fname,&y,&d );
 
@@ -184,11 +187,11 @@ bool CCabTool::Extract( const char* fname,const char* ddir )
 	if( y!=-1 )
 		strncpy( fdir,fname,y+1 );
 
-	// “WŠJ
+	// ï¿½Wï¿½J
 	
 	BOOL ans=FDICopy( fdi,fbody,fdir,0,mynotif,NULL,this);
 
-	// I—¹
+	// ï¿½Iï¿½ï¿½
 	FDIDestroy(fdi);
 	return ans!=FALSE;
 }

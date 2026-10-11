@@ -22,7 +22,9 @@ Usage of JCALG1 is here:
 http://www.collakesoftware.com/jcalg1.htm
 */
 
-#pragma comment(lib,"jcalg1lib/Jcalg1_static.lib")
+// jcalg1.cpp is compiled straight into XacRett.dll (see XacRett.dsp), so the
+// prebuilt jcalg1lib/Jcalg1_static.lib is neither shipped nor needed.
+//#pragma comment(lib,"jcalg1lib/Jcalg1_static.lib")
 
 extern "C" DWORD _stdcall JCALG1_GetUncompressedSizeOfCompressedBlock(
 	const void *pBlock);
@@ -34,7 +36,7 @@ extern "C" DWORD _stdcall JCALG1_Decompress_Fast(
 class CJc1Tool : public CTool
 {
 public:
-	CJc1Tool() : CTool( "Jcalg1 “WŠJ" ){}
+	CJc1Tool() : CTool( "Jcalg1 ï¿½Wï¿½J" ){}
 	bool IsType( const char* ext ){
 		if(!strcmp(ext,"jcalg1")||!strcmp(ext,"jc")||!strcmp(ext,"jc1"))
 			return true;
