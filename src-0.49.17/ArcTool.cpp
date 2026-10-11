@@ -359,7 +359,7 @@ void CArcTool::Unstore()
 
 struct nd
 {
-	int child[2];
+	short child[2];
 };
 #define SPEOF 256
 #define NUMVALS 257
@@ -370,7 +370,8 @@ void CArcTool::UnSqueeze()
 	nd node[NUMVALS];
 	int bpos = 99,curin = 0;
 
-	int numnodes = (myfgetc()|(myfgetc()<<8));
+	int numnodes = myfgetc();
+	numnodes |= myfgetc()<<8;
 	if( numnodes<0 || numnodes>=NUMVALS )
 		return;// error
 
@@ -380,8 +381,10 @@ void CArcTool::UnSqueeze()
 	int i;
 	for( i=0; i!=numnodes; i++ )
 	{
-		node[i].child[0] = (myfgetc()|(myfgetc()<<8));
-		node[i].child[1] = (myfgetc()|(myfgetc()<<8));
+		node[i].child[0] = myfgetc();
+		node[i].child[0] |= myfgetc()<<8;
+		node[i].child[1] = myfgetc();
+		node[i].child[1] |= myfgetc()<<8;
 	}
 
 	// un /////////////////////////////
@@ -391,7 +394,7 @@ void CArcTool::UnSqueeze()
 		{
 			if( ++bpos>7 )
 			{
-				curin = (myfgetc()|(myfgetc()<<8));
+				curin = myfgetc();
 				bpos = 0;
 				i = node[i].child[ 1&curin ];
 			}
@@ -523,7 +526,7 @@ void CArcTool::UnLz()
 	GOCODE(oldcode);
 
 	finchar = string_tab[oldcode].follower;
-	if( lzsize-- )return;
+	if( !lzsize-- )return;
 	if( hdr.method==5 )	myfputc(finchar);
 	else				myfputc_r(finchar);
 
@@ -532,8 +535,7 @@ void CArcTool::UnLz()
 	{
 		while( sp )
 		{
-			if( lzsize-- )
-				break;
+			if( !lzsize-- )return;
 			if( hdr.method==5 )	myfputc(POP());
 			else				myfputc_r(POP());
 		}
