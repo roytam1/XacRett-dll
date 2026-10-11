@@ -1,0 +1,21 @@
+# VC6 / MSBuild intermediates
+*.obj
+*.exp
+*.pdb
+*.ilk
+*.idb
+*.sbr
+*.map
+*.res
+*.lnk
+*.res
+
+# Vendor binaries kept in the tree only as reference material.
+# Their sources are tracked under unrar-3.6.1/ and yz32lib/.
+/gcac.exe
+/yzdec.exe
+/yzenc.exe
+
+# Static libraries are intentionally NOT ignored: XacRett.dsp links
+# ZData/zdata.lib, unrar/UnRAR.lib, fdi/fdi.lib and
+# jcalg1lib/Jcalg1_static.lib, and those are prebuilt here.
