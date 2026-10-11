@@ -1,0 +1,12 @@
+EXPORTS
+	XacRett					@1
+	XacRettGetVersion		@2
+	XacRettGetRunning		@10
+	XacRettCheckArchive     @12
+	XacRettGetArchiveType   @13
+	XacRettQueryFunctionList @18
+	XacRettOpenArchive		@21
+	XacRettCloseArchive		@22
+	XacRettFindFirst		@23
+	XacRettFindNext			@24
+	XacRettGetSubVersion    @50
