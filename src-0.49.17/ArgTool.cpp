@@ -18,6 +18,9 @@ bool CArgTool::Check( const char* fname, unsigned long fsize )
 		return false;
 	if(hdr[1]==0)
 		return false;
+	// entry name must contain a real character (CP/M LBR has blank names)
+	{ int i; for(i=1;i<=12;i++) if(hdr[i]!=0 && hdr[i]!=0x20) break;
+	  if(i>12) return false; }
 
 	// 次のエントリのスタートは 0 (ARG_START) か
 	// 1 (ARG_END) なはず。

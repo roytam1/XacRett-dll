@@ -9,11 +9,13 @@ class COpenAr : public COpenArchive
 public: //-- COpenArchive 共通インターフェイス -----------
 
 	COpenAr() : COpenArchive( )
-	{COpenAr::fp=NULL;}
+	{COpenAr::fp=NULL;COpenAr::m_strtab=NULL;COpenAr::m_strtablen=0;}
 	bool FindFirst(INDIVIDUALINFO *lpSubInfo);
 	bool FindNext(INDIVIDUALINFO *lpSubInfo);
 private:
 	bool FindSub(INDIVIDUALINFO *lpSubInfo);
+	char* m_strtab;// "//" string table for "/offset" long names (MSVC LIB)
+	long m_strtablen;
 };
 
 #endif

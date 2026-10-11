@@ -35,6 +35,8 @@ bool CArTool::Extract( const char* fname,const char* ddir )
 	char outname[MAX_PATH];
 	unsigned long origsiz;
 	unsigned long date;
+	char* strtab=NULL;// "//" string table for "/offset" long names
+	long strtablen=0;
 
 	while( !feof(ar) )
 	{
@@ -50,14 +52,46 @@ bool CArTool::Extract( const char* fname,const char* ddir )
 		if( 60!=fread( buf, 1, 60, ar ) || buf[58]!='`' || buf[59]!='\n' )
 			break;
 
-		// LongFileName
+		date = (unsigned long)strtol( (char*)buf+16, NULL,10 );
+		origsiz =(unsigned long)strtol( (char*)buf+48, NULL,10 );
+		unsigned long nextpos = ftell(ar) + origsiz + (origsiz&1);
+
+		// string table "//": capture for "/offset" long names, never extract it
 		if( buf[0]=='/' && buf[1]=='/' && buf[2]==' ' )
 		{
-			long namelen = strtol( (char*)buf+48, NULL,10 );
-			long vr = namelen>MAX_PATH-1 ? MAX_PATH-1 : namelen;
-			namelen -= fread( outname, 1, vr, ar );
-			outname[vr]='\0';
-			fseek( ar, namelen, SEEK_CUR );
+			long tablen = (long)origsiz;
+			if(strtab){ delete[] strtab; strtab=NULL; strtablen=0; }
+			if( tablen>0 && tablen<0x100000 )
+			{
+				strtab = new char[tablen+1];
+				if( strtab )
+				{
+					long got = fread( strtab, 1, tablen, ar );
+					strtab[got]='\0';
+					strtablen = got;
+				}
+			}
+			fseek( ar, nextpos, SEEK_SET );
+			continue;
+		}
+		// linker member "/" and other specials (e.g. "/SYMDEF/"): skip
+		if( buf[0]=='/' && (buf[1]==' ' || buf[1]<'0' || buf[1]>'9') )
+		{
+			fseek( ar, nextpos, SEEK_SET );
+			continue;
+		}
+		if( buf[0]=='/' )
+		{
+			// "/offset" long name via the string table
+			long off = strtol( (char*)buf+1, NULL,10 );
+			if( strtab && off>=0 && off<strtablen )
+			{
+				lstrcpyn(outname, strtab+off, MAX_PATH);
+				char* p; for(p=outname;*p && *p!='\n';p=CharNext(p)); *p='\0';
+				int n=lstrlen(outname); if(n>0&&outname[n-1]=='/')outname[n-1]='\0';
+			}
+			else
+				wsprintf(outname,"%.16s",buf);
 		}
 		else
 		{
@@ -65,13 +99,11 @@ bool CArTool::Extract( const char* fname,const char* ddir )
 			for( i=0; buf[i]!=' ' && i!=16; i++ )
 				outname[i] = (char)buf[i];
 			outname[i]='\0';
+			// strip trailing '/' of the short "name/" form
+			if( i>0 && outname[i-1]=='/' ) outname[i-1]='\0';
 		}
 
-		date = (unsigned long)strtol( (char*)buf+16, NULL,10 );
-		origsiz =(unsigned long)strtol( (char*)buf+48, NULL,10 );
-		unsigned long nextpos = ftell(ar) + origsiz + (origsiz&1);
-
-		if (m_Endflg) return true;//’Ç‰Á By Bonty
+		if (m_Endflg){ if(strtab) delete[] strtab; return true; }//’Ç‰Á By Bonty
 		if (!CheckStr(outname))//’Ç‰Á By Bonty
 		{
 			fseek( ar, nextpos, SEEK_SET );
@@ -103,6 +135,7 @@ bool CArTool::Extract( const char* fname,const char* ddir )
 		fseek( ar, nextpos, SEEK_SET );
 	}
 
+	if(strtab) delete[] strtab;
 	fclose( ar );
 	return true;
 }
