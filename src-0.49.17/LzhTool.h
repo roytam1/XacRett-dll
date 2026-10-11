@@ -26,7 +26,7 @@ public:
 	}
 
 	bool IsType( const char* ext )
-		{return 0==stricmp(ext,"lzh");}
+		{return 0==stricmp(ext,"lzh")||0==stricmp(ext,"pma");}
 
 	bool Check( const char* fname, unsigned long fsize );
 	bool Extract( const char* fname, const char* ddir );

@@ -100,8 +100,8 @@ int COpenLzh::FindHeader(const BYTE* hdr, DWORD siz )
 		return -1;
 	for( DWORD i=0; i<siz-20; i++ )
 	{
-		if( hdr[i+2]=='-' && hdr[i+3]=='l' &&
-		   (hdr[i+4]=='h' || hdr[i+4]=='z') )
+		if( hdr[i+2]=='-' && (hdr[i+3]=='l' || hdr[i+3]=='p') &&
+		   (hdr[i+4]=='h' || hdr[i+4]=='z' || hdr[i+4]=='m' || hdr[i+4]=='k') )
 		{
 			fseek(COpenLzh::fp,i,SEEK_SET );
 			if( ReadHeader(temp) )
@@ -155,7 +155,7 @@ bool COpenLzh::ReadHeader( unsigned char* buf )
 	h_OrigSize = (buf[11])+(buf[12]<<8)+(buf[13]<<16)+(buf[14]<<24);
 	h_Update   = (buf[15])+(buf[16]<<8)+(buf[17]<<16)+(buf[18]<<24);
 	h_Attrib   =  buf[19];
-	if( h_Method[0]!='-' || h_Method[1]!='l' )
+	if( h_Method[0]!='-' || (h_Method[1]!='l' && h_Method[1]!='p') )
 		return false;
 
 // レベル共通じゃない基本ヘッダ部分

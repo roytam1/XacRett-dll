@@ -2,6 +2,7 @@
 #include "stdafx.h"
 #include "LzhTool.h"
 #include "LzhDecoder2.h"
+#include "LhasaBridge.h"
 
 bool CLzhTool::Check( const char* fname, unsigned long fsize )
 {
@@ -58,7 +59,11 @@ bool CLzhTool::Extract( const char* fname,const char* ddir )
 			else if( 0==strcmp(h_Method,"-lzs-") )mhd=LZS;
 			else if( 0==strcmp(h_Method,"-lz4-") )mhd=LZ4;
 			else if( 0==strcmp(h_Method,"-lz5-") )mhd=LZ5;
-			dec.Decode( mhd, lzh, h_CompSize, out, h_OrigSize );
+			if( 0==strcmp(h_Method,"-lh4-") || 0==strcmp(h_Method,"-lhx-") || 0==strcmp(h_Method,"-lk7-") ||
+				0==strcmp(h_Method,"-pm0-") || 0==strcmp(h_Method,"-pm1-") || 0==strcmp(h_Method,"-pm2-") )
+				LhasaDecode(h_Method, lzh, h_CompSize, out, h_OrigSize);
+			else
+				dec.Decode( mhd, lzh, h_CompSize, out, h_OrigSize );
 
 			// 属性など設定
 			fclose( out );
@@ -87,8 +92,8 @@ int CLzhTool::FindHeader( const char* fname, const BYTE* hdr, DWORD siz )
 		return -1;
 	for( DWORD i=0; i<siz-20; i++ )
 	{
-		if( hdr[i+2]=='-' && hdr[i+3]=='l' &&
-		   (hdr[i+4]=='h' || hdr[i+4]=='z') )
+		if( hdr[i+2]=='-' && (hdr[i+3]=='l' || hdr[i+3]=='p') &&
+		   (hdr[i+4]=='h' || hdr[i+4]=='z' || hdr[i+4]=='m' || hdr[i+4]=='k') )
 		{
 			if( !bopen )
 				if( !(lzh=fopen( fname,"rb" )) )
@@ -150,7 +155,7 @@ bool CLzhTool::ReadHeader( unsigned char* buf )
 	h_OrigSize = (buf[11])+(buf[12]<<8)+(buf[13]<<16)+(buf[14]<<24);
 	h_Update   = (buf[15])+(buf[16]<<8)+(buf[17]<<16)+(buf[18]<<24);
 	h_Attrib   =  buf[19];
-	if( h_Method[0]!='-' || h_Method[1]!='l' )
+	if( h_Method[0]!='-' || (h_Method[1]!='l' && h_Method[1]!='p') )
 		return false;
 
 // レベル共通じゃない基本ヘッダ部分
