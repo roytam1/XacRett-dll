@@ -1,0 +1,34 @@
+
+This directory contains a modified version of zlib 1.2.2 + two security patches:
+  ftp://ftp.FreeBSD.org/pub/FreeBSD/CERT/patches/SA-05:16/zlib.patch
+  ftp://ftp.FreeBSD.org/pub/FreeBSD/CERT/patches/SA-05:18/zlib.patch
+
+-  Since the compression stuff is not required for XacRett,
+  some files are omitted from original zlib archive and
+  some lines of codes are commented out by #ifdef NO_GZCOMPRESS.
+
+- For Deflate64 support, I added some code in #ifdef XACRETT_DEFLATE64.
+ According to UnZip 5.52, there are three points to change:
+ /*
+  14. The Deflate64 (PKZIP method 9) variant of the compression algorithm
+      differs from "classic" deflate in the following 3 aspect:
+      a) The size of the sliding history window is expanded to 64 kByte.
+      b) The previously unused distance codes #30 and #31 code distances
+         from 32769 to 49152 and 49153 to 65536.  Both codes take 14 bits
+         of extra data to determine the exact position in their 16 kByte
+         range.
+      c) The last lit/length code #285 gets a different meaning. Instead
+         of coding a fixed maximum match length of 258, it is used as a
+         "generic" match length code, capable of coding any length from
+         3 (min match length + 0) to 65538 (min match length + 65535).
+         This means that the length code #285 takes 16 bits (!) of uncoded
+         extra data, added to a fixed min length of 3.
+      Changes a) and b) would have been transparent for valid deflated
+      data, but change c) requires to switch decoder configurations between
+      Deflate and Deflate64 modes.
+ */
+ a) and b) is trivial. All I had to do was to just check some constants
+ and replace them by new Deflate64 values. Change c) is problematic.
+ Zlib uses the higher 4 bits of lit/length code table as a flag area,
+ so you cannot say directly "extra data = 16bit!" (16==0x10 masks the
+ flag area...)

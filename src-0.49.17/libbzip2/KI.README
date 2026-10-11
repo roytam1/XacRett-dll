@@ -1,0 +1,7 @@
+
+This directory contains a little bit modified version of
+libbzip2 Version 1.0.3 of 15 February 2005.
+
+- Since the compression stuff is not required for XacRett,
+ some files are omitted from original libbzip2 archive and
+ some lines of codes are commented by #ifdef XACRETT_BZ_COMPRESSION.

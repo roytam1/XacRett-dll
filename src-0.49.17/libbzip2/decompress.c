@@ -8,7 +8,7 @@
   This file is a part of bzip2 and/or libbzip2, a program and
   library for lossless, block-sorting data compression.
 
-  Copyright (C) 1996-2000 Julian R Seward.  All rights reserved.
+  Copyright (C) 1996-2005 Julian R Seward.  All rights reserved.
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions
@@ -42,7 +42,7 @@
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   Julian Seward, Cambridge, UK.
-  jseward@acm.org
+  jseward@bzip.org
   bzip2/libbzip2 version 1.0 of 21 March 2000
 
   This program is based on (at least) the work of:
@@ -57,6 +57,7 @@
 
   For more information on these sources, see the manual.
 --*/
+
 
 #include "bzlib_private.h"
 
@@ -234,18 +235,18 @@ Int32 BZ2_decompress ( DState* s )
    switch (s->state) {
 
       GET_UCHAR(BZ_X_MAGIC_1, uc);
-      if (uc != 'B') RETURN(BZ_DATA_ERROR_MAGIC);
+      if (uc != BZ_HDR_B) RETURN(BZ_DATA_ERROR_MAGIC);
 
       GET_UCHAR(BZ_X_MAGIC_2, uc);
-      if (uc != 'Z') RETURN(BZ_DATA_ERROR_MAGIC);
+      if (uc != BZ_HDR_Z) RETURN(BZ_DATA_ERROR_MAGIC);
 
       GET_UCHAR(BZ_X_MAGIC_3, uc)
-      if (uc != 'h') RETURN(BZ_DATA_ERROR_MAGIC);
+      if (uc != BZ_HDR_h) RETURN(BZ_DATA_ERROR_MAGIC);
 
       GET_BITS(BZ_X_MAGIC_4, s->blockSize100k, 8)
-      if (s->blockSize100k < '1' || 
-          s->blockSize100k > '9') RETURN(BZ_DATA_ERROR_MAGIC);
-      s->blockSize100k -= '0';
+      if (s->blockSize100k < (BZ_HDR_0 + 1) || 
+          s->blockSize100k > (BZ_HDR_0 + 9)) RETURN(BZ_DATA_ERROR_MAGIC);
+      s->blockSize100k -= BZ_HDR_0;
 
       if (s->smallDecompress) {
          s->ll16 = BZALLOC( s->blockSize100k * 100000 * sizeof(UInt16) );
@@ -523,16 +524,22 @@ Int32 BZ2_decompress ( DState* s )
       if (s->origPtr < 0 || s->origPtr >= nblock)
          RETURN(BZ_DATA_ERROR);
 
+      /*-- Set up cftab to facilitate generation of T^(-1) --*/
+      s->cftab[0] = 0;
+      for (i = 1; i <= 256; i++) s->cftab[i] = s->unzftab[i-1];
+      for (i = 1; i <= 256; i++) s->cftab[i] += s->cftab[i-1];
+      for (i = 0; i <= 256; i++) {
+         if (s->cftab[i] < 0 || s->cftab[i] > nblock) {
+            /* s->cftab[i] can legitimately be == nblock */
+            RETURN(BZ_DATA_ERROR);
+         }
+      }
+
       s->state_out_len = 0;
       s->state_out_ch  = 0;
       BZ_INITIALISE_CRC ( s->calculatedBlockCRC );
       s->state = BZ_X_OUTPUT;
       if (s->verbosity >= 2) VPrintf0 ( "rt+rld" );
-
-      /*-- Set up cftab to facilitate generation of T^(-1) --*/
-      s->cftab[0] = 0;
-      for (i = 1; i <= 256; i++) s->cftab[i] = s->unzftab[i-1];
-      for (i = 1; i <= 256; i++) s->cftab[i] += s->cftab[i-1];
 
       if (s->smallDecompress) {
 

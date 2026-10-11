@@ -1,14 +1,4 @@
 
-/*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*/
-/*= This source is Modified a little by K.INABA.              =*/
-/*=                                                           =*/
-/*= Since 'XacRett' doesn't compress, I removed               =*/
-/*=  compression codes by #ifdef KI_BZ_NO_COMPRESSION .       =*/
-/*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*/
-#ifndef KI_BZ_NO_COMPRESSION
-#define KI_BZ_NO_COMPRESSION
-#endif
-
 /*-------------------------------------------------------------*/
 /*--- Private header file for the library.                  ---*/
 /*---                                       bzlib_private.h ---*/
@@ -18,7 +8,7 @@
   This file is a part of bzip2 and/or libbzip2, a program and
   library for lossless, block-sorting data compression.
 
-  Copyright (C) 1996-2000 Julian R Seward.  All rights reserved.
+  Copyright (C) 1996-2005 Julian R Seward.  All rights reserved.
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions
@@ -52,7 +42,7 @@
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   Julian Seward, Cambridge, UK.
-  jseward@acm.org
+  jseward@bzip.org
   bzip2/libbzip2 version 1.0 of 21 March 2000
 
   This program is based on (at least) the work of:
@@ -86,7 +76,7 @@
 
 /*-- General stuff. --*/
 
-#define BZ_VERSION  "1.0.1, 23-June-2000"
+#define BZ_VERSION  "1.0.3, 15-Feb-2005"
 
 typedef char            Char;
 typedef unsigned char   Bool;
@@ -147,6 +137,13 @@ extern void bz_internal_error ( int errcode );
 #define BZFREE(ppp)  (strm->bzfree)(strm->opaque,(ppp))
 
 
+/*-- Header bytes. --*/
+
+#define BZ_HDR_B 0x42   /* 'B' */
+#define BZ_HDR_Z 0x5a   /* 'Z' */
+#define BZ_HDR_h 0x68   /* 'h' */
+#define BZ_HDR_0 0x30   /* '0' */
+  
 /*-- Constants for the back end. --*/
 
 #define BZ_MAX_ALPHA_SIZE 258
@@ -211,7 +208,6 @@ extern UInt32 BZ2_crc32Table[256];
 
 
 /*-- States and modes for compression. --*/
-#ifndef KI_BZ_NO_COMPRESSION
 
 #define BZ_M_IDLE      1
 #define BZ_M_RUNNING   2
@@ -322,7 +318,6 @@ BZ2_hbAssignCodes ( Int32*, UChar*, Int32, Int32, Int32 );
 extern void 
 BZ2_hbMakeCodeLengths ( UChar*, Int32*, Int32, Int32 );
 
-#endif /* KI_BZ_NO_COMPRESSION */
 
 
 /*-- states for decompression. --*/

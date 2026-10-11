@@ -10,8 +10,8 @@
 //
 // Wire format ("new" style): [u16LE len][raw deflate]... A zero
 // length terminates the stream. Each chunk is an independent raw
-// deflate stream (inflateInit2(-MAX_WBITS)). Chunks that fail to
-// decode are skipped; Decompress consumes all input.
+// deflate stream (inflateInit2(-MAX_WBITS)). Output decoded before a
+// chunk-decode failure is retained; Decompress consumes all input.
 //
 // Return codes (match original): 0 ok, -1 compress-stub,
 // -2 setup magic, -4 not configured/started, -5 bad SetInfo id,
@@ -24,7 +24,7 @@
 //    The stub preserves exactly that observable behavior.
 //  - ULONG_PTR keeps SetInfo pointer params 64-bit clean. On x86
 //    the __stdcall export names are unchanged (_ZDataSetInfo@8...).
-//  - C89 + Win32 only; links against the in-tree zlib (1.1.3).
+//  - C89 + Win32 only; links against the in-tree zlib (1.2.2).
 //
 #include <windows.h>
 #include "zdatas.h"
@@ -108,9 +108,10 @@ static int zdPush(const unsigned char* src, unsigned long len)
 	return 0;
 }
 
-/* Decode one chunk (independent raw deflate stream) atomically:
- * on success the output is pushed and 0 returned; on decode
- * failure nothing is pushed and -1 returned (caller swallows). */
+/* Decode one chunk (independent raw deflate stream). Whichever output is
+ * decoded before an inflate error is pushed, so a corrupt chunk contributes
+ * partial output rather than being discarded. This preserves the observed
+ * behavior of the original zdata.lib. Returns 0 on success, -1 on failure. */
 static int zdDecodeChunk(const unsigned char* in, unsigned long inLen)
 {
 	z_stream zs;
@@ -158,7 +159,7 @@ static int zdDecodeChunk(const unsigned char* in, unsigned long inLen)
 		}
 	}
 	inflateEnd(&zs);
-	if (!failed && outLen > 0) {
+	if (outLen > 0) {
 		if (zdPush(out, outLen) != 0)
 			failed = 1;
 	}

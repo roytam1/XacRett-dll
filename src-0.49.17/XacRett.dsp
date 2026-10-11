@@ -42,8 +42,8 @@ RSC=rc.exe
 # PROP Intermediate_Dir "Release"
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
-# ADD BASE CPP /nologo /MT /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "XACRETT_EXPORTS" /Yu"stdafx.h" /FD /c
-# ADD CPP /nologo /MT /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "XACRETT_EXPORTS" /Yu"stdafx.h" /FD /c
+# ADD BASE CPP /nologo /MT /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "XACRETT_EXPORTS" /D "NO_GZCOMPRESS" /Yu"stdafx.h" /FD /c
+# ADD CPP /nologo /MT /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "XACRETT_EXPORTS" /D "NO_GZCOMPRESS" /Yu"stdafx.h" /FD /c
 # ADD BASE MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x411 /d "NDEBUG"
@@ -68,7 +68,7 @@ LINK32=link.exe
 # PROP Intermediate_Dir "Debug"
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
-# ADD BASE CPP /nologo /MTd /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "XACRETT_EXPORTS" /Yu"stdafx.h" /FD /GZ /c
+# ADD BASE CPP /nologo /MTd /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "XACRETT_EXPORTS" /D "NO_GZCOMPRESS" /Yu"stdafx.h" /FD /GZ /c
 # ADD CPP /nologo /MTd /W3 /Gm /GX /Zi /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /FR /Yu"stdafx.h" /FD /GZ /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
@@ -628,45 +628,18 @@ SOURCE=.\zlib\adler32.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\zlib\compress.c
-# SUBTRACT CPP /YX /Yc /Yu
-# End Source File
-# Begin Source File
-
 SOURCE=.\zlib\crc32.c
+  # SUBTRACT CPP /YX /Yc /Yu
+  # End Source File
+  # Begin Source File
+  
+SOURCE=.\zlib\crc32.h
 # SUBTRACT CPP /YX /Yc /Yu
-# End Source File
-# Begin Source File
-
-SOURCE=.\zlib\deflate.c
-# SUBTRACT CPP /YX /Yc /Yu
-# End Source File
-# Begin Source File
-
-SOURCE=.\zlib\deflate.h
 # End Source File
 # Begin Source File
 
 SOURCE=.\zlib\gzio.c
 # SUBTRACT CPP /YX /Yc /Yu
-# End Source File
-# Begin Source File
-
-SOURCE=.\zlib\infblock.c
-# SUBTRACT CPP /YX /Yc /Yu
-# End Source File
-# Begin Source File
-
-SOURCE=.\zlib\infblock.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\zlib\infcodes.c
-# SUBTRACT CPP /YX /Yc /Yu
-# End Source File
-# Begin Source File
-
-SOURCE=.\zlib\infcodes.h
 # End Source File
 # Begin Source File
 
@@ -684,6 +657,11 @@ SOURCE=.\zlib\inffixed.h
 # Begin Source File
 
 SOURCE=.\zlib\inflate.c
+  # SUBTRACT CPP /YX /Yc /Yu
+  # End Source File
+  # Begin Source File
+  
+SOURCE=.\zlib\inflate.h
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
@@ -694,29 +672,6 @@ SOURCE=.\zlib\inftrees.c
 # Begin Source File
 
 SOURCE=.\zlib\inftrees.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\zlib\infutil.c
-# SUBTRACT CPP /YX /Yc /Yu
-# End Source File
-# Begin Source File
-
-SOURCE=.\zlib\infutil.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\zlib\maketree.c
-# SUBTRACT CPP /YX /Yc /Yu
-# End Source File
-# Begin Source File
-
-SOURCE=.\zlib\trees.c
-# SUBTRACT CPP /YX /Yc /Yu
-# End Source File
-# Begin Source File
-
-SOURCE=.\zlib\trees.h
 # End Source File
 # Begin Source File
 
@@ -1445,10 +1400,6 @@ SOURCE=.\unsqx\crypt\md5c.c
 # Begin Source File
 
 SOURCE=.\libbzip2\blocksort.c
-# End Source File
-# Begin Source File
-
-SOURCE=.\libbzip2\bz_cmprs.c
 # End Source File
 # Begin Source File
 

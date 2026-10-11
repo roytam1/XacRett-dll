@@ -1,11 +1,4 @@
 
-/*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*/
-/*= This source is Modified a little by K.INABA.              =*/
-/*=                                                           =*/
-/*= Since 'XacRett' doesn't compress, I removed               =*/
-/*=  compression codes by #ifdef KI_BZ_NO_COMPRESSION .       =*/
-/*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*/
-
 /*-------------------------------------------------------------*/
 /*--- Block sorting machinery                               ---*/
 /*---                                           blocksort.c ---*/
@@ -15,7 +8,7 @@
   This file is a part of bzip2 and/or libbzip2, a program and
   library for lossless, block-sorting data compression.
 
-  Copyright (C) 1996-2000 Julian R Seward.  All rights reserved.
+  Copyright (C) 1996-2005 Julian R Seward.  All rights reserved.
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions
@@ -49,7 +42,7 @@
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   Julian Seward, Cambridge, UK.
-  jseward@acm.org
+  jseward@bzip.org
   bzip2/libbzip2 version 1.0 of 21 March 2000
 
   This program is based on (at least) the work of:
@@ -71,6 +64,7 @@
   Snowbird, Utah, USA, 27-30 March 2000.  The main sort in this
   file implements the algorithm called  cache  in the paper.
 --*/
+
 
 #include "bzlib_private.h"
 
@@ -617,8 +611,6 @@ void mainSimpleSort ( UInt32* ptr,
    Sedgewick and Jon L. Bentley.
 --*/
 
-#ifndef KI_BZ_NO_COMPRESSION
-
 #define mswap(zz1, zz2) \
    { Int32 zztmp = zz1; zz1 = zz2; zz2 = zztmp; }
 
@@ -782,7 +774,6 @@ void mainQSort3 ( UInt32* ptr,
 #undef MAIN_QSORT_DEPTH_THRESH
 #undef MAIN_QSORT_STACK_SIZE
 
-#endif /* KI_BZ_NO_COMPRESSION */
 
 /*---------------------------------------------*/
 /* Pre:
@@ -798,8 +789,6 @@ void mainQSort3 ( UInt32* ptr,
       ptr [0 .. nblock-1] holds sorted order
       if (*budget < 0), sorting was abandoned
 */
-
-#ifndef KI_BZ_NO_COMPRESSION
 
 #define BIGFREQ(b) (ftab[((b)+1) << 8] - ftab[(b) << 8])
 #define SETMASK (1 << 21)
@@ -992,7 +981,14 @@ void mainSort ( UInt32* ptr,
          }
       }
 
-      AssertH ( copyStart[ss]-1 == copyEnd[ss], 1007 );
+      AssertH ( (copyStart[ss]-1 == copyEnd[ss])
+                || 
+                /* Extremely rare case missing in bzip2-1.0.0 and 1.0.1.
+                   Necessity for this case is demonstrated by compressing 
+                   a sequence of approximately 48.5 million of character 
+                   251; 1.0.0/1.0.1 will then die here. */
+                (copyStart[ss] == 0 && copyEnd[ss] == nblock-1),
+                1007 )
 
       for (j = 0; j <= 255; j++) ftab[(j << 8) + ss] |= SETMASK;
 
@@ -1065,8 +1061,6 @@ void mainSort ( UInt32* ptr,
 #undef SETMASK
 #undef CLEARMASK
 
-#endif /* KI_BZ_NO_COMPRESSION */
-
 
 /*---------------------------------------------*/
 /* Pre:
@@ -1081,9 +1075,6 @@ void mainSort ( UInt32* ptr,
       ftab [ 0 .. 65536 ] destroyed
       arr1 [0 .. nblock-1] holds sorted order
 */
-
-#ifndef KI_BZ_NO_COMPRESSION
-
 void BZ2_blockSort ( EState* s )
 {
    UInt32* ptr    = s->ptr; 
@@ -1144,7 +1135,6 @@ void BZ2_blockSort ( EState* s )
    AssertH( s->origPtr != -1, 1003 );
 }
 
-#endif /* KI_BZ_NO_COMPRESSION */
 
 /*-------------------------------------------------------------*/
 /*--- end                                       blocksort.c ---*/

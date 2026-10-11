@@ -19,9 +19,10 @@
 //  - Compressed input framing ("new" style): a stream of chunks,
 //    each = u16LE length + raw deflate stream (no zlib header).
 //    Chunks decode independently; a zero length ends the stream.
-//    Decode failures of individual chunks are tolerated (skipped),
-//    matching the original: Decompress consumes all input and
-//    emits whatever decodes.
+//    A failed chunk still contributes bytes decoded before the failure,
+//    matching the original's consume-all/emits-whatever-decodes behavior.
+//    On malformed streams, the exact failure cutoff is determined by the
+//    linked inflate implementation rather than this wrapper.
 //  - Pointer-carrying SetInfo values use ULONG_PTR so the API is
 //    64-bit clean (on x86 the __stdcall export names are unchanged).
 //

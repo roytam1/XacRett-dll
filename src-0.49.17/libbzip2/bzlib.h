@@ -1,14 +1,4 @@
 
-/*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*/
-/*= This source is Modified a little by K.INABA.              =*/
-/*=                                                           =*/
-/*= Since 'XacRett' doesn't compress, I removed               =*/
-/*=  compression codes by #ifdef KI_BZ_NO_COMPRESSION .       =*/
-/*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*/
-#ifndef KI_BZ_NO_COMPRESSION
-#define KI_BZ_NO_COMPRESSION
-#endif
-
 /*-------------------------------------------------------------*/
 /*--- Public header file for the library.                   ---*/
 /*---                                               bzlib.h ---*/
@@ -18,7 +8,7 @@
   This file is a part of bzip2 and/or libbzip2, a program and
   library for lossless, block-sorting data compression.
 
-  Copyright (C) 1996-2000 Julian R Seward.  All rights reserved.
+  Copyright (C) 1996-2005 Julian R Seward.  All rights reserved.
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions
@@ -52,7 +42,7 @@
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   Julian Seward, Cambridge, UK.
-  jseward@acm.org
+  jseward@bzip.org
   bzip2/libbzip2 version 1.0 of 21 March 2000
 
   This program is based on (at least) the work of:
@@ -120,8 +110,12 @@ typedef
 #define BZ_EXPORT
 #endif
 
+#ifndef BZ_NO_STDIO
+/* Need a definitition for FILE */
+#include <stdio.h>
+#endif
+
 #ifdef _WIN32
-#   include <stdio.h>
 #   include <windows.h>
 #   ifdef small
       /* windows.h define small to char */
@@ -143,8 +137,6 @@ typedef
 
 /*-- Core (low-level) library functions --*/
 
-#ifndef KI_BZ_NO_COMPRESSION
-
 BZ_EXTERN int BZ_API(BZ2_bzCompressInit) ( 
       bz_stream* strm, 
       int        blockSize100k, 
@@ -160,8 +152,6 @@ BZ_EXTERN int BZ_API(BZ2_bzCompress) (
 BZ_EXTERN int BZ_API(BZ2_bzCompressEnd) ( 
       bz_stream* strm 
    );
-
-#endif /* KI_BZ_NO_COMPRESSION */
 
 BZ_EXTERN int BZ_API(BZ2_bzDecompressInit) ( 
       bz_stream *strm, 
@@ -214,8 +204,6 @@ BZ_EXTERN int BZ_API(BZ2_bzRead) (
       int     len 
    );
 
-#ifndef KI_BZ_NO_COMPRESSION
-
 BZ_EXTERN BZFILE* BZ_API(BZ2_bzWriteOpen) ( 
       int*  bzerror,      
       FILE* f, 
@@ -248,15 +236,10 @@ BZ_EXTERN void BZ_API(BZ2_bzWriteClose64) (
       unsigned int* nbytes_out_lo32, 
       unsigned int* nbytes_out_hi32
    );
-
-#endif /* KI_BZ_NO_COMPRESSION */
-
 #endif
 
 
 /*-- Utility functions --*/
-
-#ifndef KI_BZ_NO_COMPRESSION
 
 BZ_EXTERN int BZ_API(BZ2_bzBuffToBuffCompress) ( 
       char*         dest, 
@@ -267,8 +250,6 @@ BZ_EXTERN int BZ_API(BZ2_bzBuffToBuffCompress) (
       int           verbosity, 
       int           workFactor 
    );
-
-#endif /* KI_BZ_NO_COMPRESSION */
 
 BZ_EXTERN int BZ_API(BZ2_bzBuffToBuffDecompress) ( 
       char*         dest, 
