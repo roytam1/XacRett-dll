@@ -141,6 +141,19 @@ no binary-only dependencies (AMD64 port preparation).
   `93 57 8A 4A`, same as every other tool).
 - DllTest command parsing: `XacRett()` needs `-n1 -o1 -j`; `type` numbers
   are `ARCHIVETYPE_*` in `XacRett.h` (AR=5, ARC=2).
+- AIN support (`ARCHIVETYPE_AIN` 64, `CAinTool`/`COpenAin` + shared
+  `AinCodec` Huffman session engine): 24-byte header (`21` magic, method
+  `11`-`14`, `(sum[0..21] ^ 5555)` checksum — all verified), solid
+  LZ77+Huffman data stream sliced by `orig_size`, M1-compressed index,
+  whole-stream checksum on the last entry (strict: mismatch fails the
+  extract). M1/M2/M3 share one decode path (they differ only on encode);
+  M4 is verbatim. `szMode` is `ultra`/`normal`/`fast`/`store` (user
+  decision). 9/9 fixtures byte-exact vs upstream corpus (HELLO/ENG
+  x M1-M4 + CODE.AIN). Multi-volume/SFX/2.2-fragments deferred.
+  Reference is seb3773/AIN (`TEMP\aintest\src_ain.c`, no explicit code
+  license — reference use only, never vendor; our port is clean-room).
+  Samples live in TEMP (`aintest\packed_corpus_*` + `corpus_*`), not the
+  repo.
 - Known gaps (untouched): JCALG1 is clean-room and unverified; SQX
   method-6 EX emits zero bytes; GCA non-`GCAX` paths are stubbed;
   `OpenDummy`/`OpenCompactC` have no live listing path.

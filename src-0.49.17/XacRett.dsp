@@ -120,6 +120,14 @@ SOURCE=.\ArTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\AinCodec.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\AinTool.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\AsdTool.cpp
 # End Source File
 # Begin Source File
@@ -464,6 +472,14 @@ SOURCE=.\ArTool.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\AinCodec.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\AinTool.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\AsdTool.h
 # End Source File
 # Begin Source File
@@ -795,6 +811,10 @@ SOURCE=.\OpenArchive\OpenaPLib.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\OpenArchive\OpenAin.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\OpenArchive\OpenAr.cpp
 # End Source File
 # Begin Source File
@@ -1020,6 +1040,10 @@ SOURCE=.\OpenArchive\OpenAlz.h
 # Begin Source File
 
 SOURCE=.\OpenArchive\OpenaPLib.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenAin.h
 # End Source File
 # Begin Source File
 
