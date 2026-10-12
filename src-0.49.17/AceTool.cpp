@@ -1,6 +1,7 @@
 
 #include "stdafx.h"
 #include "AceTool.h"
+#include "AceBlock.h"
 
 bool CAceTool::Check( const char* fname, unsigned long fsize )
 {
@@ -63,6 +64,9 @@ bool CAceTool::Extract( const char* fname,const char* ddir )
 
 							kiutil::timeSet( outname,(WORD)(fhead.FTIME>>16),(WORD)fhead.FTIME );
 							SetFileAttributes(outname,fhead.ATTR);
+						if (fhead.TECH.TYPE==TYPE_BLOCKED
+						&& rd_crc != fhead.CRC32)
+							DeleteFile(outname);
 						}
 					}
 				}
@@ -247,6 +251,12 @@ bool CAceTool::dcpr_init_file()
 
 		blocksize = 0;
 	}
+	if( fhead.TECH.TYPE == TYPE_BLOCKED )
+	{
+		unsigned long dicsize = 1UL<<((fhead.TECH.PARM & 15)+10);
+		AceBlkBegin(ace_blk,dicsize,fhead.SIZE,
+			(adat.sol && !dcpr_frst_file) ? 1 : 0);
+	}
 	if( !adat.sol || dcpr_frst_file )
 		dcpr_dpos = 0;
 
@@ -268,6 +278,9 @@ int CAceTool::dcpr_adds_blk(char* buf, UINT len)
 		break;
 	case TYPE_LZ1:
 		r = decompress_blk(buf,len);
+		break;
+	case TYPE_BLOCKED:
+		r = AceBlkRead(ace_blk,AcePullWrap,this,(BYTE*)buf,len);
 		break;
 	default:
 		r = 0;
@@ -337,6 +350,13 @@ int CAceTool::read_adds_blk(char* buffer,int len)
 				break;
 	}
 	return (rd > l ? l : rd);
+}
+
+int CAceTool::AcePullWrap(void* ctx, BYTE* buf, int len)
+{
+	if(len<=0)
+		return 0;
+	return ((CAceTool*)ctx)->read_adds_blk((char*)buf,len);
 }
 
 
@@ -431,6 +451,7 @@ int CAceTool::unstore(char* buf,UINT len)
 		len -= i;
 		dcpr_size -= i;
 		memcpy(&buf[pos], buf_rd, i);
+		AceBlkRegister(ace_blk,(BYTE*)(buf+pos-i),i);
 		pos += i;
 	}
 	for( i=0; i<rd; i++ )

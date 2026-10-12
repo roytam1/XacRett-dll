@@ -2,6 +2,7 @@
 #define AFX_ACETOOL_H__8D834FA0_414C_11D4_8D96_958B20B6F733__INCLUDED_
 
 #include "Tool.h"
+#include "AceBlock.h"
 
 #define PATH_MAX   512
 #define CRC_MASK 0xFFFFFFFFL
@@ -46,6 +47,7 @@
 //known compression types
 #define TYPE_STORE 0
 #define TYPE_LZ1   1
+#define TYPE_BLOCKED 2
 
 //io
 #define BUFP2WORD(p) *(WORD*)((p+=2)-2)
@@ -166,6 +168,7 @@ public:
 		dcpr_olddist[3]=0,
 		code_rd        =0;
 		dcpr_init();
+		ace_blk = AceBlkCreate();
 	}
 
 	bool IsType( const char* ext )
@@ -180,6 +183,7 @@ public:
 		delete [] buf;
 		delete [] buf_wr;
 		delete [] readbuf;
+		AceBlkFree(ace_blk);
 		delete [] dcpr_text;
 	}
 
@@ -202,6 +206,7 @@ private:
 	char  *buf;
 	char  *buf_wr;
 	BYTE  *readbuf;
+	AceBlock* ace_blk;
 
 	//-------- crc
 	DWORD getcrc(DWORD crc,BYTE* addr,int len)
@@ -218,6 +223,7 @@ private:
 	bool proc_vol();
 	bool proc_next_vol();
 	int read_adds_blk(char* buffer,int len);
+	static int AcePullWrap(void* ctx, BYTE* buf, int len);
 
 	void comment_skip();
 	void dcpr_comm_init();

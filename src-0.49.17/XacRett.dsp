@@ -96,6 +96,10 @@ SOURCE=.\AceTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\AceBlock.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\AlzTool.cpp
 # End Source File
 # Begin Source File
@@ -445,6 +449,10 @@ SOURCE=.\ZooTool.cpp
 # Begin Source File
 
 SOURCE=.\AceTool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\AceBlock.h
 # End Source File
 # Begin Source File
 

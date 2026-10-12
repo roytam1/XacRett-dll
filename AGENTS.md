@@ -157,6 +157,19 @@ no binary-only dependencies (AMD64 port preparation).
 - Known gaps (untouched): JCALG1 is clean-room and unverified; SQX
   method-6 EX emits zero bytes; GCA non-`GCAX` paths are stubbed;
   `OpenDummy`/`OpenCompactC` have no live listing path.
+- ACE unpacker (`CAceTool`, UNACE v1.2b lineage) handles STORE + LZ1
+  (`TYPE 0/1`); ACE 2.0 blocked mode (`TYPE 2`) is decoded by the
+  clean-room `AceBlock` engine (bitstream/Huffman/LZ77 core + EXE/DELTA/
+  SOUND/PIC inverse filters, solid-dictionary support, per-member CRC
+  verify with delete-on-mismatch). 9/9 authentic WinACE samples verify
+  (`testdata/winace`: stored/m1 byte-exact incl. HELLO.TXT vs corpus,
+  m2-plain cross-validated vs the m1 member with identical header CRC,
+  EXE/DELTA/SOUND/PIC by header-CRC32 match). Encrypted members are
+  refused up front (`ACE_PASSW`); multi-volume gates on vol 0.
+  Reference is seb3773/ace-c (`TEMP\aceref`, BSD — reference use only,
+  never vendor; our port is clean-room). LZ1↔blocked cross-registration
+  for mixed-solid archives is skipped (no sample; stored→blocked is
+  registered).
 
 ## Pre-commit checklist
 
