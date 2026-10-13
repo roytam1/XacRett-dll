@@ -122,6 +122,13 @@ no binary-only dependencies (AMD64 port preparation).
   across all three; official PASSes 2.0/2.9 identically but fails 1.5).
   Fixtures: `GPLv2-rar4/5.rar` + `rar15/20/29.rar` workarea root
   (all untracked, like `LIBCMT.LIB`).
+  Retro-Windows load safety (95/NT4 floor = official's import table):
+  post-95 static imports converted to GetProcAddress with fallbacks
+  (`CreateHardLinkW`, `GetLongPathNameW`, `SetThreadExecutionState`,
+  `AllocateAndInitializeSid`/`FreeSid`/`LookupPrivilegeValueW`,
+  `GetProcessAffinityMask`, `FoldStringW`,
+  `SystemTimeToTzSpecificLocalTime`; `SetSuspendState` stubbed).
+  Verify with `dumpbin /imports` diff vs official after any unrar change.
 - bzip2 fixtures: upstream `sample1/2/3.bz2` + `.ref` (in TEMP
   `bz2test/`), plus generated multi-block + ZIP-method-12 fixtures
   (`mkbz2.py`, `runbz2matrix.ps1` — 6/6 MATCH).

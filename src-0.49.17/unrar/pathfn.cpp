@@ -1112,11 +1112,17 @@ void ConvertToPrecomposed(std::wstring &Name)
 {
   if (WinNT()<WNT_VISTA) // MAP_PRECOMPOSED is not supported in XP.
     return;
-  int Size=FoldString(MAP_PRECOMPOSED,Name.c_str(),-1,NULL,0);
+  /* VC6/retro: FoldStringW may be missing, skip precompose then (VC6_FOLD). */
+  typedef int (WINAPI *FSFUNC)(DWORD,LPCWSTR,int,LPWSTR,int);
+  HMODULE hKrnl=GetModuleHandle(L"kernel32.dll");
+  FSFUNC pFs=hKrnl==NULL ? NULL : (FSFUNC)GetProcAddress(hKrnl,"FoldStringW");
+  if (pFs==NULL)
+    return;
+  int Size=pFs(MAP_PRECOMPOSED,Name.c_str(),-1,NULL,0);
   if (Size<=0)
     return;
   std::vector<wchar> FileName(Size);
-  if (FoldString(MAP_PRECOMPOSED,Name.c_str(),-1,&FileName[0],(int)FileName.size())!=0)
+  if (pFs(MAP_PRECOMPOSED,Name.c_str(),-1,&FileName[0],(int)FileName.size())!=0)
     Name=&FileName[0];
 }
 

@@ -94,7 +94,13 @@ void Wait()
 #endif
 #if defined(_WIN_ALL)
   // Reset system sleep timer to prevent system going sleep.
-  SetThreadExecutionState(ES_SYSTEM_REQUIRED);
+  /* VC6/retro: SetThreadExecutionState is 98+, load dynamically (VC6_STES). */
+  { typedef EXECUTION_STATE (WINAPI *STESFUNC)(EXECUTION_STATE);
+    HMODULE hKrnl=GetModuleHandle(L"kernel32.dll");
+    STESFUNC pStes=hKrnl==NULL ? NULL : (STESFUNC)GetProcAddress(hKrnl,"SetThreadExecutionState");
+    if (pStes!=NULL)
+      pStes(ES_SYSTEM_REQUIRED);
+  }
 #endif
 }
 
@@ -105,6 +111,12 @@ void Wait()
 bool SetPrivilege(LPCTSTR PrivName)
 {
   bool Success=false;
+  /* VC6/retro: LookupPrivilegeValueW may be missing (VC6_LPV). */
+  typedef BOOL (WINAPI *LPVFUNC)(LPCTSTR,LPCTSTR,PLUID);
+  HMODULE hAdvP=GetModuleHandle(L"advapi32.dll");
+  LPVFUNC pLpv=hAdvP==NULL ? NULL : (LPVFUNC)GetProcAddress(hAdvP,"LookupPrivilegeValueW");
+  if (pLpv==NULL)
+    return false;
 
   HANDLE hToken;
   if (OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &hToken))
@@ -113,7 +125,7 @@ bool SetPrivilege(LPCTSTR PrivName)
     tp.PrivilegeCount = 1;
     tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
 
-    if (LookupPrivilegeValue(NULL,PrivName,&tp.Privileges[0].Luid) &&
+    if (pLpv(NULL,PrivName,&tp.Privileges[0].Luid) &&
         AdjustTokenPrivileges(hToken, FALSE, &tp, 0, NULL, NULL) &&
         GetLastError() == ERROR_SUCCESS)
       Success=true;
@@ -186,9 +198,17 @@ BOOL WINAPI CheckTokenMembership(HANDLE TokenHandle,PSID SidToCheck,PBOOL IsMemb
 #endif
 bool IsUserAdmin()
 {
+  /* VC6/retro: SID APIs may be missing, assume non-admin then (VC6_SID). */
+  typedef BOOL (WINAPI *AISFUNC)(PSID_IDENTIFIER_AUTHORITY,BYTE,DWORD,DWORD,DWORD,DWORD,DWORD,DWORD,DWORD,DWORD,PSID*);
+  typedef BOOL (WINAPI *FSFUNC)(PSID);
+  HMODULE hAdvI=GetModuleHandle(L"advapi32.dll");
+  AISFUNC pAis=hAdvI==NULL ? NULL : (AISFUNC)GetProcAddress(hAdvI,"AllocateAndInitializeSid");
+  FSFUNC pFs=hAdvI==NULL ? NULL : (FSFUNC)GetProcAddress(hAdvI,"FreeSid");
+  if (pAis==NULL || pFs==NULL)
+    return false;
   SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
   PSID AdministratorsGroup; 
-  BOOL b = AllocateAndInitializeSid(&NtAuthority,2,SECURITY_BUILTIN_DOMAIN_RID,
+  BOOL b = pAis(&NtAuthority,2,SECURITY_BUILTIN_DOMAIN_RID,
            DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &AdministratorsGroup); 
   if (b) 
   {
@@ -198,7 +218,7 @@ bool IsUserAdmin()
       if (pCtm==NULL || !pCtm( NULL, AdministratorsGroup, &b)) 
         b = FALSE;
     }
-    FreeSid(AdministratorsGroup); 
+    pFs(AdministratorsGroup); 
   }
   return b!=FALSE;
 }

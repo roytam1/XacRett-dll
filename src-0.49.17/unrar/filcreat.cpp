@@ -64,11 +64,17 @@ bool FileCreate(CommandData *Cmd,File *NewFile,std::wstring &Name,
 // even though its long name does not match the name of unpacking file.
 bool UpdateExistingShortName(const std::wstring &Name)
 {
-  DWORD Res=GetLongPathName(Name.c_str(),NULL,0);
+  /* VC6/retro: GetLongPathNameW is 98+, load dynamically (VC6_GLPN). */
+  typedef DWORD (WINAPI *GLPNFUNC)(LPCWSTR,LPWSTR,DWORD);
+  HMODULE hKrnl=GetModuleHandle(L"kernel32.dll");
+  GLPNFUNC pGlpn=hKrnl==NULL ? NULL : (GLPNFUNC)GetProcAddress(hKrnl,"GetLongPathNameW");
+  if (pGlpn==NULL)
+    return false;
+  DWORD Res=pGlpn(Name.c_str(),NULL,0);
   if (Res==0)
     return false;
   std::vector<wchar> LongPathBuf(Res);
-  Res=GetLongPathName(Name.c_str(),&LongPathBuf[0],(DWORD)LongPathBuf.size());
+  Res=pGlpn(Name.c_str(),&LongPathBuf[0],(DWORD)LongPathBuf.size());
   if (Res==0 || Res>=LongPathBuf.size())
     return false;
   Res=GetShortPathName(Name.c_str(),NULL,0);

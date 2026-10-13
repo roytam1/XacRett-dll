@@ -17,9 +17,19 @@ void RarTime::GetLocal(RarLocalTime *lt)
     // We use these functions instead of FileTimeToLocalFileTime according to
     // MSDN recommendation: "To account for daylight saving time
     // when converting a file time to a local time ..."
+    /* VC6/retro: SystemTimeToTzSpecificLocalTime may be missing (VC6_STT). */
+    typedef BOOL (WINAPI *STTFUNC)(LPTIME_ZONE_INFORMATION,CONST SYSTEMTIME*,LPSYSTEMTIME);
+    HMODULE hKrnl=GetModuleHandle(L"kernel32.dll");
+    STTFUNC pStt=hKrnl==NULL ? NULL : (STTFUNC)GetProcAddress(hKrnl,"SystemTimeToTzSpecificLocalTime");
+    if (pStt==NULL)
+    {
+      FileTimeToLocalFileTime(&ft,&lft);
+    }
+    else
+    {
     SYSTEMTIME st1,st2;
     FileTimeToSystemTime(&ft,&st1);
-    SystemTimeToTzSpecificLocalTime(NULL,&st1,&st2);
+    pStt(NULL,&st1,&st2);
     SystemTimeToFileTime(&st2,&lft);
 
     // Correct precision loss (low 4 decimal digits) in FileTimeToSystemTime.
@@ -30,6 +40,7 @@ void RarTime::GetLocal(RarLocalTime *lt)
                      INT32TO64(lft.dwHighDateTime,lft.dwLowDateTime);
     lft.dwLowDateTime=(DWORD)Corrected;
     lft.dwHighDateTime=(DWORD)(Corrected>>32);
+    }
   }
 
   SYSTEMTIME st;
