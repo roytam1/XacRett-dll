@@ -11,6 +11,7 @@ public: //-- COpenArchive 共通インターフェイス -----------
 	COpenRar() : COpenArchive( )
 	{
 		COpenRar::fp=NULL;
+		rar5_h=NULL; rar5_state=0; /* UnRAR 7.x RAR5 list path */
 
 		DWORD c,i,j;
 		for(i=0;i!=256;i++)
@@ -195,6 +196,7 @@ private:
 	bool GetNextVolume();
 	DWORD UpdateChecker( DWORD StartVal,BYTE *ptr,DWORD Size,bool b32Bit );
 	bool FindSub(INDIVIDUALINFO *lpSubInfo);
+	bool FindSub5(INDIVIDUALINFO *lpSubInfo); /* RAR5 via UnRAR API */
 
 	DWORD crcTable[256];
 
@@ -217,6 +219,8 @@ private:
 	char ArcName[MAX_PATH*2];
 
 	bool bSolid,bNeedNextVol;
+	void *rar5_h;
+	int rar5_state; /* 0=undecided, 1=old parser, 2=RAR5 API */
 };
 
 #endif

@@ -1,60 +1,55 @@
 #define STARTL1  2
-static unsigned int DecL1[]={0x8000,0xa000,0xc000,0xd000,0xe000,0xea00,
+static uint DecL1[]={0x8000,0xa000,0xc000,0xd000,0xe000,0xea00,
                              0xee00,0xf000,0xf200,0xf200,0xffff};
-static unsigned int PosL1[]={0,0,0,2,3,5,7,11,16,20,24,32,32};
+static uint PosL1[]={0,0,0,2,3,5,7,11,16,20,24,32,32};
 
 #define STARTL2  3
-static unsigned int DecL2[]={0xa000,0xc000,0xd000,0xe000,0xea00,0xee00,
+static uint DecL2[]={0xa000,0xc000,0xd000,0xe000,0xea00,0xee00,
                              0xf000,0xf200,0xf240,0xffff};
-static unsigned int PosL2[]={0,0,0,0,5,7,9,13,18,22,26,34,36};
+static uint PosL2[]={0,0,0,0,5,7,9,13,18,22,26,34,36};
 
 #define STARTHF0  4
-static unsigned int DecHf0[]={0x8000,0xc000,0xe000,0xf200,0xf200,0xf200,
+static uint DecHf0[]={0x8000,0xc000,0xe000,0xf200,0xf200,0xf200,
                               0xf200,0xf200,0xffff};
-static unsigned int PosHf0[]={0,0,0,0,0,8,16,24,33,33,33,33,33};
+static uint PosHf0[]={0,0,0,0,0,8,16,24,33,33,33,33,33};
 
 
 #define STARTHF1  5
-static unsigned int DecHf1[]={0x2000,0xc000,0xe000,0xf000,0xf200,0xf200,
+static uint DecHf1[]={0x2000,0xc000,0xe000,0xf000,0xf200,0xf200,
                               0xf7e0,0xffff};
-static unsigned int PosHf1[]={0,0,0,0,0,0,4,44,60,76,80,80,127};
+static uint PosHf1[]={0,0,0,0,0,0,4,44,60,76,80,80,127};
 
 
 #define STARTHF2  5
-static unsigned int DecHf2[]={0x1000,0x2400,0x8000,0xc000,0xfa00,0xffff,
+static uint DecHf2[]={0x1000,0x2400,0x8000,0xc000,0xfa00,0xffff,
                               0xffff,0xffff};
-static unsigned int PosHf2[]={0,0,0,0,0,0,2,7,53,117,233,0,0};
+static uint PosHf2[]={0,0,0,0,0,0,2,7,53,117,233,0,0};
 
 
 #define STARTHF3  6
-static unsigned int DecHf3[]={0x800,0x2400,0xee00,0xfe80,0xffff,0xffff,
+static uint DecHf3[]={0x800,0x2400,0xee00,0xfe80,0xffff,0xffff,
                               0xffff};
-static unsigned int PosHf3[]={0,0,0,0,0,0,0,2,16,218,251,0,0};
+static uint PosHf3[]={0,0,0,0,0,0,0,2,16,218,251,0,0};
 
 
 #define STARTHF4  8
-static unsigned int DecHf4[]={0xff00,0xffff,0xffff,0xffff,0xffff,0xffff};
-static unsigned int PosHf4[]={0,0,0,0,0,0,0,0,0,255,0,0,0};
+static uint DecHf4[]={0xff00,0xffff,0xffff,0xffff,0xffff,0xffff};
+static uint PosHf4[]={0,0,0,0,0,0,0,0,0,255,0,0,0};
 
 
 void Unpack::Unpack15(bool Solid)
 {
-  if (Suspended)
-    UnpPtr=WrPtr;
-  else
+  UnpInitData(Solid);
+  UnpInitData15(Solid);
+  UnpReadBuf();
+  if (!Solid)
   {
-    UnpInitData(Solid);
-    OldUnpInitData(Solid);
-    UnpReadBuf();
-    if (!Solid)
-    {
-      InitHuff();
-      UnpPtr=0;
-    }
-    else
-      UnpPtr=WrPtr;
-    --DestUnpSize;
+    InitHuff();
+    UnpPtr=0;
   }
+  else
+    UnpPtr=WrPtr;
+  --DestUnpSize;
   if (DestUnpSize>=0)
   {
     GetFlagsBuf();
@@ -63,16 +58,15 @@ void Unpack::Unpack15(bool Solid)
 
   while (DestUnpSize>=0)
   {
-    UnpPtr&=MAXWINMASK;
+    UnpPtr&=MaxWinMask;
 
-    if (InAddr>ReadTop-30 && !UnpReadBuf())
+    FirstWinDone|=(PrevPtr>UnpPtr);
+    PrevPtr=UnpPtr;
+
+    if (Inp.InAddr>ReadTop-30 && !UnpReadBuf())
       break;
-    if (((WrPtr-UnpPtr) & MAXWINMASK)<270 && WrPtr!=UnpPtr)
-    {
-      OldUnpWriteBuf();
-      if (Suspended)
-        return;
-    }
+    if (((WrPtr-UnpPtr) & MaxWinMask)<270 && WrPtr!=UnpPtr)
+      UnpWriteBuf20();
     if (StMode)
     {
       HuffDecode();
@@ -116,49 +110,36 @@ void Unpack::Unpack15(bool Solid)
       }
     }
   }
-  OldUnpWriteBuf();
+  UnpWriteBuf20();
 }
 
 
-void Unpack::OldUnpWriteBuf()
-{
-  if (UnpPtr!=WrPtr)
-    UnpSomeRead=true;
-  if (UnpPtr<WrPtr)
-  {
-    UnpIO->UnpWrite(&Window[WrPtr],-WrPtr & MAXWINMASK);
-    UnpIO->UnpWrite(Window,UnpPtr);
-    UnpAllBuf=true;
-  }
-  else
-    UnpIO->UnpWrite(&Window[WrPtr],UnpPtr-WrPtr);
-  WrPtr=UnpPtr;
-}
-
+#define GetShortLen1(pos) ((pos)==1 ? Buf60+3:ShortLen1[pos])
+#define GetShortLen2(pos) ((pos)==3 ? Buf60+3:ShortLen2[pos])
 
 void Unpack::ShortLZ()
 {
-  static unsigned int ShortLen1[]={1,3,4,4,5,6,7,8,8,4,4,5,6,6,4,0};
-  static unsigned int ShortXor1[]={0,0xa0,0xd0,0xe0,0xf0,0xf8,0xfc,0xfe,
+  static uint ShortLen1[]={1,3,4,4,5,6,7,8,8,4,4,5,6,6,4,0};
+  static uint ShortXor1[]={0,0xa0,0xd0,0xe0,0xf0,0xf8,0xfc,0xfe,
                                    0xff,0xc0,0x80,0x90,0x98,0x9c,0xb0};
-  static unsigned int ShortLen2[]={2,3,3,3,4,4,5,6,6,4,4,5,6,6,4,0};
-  static unsigned int ShortXor2[]={0,0x40,0x60,0xa0,0xd0,0xe0,0xf0,0xf8,
+  static uint ShortLen2[]={2,3,3,3,4,4,5,6,6,4,4,5,6,6,4,0};
+  static uint ShortXor2[]={0,0x40,0x60,0xa0,0xd0,0xe0,0xf0,0xf8,
                                    0xfc,0xc0,0x80,0x90,0x98,0x9c,0xb0};
 
 
-  unsigned int Length,SaveLength;
-  unsigned int LastDistance;
-  unsigned int Distance;
+  uint Length,SaveLength;
+  uint LastDistance;
+  uint Distance;
   int DistancePlace;
   NumHuf=0;
 
-  unsigned int BitField=fgetbits();
+  uint BitField=Inp.fgetbits();
   if (LCount==2)
   {
-    faddbits(1);
+    Inp.faddbits(1);
     if (BitField >= 0x8000)
     {
-      OldCopyString((unsigned int)LastDist,LastLength);
+      CopyString15(LastDist,LastLength);
       return;
     }
     BitField <<= 1;
@@ -167,21 +148,22 @@ void Unpack::ShortLZ()
 
   BitField>>=8;
 
-  ShortLen1[1]=ShortLen2[3]=Buf60+3;
+//  not thread safe, replaced by GetShortLen1 and GetShortLen2 macro
+//  ShortLen1[1]=ShortLen2[3]=Buf60+3;
 
   if (AvrLn1<37)
   {
     for (Length=0;;Length++)
-      if (((BitField^ShortXor1[Length]) & (~(0xff>>ShortLen1[Length])))==0)
+      if (((BitField^ShortXor1[Length]) & (~(0xff>>GetShortLen1(Length))))==0)
         break;
-    faddbits(ShortLen1[Length]);
+    Inp.faddbits(GetShortLen1(Length));
   }
   else
   {
     for (Length=0;;Length++)
-      if (((BitField^ShortXor2[Length]) & (~(0xff>>ShortLen2[Length])))==0)
+      if (((BitField^ShortXor2[Length]) & (~(0xff>>GetShortLen2(Length))))==0)
         break;
-    faddbits(ShortLen2[Length]);
+    Inp.faddbits(GetShortLen2(Length));
   }
 
   if (Length >= 9)
@@ -189,25 +171,25 @@ void Unpack::ShortLZ()
     if (Length == 9)
     {
       LCount++;
-      OldCopyString((unsigned int)LastDist,LastLength);
+      CopyString15(LastDist,LastLength);
       return;
     }
     if (Length == 14)
     {
       LCount=0;
-      Length=DecodeNum(fgetbits(),STARTL2,DecL2,PosL2)+5;
-      Distance=(fgetbits()>>1) | 0x8000;
-      faddbits(15);
+      Length=DecodeNum(Inp.fgetbits(),STARTL2,DecL2,PosL2)+5;
+      Distance=(Inp.fgetbits()>>1) | 0x8000;
+      Inp.faddbits(15);
       LastLength=Length;
       LastDist=Distance;
-      OldCopyString(Distance,Length);
+      CopyString15(Distance,Length);
       return;
     }
 
     LCount=0;
     SaveLength=Length;
-    Distance=OldDist[(OldDistPtr-(Length-9)) & 3];
-    Length=DecodeNum(fgetbits(),STARTL1,DecL1,PosL1)+2;
+    Distance=(uint)OldDist[(OldDistPtr-(Length-9)) & 3];
+    Length=DecodeNum(Inp.fgetbits(),STARTL1,DecL1,PosL1)+2;
     if (Length==0x101 && SaveLength==10)
     {
       Buf60 ^= 1;
@@ -222,7 +204,7 @@ void Unpack::ShortLZ()
     OldDistPtr = OldDistPtr & 3;
     LastLength=Length;
     LastDist=Distance;
-    OldCopyString(Distance,Length);
+    CopyString15(Distance,Length);
     return;
   }
 
@@ -230,31 +212,29 @@ void Unpack::ShortLZ()
   AvrLn1 += Length;
   AvrLn1 -= AvrLn1 >> 4;
 
-  DistancePlace=DecodeNum(fgetbits(),STARTHF2,DecHf2,PosHf2) & 0xff;
+  DistancePlace=DecodeNum(Inp.fgetbits(),STARTHF2,DecHf2,PosHf2) & 0xff;
   Distance=ChSetA[DistancePlace];
   if (--DistancePlace != -1)
   {
-    PlaceA[Distance]--;
     LastDistance=ChSetA[DistancePlace];
-    PlaceA[LastDistance]++;
-    ChSetA[DistancePlace+1]=LastDistance;
-    ChSetA[DistancePlace]=Distance;
+    ChSetA[DistancePlace+1]=(ushort)LastDistance;
+    ChSetA[DistancePlace]=(ushort)Distance;
   }
   Length+=2;
   OldDist[OldDistPtr++] = ++Distance;
   OldDistPtr = OldDistPtr & 3;
   LastLength=Length;
   LastDist=Distance;
-  OldCopyString(Distance,Length);
+  CopyString15(Distance,Length);
 }
 
 
 void Unpack::LongLZ()
 {
-  unsigned int Length;
-  unsigned int Distance;
-  unsigned int DistancePlace,NewDistancePlace;
-  unsigned int OldAvr2,OldAvr3;
+  uint Length;
+  uint Distance;
+  uint DistancePlace,NewDistancePlace;
+  uint OldAvr2,OldAvr3;
 
   NumHuf=0;
   Nlzb+=16;
@@ -265,7 +245,7 @@ void Unpack::LongLZ()
   }
   OldAvr2=AvrLn2;
 
-  unsigned int BitField=fgetbits();
+  uint BitField=Inp.fgetbits();
   if (AvrLn2 >= 122)
     Length=DecodeNum(BitField,STARTL2,DecL2,PosL2);
   else
@@ -275,19 +255,19 @@ void Unpack::LongLZ()
       if (BitField < 0x100)
       {
         Length=BitField;
-        faddbits(16);
+        Inp.faddbits(16);
       }
       else
       {
         for (Length=0;((BitField<<Length)&0x8000)==0;Length++)
           ;
-        faddbits(Length+1);
+        Inp.faddbits(Length+1);
       }
 
   AvrLn2 += Length;
   AvrLn2 -= AvrLn2 >> 5;
 
-  BitField=fgetbits();
+  BitField=Inp.fgetbits();
   if (AvrPlcB > 0x28ff)
     DistancePlace=DecodeNum(BitField,STARTHF2,DecHf2,PosHf2);
   else
@@ -308,11 +288,11 @@ void Unpack::LongLZ()
       break;
   }
 
-  ChSetB[DistancePlace]=ChSetB[NewDistancePlace];
-  ChSetB[NewDistancePlace]=Distance;
+  ChSetB[DistancePlace & 0xff]=ChSetB[NewDistancePlace];
+  ChSetB[NewDistancePlace]=(ushort)Distance;
 
-  Distance=((Distance & 0xff00) | (fgetbits() >> 8)) >> 1;
-  faddbits(7);
+  Distance=((Distance & 0xff00) | (Inp.fgetbits() >> 8)) >> 1;
+  Inp.faddbits(7);
 
   OldAvr3=AvrLn3;
   if (Length!=1 && Length!=4)
@@ -337,18 +317,18 @@ void Unpack::LongLZ()
   OldDistPtr = OldDistPtr & 3;
   LastLength=Length;
   LastDist=Distance;
-  OldCopyString(Distance,Length);
+  CopyString15(Distance,Length);
 }
 
 
 void Unpack::HuffDecode()
 {
-  unsigned int CurByte,NewBytePlace;
-  unsigned int Length;
-  unsigned int Distance;
+  uint CurByte,NewBytePlace;
+  uint Length;
+  uint Distance;
   int BytePlace;
 
-  unsigned int BitField=fgetbits();
+  uint BitField=Inp.fgetbits();
 
   if (AvrPlc > 0x75ff)
     BytePlace=DecodeNum(BitField,STARTHF4,DecHf4,PosHf4);
@@ -370,8 +350,8 @@ void Unpack::HuffDecode()
       BytePlace=0x100;
     if (--BytePlace==-1)
     {
-      BitField=fgetbits();
-      faddbits(1);
+      BitField=Inp.fgetbits();
+      Inp.faddbits(1);
       if (BitField & 0x8000)
       {
         NumHuf=StMode=0;
@@ -380,11 +360,11 @@ void Unpack::HuffDecode()
       else
       {
         Length = (BitField & 0x4000) ? 4 : 3;
-        faddbits(1);
-        Distance=DecodeNum(fgetbits(),STARTHF2,DecHf2,PosHf2);
-        Distance = (Distance << 5) | (fgetbits() >> 11);
-        faddbits(5);
-        OldCopyString(Distance,Length);
+        Inp.faddbits(1);
+        Distance=DecodeNum(Inp.fgetbits(),STARTHF2,DecHf2,PosHf2);
+        Distance = (Distance << 5) | (Inp.fgetbits() >> 11);
+        Inp.faddbits(5);
+        CopyString15(Distance,Length);
         return;
       }
     }
@@ -415,14 +395,22 @@ void Unpack::HuffDecode()
   }
 
   ChSet[BytePlace]=ChSet[NewBytePlace];
-  ChSet[NewBytePlace]=CurByte;
+  ChSet[NewBytePlace]=(ushort)CurByte;
 }
 
 
 void Unpack::GetFlagsBuf()
 {
-  unsigned int Flags,NewFlagsPlace;
-  unsigned int FlagsPlace=DecodeNum(fgetbits(),STARTHF2,DecHf2,PosHf2);
+  uint Flags,NewFlagsPlace;
+  uint FlagsPlace=DecodeNum(Inp.fgetbits(),STARTHF2,DecHf2,PosHf2);
+
+  // Our Huffman table stores 257 items and needs all them in other parts
+  // of code such as when StMode is on, so the first item is control item.
+  // While normally we do not use the last item to code the flags byte here,
+  // we need to check for value 256 when unpacking in case we unpack
+  // a corrupt archive.
+  if (FlagsPlace>=sizeof(ChSetC)/sizeof(ChSetC[0]))
+    return;
 
   while (1)
   {
@@ -435,11 +423,11 @@ void Unpack::GetFlagsBuf()
   }
 
   ChSetC[FlagsPlace]=ChSetC[NewFlagsPlace];
-  ChSetC[NewFlagsPlace]=Flags;
+  ChSetC[NewFlagsPlace]=(ushort)Flags;
 }
 
 
-void Unpack::OldUnpInitData(int Solid)
+void Unpack::UnpInitData15(bool Solid)
 {
   if (!Solid)
   {
@@ -458,10 +446,8 @@ void Unpack::OldUnpInitData(int Solid)
 
 void Unpack::InitHuff()
 {
-  for (unsigned int I=0;I<256;I++)
+  for (ushort I=0;I<256;I++)
   {
-    Place[I]=PlaceA[I]=PlaceB[I]=I;
-    PlaceC[I]=(~I+1) & 0xff;
     ChSet[I]=ChSetB[I]=I<<8;
     ChSetA[I]=I;
     ChSetC[I]=((~I+1) & 0xff)<<8;
@@ -473,7 +459,7 @@ void Unpack::InitHuff()
 }
 
 
-void Unpack::CorrHuff(unsigned int *CharSet,unsigned int *NumToPlace)
+void Unpack::CorrHuff(ushort *CharSet,byte *NumToPlace)
 {
   int I,J;
   for (I=7;I>=0;I--)
@@ -485,23 +471,30 @@ void Unpack::CorrHuff(unsigned int *CharSet,unsigned int *NumToPlace)
 }
 
 
-void Unpack::OldCopyString(unsigned int Distance,unsigned int Length)
+void Unpack::CopyString15(uint Distance,uint Length)
 {
   DestUnpSize-=Length;
-  while (Length--)
-  {
-    Window[UnpPtr]=Window[(UnpPtr-Distance) & MAXWINMASK];
-    UnpPtr=(UnpPtr+1) & MAXWINMASK;
-  }
+  // 2024.04.18: Distance can be 0 in corrupt RAR 1.5 archives.
+  if (!FirstWinDone && Distance>UnpPtr || Distance>MaxWinSize || Distance==0)
+    while (Length-- > 0)
+    {
+      Window[UnpPtr]=0;
+      UnpPtr=(UnpPtr+1) & MaxWinMask;
+    }
+  else
+    while (Length-- > 0)
+    {
+      Window[UnpPtr]=Window[(UnpPtr-Distance) & MaxWinMask];
+      UnpPtr=(UnpPtr+1) & MaxWinMask;
+    }
 }
 
 
-unsigned int Unpack::DecodeNum(int Num,unsigned int StartPos,
-                               unsigned int *DecTab,unsigned int *PosTab)
+uint Unpack::DecodeNum(uint Num,uint StartPos,uint *DecTab,uint *PosTab)
 {
   int I;
   for (Num&=0xfff0,I=0;DecTab[I]<=Num;I++)
     StartPos++;
-  faddbits(StartPos);
+  Inp.faddbits(StartPos);
   return(((Num-(I ? DecTab[I-1]:0))>>(16-StartPos))+PosTab[StartPos]);
 }

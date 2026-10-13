@@ -1,62 +1,76 @@
 #ifndef _RAR_ERRHANDLER_
 #define _RAR_ERRHANDLER_
 
-#if (defined(GUI) || !defined(_WIN_32)) && !defined(SFX_MODULE) && !defined(_WIN_CE) || defined(RARDLL)
-#define ALLOW_EXCEPTIONS
-#endif
+enum RAR_EXIT // RAR exit code.
+{ 
+  RARX_SUCCESS   =   0,
+  RARX_WARNING   =   1,
+  RARX_FATAL     =   2,
+  RARX_CRC       =   3,
+  RARX_LOCK      =   4,
+  RARX_WRITE     =   5,
+  RARX_OPEN      =   6,
+  RARX_USERERROR =   7,
+  RARX_MEMORY    =   8,
+  RARX_CREATE    =   9,
+  RARX_NOFILES   =  10,
+  RARX_BADPWD    =  11,
+  RARX_READ      =  12,
+  RARX_BADARC    =  13,
+  RARX_USERBREAK = 255
+};
 
-
-
-#define rarmalloc malloc
-#define rarcalloc calloc
-#define rarrealloc realloc
-#define rarfree free
-#define rarstrdup strdup
-
-
-
-enum { SUCCESS,WARNING,FATAL_ERROR,CRC_ERROR,LOCK_ERROR,WRITE_ERROR,
-       OPEN_ERROR,USER_ERROR,MEMORY_ERROR,CREATE_ERROR,USER_BREAK=255};
 
 class ErrorHandler
 {
   private:
-    void ErrMsg(const char *ArcName,const char *fmt,...);
-
-    int ExitCode;
-    int ErrCount;
+    RAR_EXIT ExitCode;
+    uint ErrCount;
     bool EnableBreak;
     bool Silent;
-    bool DoShutdown;
+    bool DisableShutdown; // Shutdown is not suitable after last error.
+    bool ReadErrIgnoreAll;
   public:
     ErrorHandler();
     void Clean();
     void MemoryError();
-    void OpenError(const char *FileName);
-    void CloseError(const char *FileName);
-    void ReadError(const char *FileName);
-    bool AskRepeatRead(const char *FileName);
-    void WriteError(const char *ArcName,const char *FileName);
-    void WriteErrorFAT(const char *FileName);
-    bool AskRepeatWrite(const char *FileName);
-    void SeekError(const char *FileName);
-    void GeneralErrMsg(const char *Msg);
+    void OpenError(const std::wstring &FileName);
+    void CloseError(const std::wstring &FileName);
+    void ReadError(const std::wstring &FileName);
+    void AskRepeatRead(const std::wstring &FileName,bool &Ignore,bool &Retry,bool &Quit);
+    void WriteError(const std::wstring &ArcName,const std::wstring &FileName);
+    void WriteErrorFAT(const std::wstring &FileName);
+    bool AskRepeatWrite(const std::wstring &FileName,bool DiskFull);
+    void SeekError(const std::wstring &FileName);
+    void GeneralErrMsg(const wchar *fmt,...);
     void MemoryErrorMsg();
-    void OpenErrorMsg(const char *FileName);
-    void OpenErrorMsg(const char *ArcName,const char *FileName);
-    void CreateErrorMsg(const char *FileName);
-    void CreateErrorMsg(const char *ArcName,const char *FileName);
-    void ReadErrorMsg(const char *ArcName,const char *FileName);
-    void WriteErrorMsg(const char *ArcName,const char *FileName);
-    void Exit(int ExitCode);
-    void SetErrorCode(int Code);
-    int GetErrorCode() {return(ExitCode);}
-    int GetErrorCount() {return(ErrCount);}
+    void OpenErrorMsg(const std::wstring &FileName);
+    void OpenErrorMsg(const std::wstring &ArcName,const std::wstring &FileName);
+    void CreateErrorMsg(const std::wstring &FileName);
+    void CreateErrorMsg(const std::wstring &ArcName,const std::wstring &FileName);
+    void ReadErrorMsg(const std::wstring &FileName);
+    void ReadErrorMsg(const std::wstring &ArcName,const std::wstring &FileName);
+    void WriteErrorMsg(const std::wstring &ArcName,const std::wstring &FileName);
+    void ArcBrokenMsg(const std::wstring &ArcName);
+    void ChecksumFailedMsg(const std::wstring &ArcName,const std::wstring &FileName);
+    void UnknownMethodMsg(const std::wstring &ArcName,const std::wstring &FileName);
+    void Exit(RAR_EXIT ExitCode);
+    void SetErrorCode(RAR_EXIT Code);
+    RAR_EXIT GetErrorCode() {return ExitCode;}
+    uint GetErrorCount() {return ErrCount;}
     void SetSignalHandlers(bool Enable);
-    void Throw(int Code);
-    void SetSilent(bool Mode) {Silent=Mode;};
-    void SetShutdown(bool Mode) {DoShutdown=Mode;};
+    void Throw(RAR_EXIT Code);
+    void SetSilent(bool Mode) {Silent=Mode;}
+    bool GetSysErrMsg(std::wstring &Msg);
     void SysErrMsg();
+    int GetSystemErrorCode();
+    void SetSystemErrorCode(int Code);
+    void SetDisableShutdown() {DisableShutdown=true;}
+    bool IsShutdownEnabled() {return !DisableShutdown;}
+
+    bool UserBreak; // Ctrl+Break is pressed.
+    bool MainExit; // main() is completed.
 };
+
 
 #endif

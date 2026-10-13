@@ -1,211 +1,187 @@
-bool Archive::GetComment(Array<byte> *CmtData,Array<wchar> *CmtDataW)
+static bool IsAnsiEscComment(const wchar *Data,size_t Size);
+
+bool Archive::GetComment(std::wstring &CmtData)
 {
   if (!MainComment)
-    return(false);
-  SaveFilePos SavePos(*this);
+    return false;
+  int64 SavePos=Tell();
+  bool Success=DoGetComment(CmtData);
+  Seek(SavePos,SEEK_SET);
+  return Success;
+}
 
-  ushort CmtLength;
+
+bool Archive::DoGetComment(std::wstring &CmtData)
+{
 #ifndef SFX_MODULE
-  if (OldFormat)
+  uint CmtLength;
+  if (Format==RARFMT14)
   {
-    Seek(SFXSize+SIZEOF_OLDMHD,SEEK_SET);
-    CmtLength=GetByte()+(GetByte()<<8);
+    Seek(SFXSize+SIZEOF_MAINHEAD14,SEEK_SET);
+    CmtLength=GetByte();
+    CmtLength+=(GetByte()<<8);
   }
   else
 #endif
   {
-    if (NewMhd.Flags & MHD_COMMENT)
+    if (MainHead.CommentInHeader)
     {
-      Seek(SFXSize+SIZEOF_MARKHEAD+SIZEOF_NEWMHD,SEEK_SET);
-      ReadHeader();
+      // Old style (RAR 2.9) archive comment embedded into the main 
+      // archive header.
+      Seek(SFXSize+SIZEOF_MARKHEAD3+SIZEOF_MAINHEAD3,SEEK_SET);
+      if (!ReadHeader() || GetHeaderType()!=HEAD3_CMT)
+        return false;
     }
     else
     {
-      Seek(SFXSize+SIZEOF_MARKHEAD+NewMhd.HeadSize,SEEK_SET);
-      return(SearchSubBlock(SUBHEAD_TYPE_CMT)!=0 && ReadCommentData(CmtData,CmtDataW)!=0);
+      // Current (RAR 3.0+) version of archive comment.
+      Seek(GetStartPos(),SEEK_SET);
+      if (SearchSubBlock(SUBHEAD_TYPE_CMT)!=0)
+        if (ReadCommentData(CmtData))
+          return true;
+        else
+          uiMsg(UIERROR_CMTBROKEN,FileName);
+      return false;
     }
 #ifndef SFX_MODULE
-    if (CommHead.HeadCRC!=HeaderCRC)
+    // Old style (RAR 2.9) comment header embedded into the main 
+    // archive header.
+    if (BrokenHeader || CommHead.HeadSize<SIZEOF_COMMHEAD)
     {
-      Log(FileName,St(MLogCommHead));
-      Alarm();
-      return(false);
+      uiMsg(UIERROR_CMTBROKEN,FileName);
+      return false;
     }
     CmtLength=CommHead.HeadSize-SIZEOF_COMMHEAD;
 #endif
   }
 #ifndef SFX_MODULE
-  if (OldFormat && (OldMhd.Flags & MHD_PACK_COMMENT) || !OldFormat && CommHead.Method!=0x30)
+  if (Format==RARFMT14 && MainHead.PackComment || Format!=RARFMT14 && CommHead.Method!=0x30)
   {
-    if (!OldFormat && (CommHead.UnpVer < 15 || CommHead.UnpVer > UNP_VER || CommHead.Method > 0x35))
-      return(false);
+    if (Format!=RARFMT14 && (CommHead.UnpVer < 15 || CommHead.UnpVer > VER_UNPACK || CommHead.Method > 0x35))
+      return false;
     ComprDataIO DataIO;
-    Unpack Unpack(&DataIO);
-    Unpack.Init();
     DataIO.SetTestMode(true);
     uint UnpCmtLength;
-    if (OldFormat)
+    if (Format==RARFMT14)
     {
-      UnpCmtLength=GetByte()+(GetByte()<<8);
+#ifdef RAR_NOCRYPT
+      return false;
+#else
+      UnpCmtLength=GetByte();
+      UnpCmtLength+=(GetByte()<<8);
+      if (CmtLength<2)
+        return false;
       CmtLength-=2;
       DataIO.SetCmt13Encryption();
+      CommHead.UnpVer=15;
+#endif
     }
     else
       UnpCmtLength=CommHead.UnpSize;
     DataIO.SetFiles(this,NULL);
     DataIO.EnableShowProgress(false);
     DataIO.SetPackedSizeToRead(CmtLength);
-    Unpack.SetDestSize(UnpCmtLength);
-    Unpack.DoUnpack(CommHead.UnpVer,false);
+    DataIO.UnpHash.Init(HASH_CRC32,1);
+    DataIO.SetNoFileHeader(true); // this->FileHead is not filled yet.
 
-    if (!OldFormat && ((~DataIO.UnpFileCRC)&0xffff)!=CommHead.CommCRC)
+    Unpack CmtUnpack(&DataIO);
+    CmtUnpack.Init(0x10000,false);
+    CmtUnpack.SetDestSize(UnpCmtLength);
+    CmtUnpack.DoUnpack(CommHead.UnpVer,false);
+
+    if (Format!=RARFMT14 && (DataIO.UnpHash.GetCRC32()&0xffff)!=CommHead.CommCRC)
     {
-      Log(FileName,St(MLogCommBrk));
-      Alarm();
-      return(false);
+      uiMsg(UIERROR_CMTBROKEN,FileName);
+      return false;
     }
     else
     {
-      unsigned char *UnpData;
-      uint UnpDataSize;
+      byte *UnpData;
+      size_t UnpDataSize;
       DataIO.GetUnpackedData(&UnpData,&UnpDataSize);
-      CmtData->Alloc(UnpDataSize);
-      memcpy(&((*CmtData)[0]),UnpData,UnpDataSize);
+      if (UnpDataSize>0)
+      {
+#ifdef _WIN_ALL
+        // If we ever decide to extend it to Android, we'll need to alloc
+        // 4x memory for OEM to UTF-8 output here.
+        OemToCharBuffA((char *)UnpData,(char *)UnpData,(DWORD)UnpDataSize);
+#endif
+        std::string UnpStr((char*)UnpData,UnpDataSize);
+        CharToWide(UnpStr,CmtData);
+      }
     }
   }
   else
   {
-    CmtData->Alloc(CmtLength);
-    
-    Read(&((*CmtData)[0]),CmtLength);
-    if (!OldFormat && CommHead.CommCRC!=(~CRC(0xffffffff,&((*CmtData)[0]),CmtLength)&0xffff))
+    if (CmtLength==0)
+      return false;
+    std::vector<byte> CmtRaw(CmtLength);
+    int ReadSize=Read(&CmtRaw[0],CmtLength);
+    if (ReadSize>=0 && (uint)ReadSize<CmtLength) // Comment is shorter than declared.
     {
-      Log(FileName,St(MLogCommBrk));
-      Alarm();
-      CmtData->Reset();
-      return(false);
+      CmtLength=ReadSize;
+      CmtRaw.resize(CmtLength);
     }
-  }
-#endif
-#if defined(_WIN_32) && !defined(_WIN_CE)
-  if (CmtData->Size()>0)
-  {
-    int CmtSize=CmtData->Size();
-    OemToCharBuff((char *)CmtData->Addr(),(char *)CmtData->Addr(),CmtSize);
 
-    if (CmtDataW!=NULL)
+    if (Format!=RARFMT14 && CommHead.CommCRC!=(~CRC32(0xffffffff,&CmtRaw[0],CmtLength)&0xffff))
     {
-      CmtDataW->Alloc(CmtSize+1);
-      CmtData->Push(0);
-      CharToWide((char *)CmtData->Addr(),CmtDataW->Addr(),CmtSize+1);
-      CmtData->Alloc(CmtSize);
-      CmtDataW->Alloc(strlenw(CmtDataW->Addr()));
+      uiMsg(UIERROR_CMTBROKEN,FileName);
+      return false;
     }
+//    CmtData.resize(CmtLength+1);
+    CmtRaw.push_back(0);
+#ifdef _WIN_ALL
+    // If we ever decide to extend it to Android, we'll need to alloc
+    // 4x memory for OEM to UTF-8 output here.
+    OemToCharA((char *)&CmtRaw[0],(char *)&CmtRaw[0]);
+#endif
+    CharToWide((const char *)&CmtRaw[0],CmtData);
+//    CmtData->resize(wcslen(CmtData->data()));
   }
 #endif
-  return(CmtData->Size()>0);
+  return CmtData.size() > 0;
 }
 
 
-int Archive::ReadCommentData(Array<byte> *CmtData,Array<wchar> *CmtDataW)
+bool Archive::ReadCommentData(std::wstring &CmtData)
 {
-  bool Unicode=SubHead.SubFlags & SUBHEAD_FLAGS_CMT_UNICODE;
-  if (!ReadSubData(CmtData,NULL))
-    return(0);
-  int CmtSize=CmtData->Size();
-  if (Unicode)
-  {
-    CmtSize/=2;
-    Array<wchar> DataW(CmtSize+1);
-    RawToWide(CmtData->Addr(),DataW.Addr(),CmtSize);
-    DataW[CmtSize]=0;
-    int DestSize=CmtSize*4;
-    CmtData->Alloc(DestSize+1);
-    WideToChar(DataW.Addr(),(char *)CmtData->Addr(),DestSize);
-    (*CmtData)[DestSize]=0;
-    CmtSize=strlen((char *)CmtData->Addr());
-    CmtData->Alloc(CmtSize);
-    if (CmtDataW!=NULL)
-    {
-      *CmtDataW=DataW;
-      CmtDataW->Alloc(CmtSize);
-    }
-  }
+  std::vector<byte> CmtRaw;
+  if (!ReadSubData(&CmtRaw,NULL,false))
+    return false;
+  size_t CmtSize=CmtRaw.size();
+  CmtRaw.push_back(0);
+//  CmtData->resize(CmtSize+1);
+  if (Format==RARFMT50)
+    UtfToWide((char *)&CmtRaw[0],CmtData);
   else
-    if (CmtDataW!=NULL)
+    if ((SubHead.SubFlags & SUBHEAD_FLAGS_CMT_UNICODE)!=0)
     {
-      CmtData->Push(0);
-      CmtDataW->Alloc(CmtSize+1);
-      CharToWide((char *)CmtData->Addr(),CmtDataW->Addr(),CmtSize+1);
-      CmtData->Alloc(CmtSize);
-      CmtDataW->Alloc(strlenw(CmtDataW->Addr()));
+      CmtData=RawToWide(CmtRaw);
     }
-  return(CmtSize);
+    else
+    {
+      CharToWide((const char *)&CmtRaw[0],CmtData);
+    }
+//  CmtData->resize(wcslen(CmtData->data())); // Set buffer size to actual comment length.
+  return true;
 }
 
 
 void Archive::ViewComment()
 {
-#ifndef GUI
   if (Cmd->DisableComment)
     return;
-  Array<byte> CmtBuf;
-  if (GetComment(&CmtBuf,NULL))
+  std::wstring CmtBuf;
+  if (GetComment(CmtBuf)) // In GUI too, so "Test" command detects broken comments.
   {
-    int CmtSize=CmtBuf.Size();
-    char *ChPtr=(char *)memchr(&CmtBuf[0],0x1A,CmtSize);
-    if (ChPtr!=NULL)
-      CmtSize=ChPtr-(char *)&CmtBuf[0];
-    mprintf("\n");
-    OutComment((char *)&CmtBuf[0],CmtSize);
-  }
-#endif
-}
-
-
-#ifndef SFX_MODULE
-void Archive::ViewFileComment()
-{
-  if (!(NewLhd.Flags & LHD_COMMENT) || Cmd->DisableComment || OldFormat)
-    return;
-#ifndef GUI
-  mprintf(St(MFileComment));
-#endif
-  const int MaxSize=0x8000;
-  Array<char> CmtBuf(MaxSize);
-  SaveFilePos SavePos(*this);
-  Seek(CurBlockPos+SIZEOF_NEWLHD+NewLhd.NameSize,SEEK_SET);
-  Int64 SaveCurBlockPos=CurBlockPos;
-  Int64 SaveNextBlockPos=NextBlockPos;
-
-  int Size=ReadHeader();
-
-  CurBlockPos=SaveCurBlockPos;
-  NextBlockPos=SaveNextBlockPos;
-
-  if (Size<7 || CommHead.HeadType!=COMM_HEAD)
-    return;
-  if (CommHead.HeadCRC!=HeaderCRC)
-  {
-#ifndef GUI
-    Log(FileName,St(MLogCommHead));
-#endif
-    return;
-  }
-  if (CommHead.UnpVer < 15 || CommHead.UnpVer > UNP_VER ||
-      CommHead.Method > 0x30 || CommHead.UnpSize > MaxSize)
-    return;
-  Read(&CmtBuf[0],CommHead.UnpSize);
-  if (CommHead.CommCRC!=((~CRC(0xffffffff,&CmtBuf[0],CommHead.UnpSize)&0xffff)))
-  {
-    Log(FileName,St(MLogBrokFCmt));
-  }
-  else
-  {
-    OutComment(&CmtBuf[0],CommHead.UnpSize);
-#ifndef GUI
-    mprintf("\n");
-#endif
+    size_t CmtSize=CmtBuf.size();
+    std::wstring::size_type EndPos=CmtBuf.find(0x1A); /* VC6: no auto (VC6_AUTO) */
+    if (EndPos!=std::wstring::npos)
+      CmtSize=EndPos;
+    mprintf(St(MArcComment));
+    mprintf(L":\n");
+    OutComment(CmtBuf);
   }
 }
-#endif
+
+

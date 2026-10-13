@@ -6,159 +6,159 @@ StringList::StringList()
 }
 
 
-StringList::~StringList()
-{
-}
-
-
 void StringList::Reset()
 {
   Rewind();
-  StringData.Reset();
-  StringDataW.Reset();
-  PosDataW.Reset();
+  StringData.erase(StringData.begin(),StringData.end());
   StringsCount=0;
   SavePosNumber=0;
 }
 
 
-unsigned int StringList::AddString(const char *Str)
+/*
+void StringList::AddStringA(const char *Str)
 {
-  return(AddString(Str,NULL));
+  std::wstring StrW;
+  CharToWide(Str,StrW);
+  AddString(StrW);
 }
+*/
 
 
-unsigned int StringList::AddString(const char *Str,const wchar *StrW)
+void StringList::AddString(const wchar *Str)
 {
-  int PrevSize=StringData.Size();
-  StringData.Add(strlen(Str)+1);
-  strcpy(&StringData[PrevSize],Str);
-  if (StrW!=NULL && *StrW!=0)
-  {
-    int PrevPos=PosDataW.Size();
-    PosDataW.Add(1);
-    PosDataW[PrevPos]=PrevSize;
+  if (Str==NULL)
+    Str=L"";
 
-    int PrevSizeW=StringDataW.Size();
-    StringDataW.Add(strlenw(StrW)+1);
-    strcpyw(&StringDataW[PrevSizeW],StrW);
-  }
+  size_t PrevSize=StringData.size();
+  StringData.resize(PrevSize+wcslen(Str)+1);
+  wcscpy(&StringData[PrevSize],Str);
+
   StringsCount++;
-  return(PrevSize);
 }
 
 
-bool StringList::GetString(char *Str,int MaxLength)
+void StringList::AddString(const std::wstring &Str)
 {
-  return(GetString(Str,NULL,MaxLength));
+  AddString(Str.c_str());
 }
 
 
-bool StringList::GetString(char *Str,wchar *StrW,int MaxLength)
+/*
+bool StringList::GetStringA(char *Str,size_t MaxLength)
 {
-  char *StrPtr;
-  wchar *StrPtrW;
-  if (Str==NULL || !GetString(&StrPtr,&StrPtrW))
-    return(false);
-  strncpy(Str,StrPtr,MaxLength);
-  if (StrW!=NULL)
-    strncpyw(StrW,NullToEmpty(StrPtrW),MaxLength);
-  return(true);
+  std::wstring StrW;
+  if (!GetString(StrW))
+    return false;
+  WideToChar(StrW.c_str(),Str,MaxLength);
+  return true;
+}
+*/
+
+
+bool StringList::GetString(wchar *Str,size_t MaxLength)
+{
+  wchar *StrPtr;
+  if (!GetString(&StrPtr))
+    return false;
+  wcsncpyz(Str,StrPtr,MaxLength);
+  return true;
+}
+
+
+bool StringList::GetString(std::wstring &Str)
+{
+  wchar *StrPtr;
+  if (!GetString(&StrPtr))
+    return false;
+  Str=StrPtr;
+  return true;
 }
 
 
 #ifndef SFX_MODULE
-bool StringList::GetString(char *Str,wchar *StrW,int MaxLength,int StringNum)
+bool StringList::GetString(wchar *Str,size_t MaxLength,int StringNum)
 {
   SavePosition();
   Rewind();
   bool RetCode=true;
   while (StringNum-- >=0)
-    if (!GetString(Str,StrW,MaxLength))
+    if (!GetString(Str,MaxLength))
     {
       RetCode=false;
       break;
     }
   RestorePosition();
-  return(RetCode);
+  return RetCode;
+}
+
+
+bool StringList::GetString(std::wstring &Str,int StringNum)
+{
+  SavePosition();
+  Rewind();
+  bool RetCode=true;
+  while (StringNum-- >=0)
+    if (!GetString(Str))
+    {
+      RetCode=false;
+      break;
+    }
+  RestorePosition();
+  return RetCode;
 }
 #endif
 
 
-char* StringList::GetString()
+wchar* StringList::GetString()
 {
-  char *Str;
-  GetString(&Str,NULL);
-  return(Str);
+  wchar *Str;
+  GetString(&Str);
+  return Str;
 }
 
 
-
-bool StringList::GetString(char **Str,wchar **StrW)
+bool StringList::GetString(wchar **Str)
 {
-  if (CurPos>=StringData.Size())
+  if (CurPos>=StringData.size()) // No more strings left unprocessed.
   {
-    *Str=NULL;
-    return(false);
+    if (Str!=NULL)
+      *Str=NULL;
+    return false;
   }
-  *Str=&StringData[CurPos];
-  if (PosDataItem<PosDataW.Size() && PosDataW[PosDataItem]==CurPos)
-  {
-    PosDataItem++;
-    if (StrW!=NULL)
-      *StrW=&StringDataW[CurPosW];
-    CurPosW+=strlenw(&StringDataW[CurPosW])+1;
-  }
-  else
-    if (StrW!=NULL)
-      *StrW=NULL;
-  CurPos+=strlen(*Str)+1;
-  return(true);
-}
 
+  wchar *CurStr=&StringData[CurPos];
+  CurPos+=wcslen(CurStr)+1;
+  if (Str!=NULL)
+    *Str=CurStr;
 
-char* StringList::GetString(unsigned int StringPos)
-{
-  if (StringPos>=StringData.Size())
-    return(NULL);
-  return(&StringData[StringPos]);
+  return true;
 }
 
 
 void StringList::Rewind()
 {
   CurPos=0;
-  CurPosW=0;
-  PosDataItem=0;
-}
-
-
-int StringList::GetBufferSize()
-{
-  return(StringData.Size()+StringDataW.Size());
 }
 
 
 #ifndef SFX_MODULE
-bool StringList::Search(char *Str,wchar *StrW,bool CaseSensitive)
+bool StringList::Search(const std::wstring &Str,bool CaseSensitive)
 {
   SavePosition();
   Rewind();
   bool Found=false;
-  char *CurStr;
-  wchar *CurStrW;
-  while (GetString(&CurStr,&CurStrW))
+  wchar *CurStr;
+  while (GetString(&CurStr))
   {
-    if ((CaseSensitive ? strcmp(Str,CurStr):stricomp(Str,CurStr))!=0)
-      continue;
-    if (StrW!=NULL && CurStrW!=NULL)
-      if ((CaseSensitive ? strcmpw(StrW,CurStrW):stricmpw(StrW,CurStrW))!=0)
+    if (CurStr!=NULL)
+      if (CaseSensitive && Str!=CurStr || !CaseSensitive && wcsicomp(Str,CurStr)!=0)
         continue;
     Found=true;
     break;
   }
   RestorePosition();
-  return(Found);
+  return Found;
 }
 #endif
 
@@ -166,11 +166,9 @@ bool StringList::Search(char *Str,wchar *StrW,bool CaseSensitive)
 #ifndef SFX_MODULE
 void StringList::SavePosition()
 {
-  if (SavePosNumber<sizeof(SaveCurPos)/sizeof(SaveCurPos[0]))
+  if (SavePosNumber<ASIZE(SaveCurPos))
   {
     SaveCurPos[SavePosNumber]=CurPos;
-    SaveCurPosW[SavePosNumber]=CurPosW;
-    SavePosDataItem[SavePosNumber]=PosDataItem;
     SavePosNumber++;
   }
 }
@@ -184,8 +182,6 @@ void StringList::RestorePosition()
   {
     SavePosNumber--;
     CurPos=SaveCurPos[SavePosNumber];
-    CurPosW=SaveCurPosW[SavePosNumber];
-    PosDataItem=SavePosDataItem[SavePosNumber];
   }
 }
 #endif

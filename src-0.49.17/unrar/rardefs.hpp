@@ -4,21 +4,53 @@
 #define  Min(x,y) (((x)<(y)) ? (x):(y))
 #define  Max(x,y) (((x)>(y)) ? (x):(y))
 
+// Universal replacement of abs function.
+#define  Abs(x) (((x)<0) ? -(x):(x))
+
 #define  ASIZE(x) (sizeof(x)/sizeof(x[0]))
 
-#define  MAXPASSWORD       128
-#define  MAXSFXSIZE        0x80000
+// MAXPASSWORD and MAXPASSWORD_RAR are expected to be multiple of
+// CRYPTPROTECTMEMORY_BLOCK_SIZE (16) for CryptProtectMemory in SecPassword.
+// We allow a larger MAXPASSWORD to unpack archives with lengthy passwords
+// in non-RAR formats in GUI versions. For RAR format we set MAXPASSWORD_RAR
+// to 128 for compatibility and because it is enough for AES-256.
+#define  MAXPASSWORD       512
+#define  MAXPASSWORD_RAR   128
 
-#define  DefSFXName        "default.sfx"
-#define  DefSortListName   "rarfiles.lst"
+// Set some arbitrary sensible limit to maximum path length to prevent
+// the excessive memory allocation for dynamically allocated strings.
+#define  MAXPATHSIZE       0x10000
 
-#ifndef FA_RDONLY
-  #define FA_RDONLY   0x01
-  #define FA_HIDDEN   0x02
-  #define FA_SYSTEM   0x04
-  #define FA_LABEL    0x08
-  #define FA_DIREC    0x10
-  #define FA_ARCH     0x20
+#define  MAXSFXSIZE        0x400000
+
+#define  MAXCMTSIZE        0x40000
+
+#ifdef _WIN_32
+#define  DefSFXName        L"default32.sfx"
+#else
+#define  DefSFXName        L"default.sfx"
+#endif
+#define  DefSortListName   L"rarfiles.lst"
+
+// Maximum dictionary allowed by compression. Can be less than
+// maximum dictionary supported by decompression.
+#define PACK_MAX_DICT      0x1000000000ui64 // 64 GB.
+
+// Maximum dictionary allowed by decompression.
+#define UNPACK_MAX_DICT    0x1000000000ui64 // 64 GB.
+
+
+#ifndef SFX_MODULE
+#define USE_QOPEN
+#endif
+
+// Produce the value, which is equal or larger than 'v' and aligned to 'a'.
+#define ALIGN_VALUE(v,a) (size_t(v) + ( (~size_t(v) + 1) & (a - 1) ) )
+
+#if defined(_WIN_ALL) && !defined(SFX_MODULE)
+#define PROPAGATE_MOTW // Propagate the archive Mark of the Web.
 #endif
 
 #endif
+
+/* VC6_I64 */

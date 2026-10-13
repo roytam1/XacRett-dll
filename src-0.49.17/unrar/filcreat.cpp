@@ -1,239 +1,150 @@
 #include "rar.hpp"
 
-bool FileCreate(RAROptions *Cmd,File *NewFile,char *Name,wchar *NameW,
-                OVERWRITE_MODE Mode,bool *UserReject,Int64 FileSize,
-                uint FileTime)
+// If NewFile==NULL, we delete created file after user confirmation.
+// It is useful if we need to overwrite an existing folder or file,
+// but need user confirmation for that.
+bool FileCreate(CommandData *Cmd,File *NewFile,std::wstring &Name,
+                bool *UserReject,int64 FileSize,RarTime *FileTime,bool WriteOnly)
 {
   if (UserReject!=NULL)
     *UserReject=false;
-#if defined(_WIN_32) && !defined(_WIN_CE)
+#ifdef _WIN_ALL
   bool ShortNameChanged=false;
 #endif
-  while (FileExist(Name,NameW))
+  while (FileExist(Name))
   {
-#if defined(_WIN_32) && !defined(_WIN_CE)
+#if defined(_WIN_ALL)
     if (!ShortNameChanged)
     {
+      // Avoid the infinite loop if UpdateExistingShortName returns
+      // the same name.
       ShortNameChanged=true;
-      if (UpdateExistingShortName(Name,NameW))
+
+      // Maybe our long name matches the short name of existing file.
+      // Let's check if we can change the short name.
+      if (UpdateExistingShortName(Name))
         continue;
     }
+    // Allow short name check again. It is necessary, because rename and
+    // autorename below can change the name, so we need to check it again.
+    ShortNameChanged=false;
 #endif
-    if (Mode==OVERWRITE_NONE)
+    UIASKREP_RESULT Choice=uiAskReplaceEx(Cmd,Name,FileSize,FileTime,(NewFile==NULL ? UIASKREP_F_NORENAME:0));
+
+    if (Choice==UIASKREP_R_REPLACE)
+      break;
+    if (Choice==UIASKREP_R_SKIP)
     {
       if (UserReject!=NULL)
         *UserReject=true;
-      return(false);
+      return false;
     }
-#ifdef SILENT
-    Mode=OVERWRITE_ALL;
-#endif
-    if (Cmd->AllYes || Mode==OVERWRITE_ALL)
-      break;
-    if (Mode==OVERWRITE_ASK)
-    {
-      eprintf(St(MFileExists),Name);
-      int Choice=Ask(St(MYesNoAllRenQ));
-      if (Choice==1)
-        break;
-      if (Choice==2)
-      {
-        if (UserReject!=NULL)
-          *UserReject=true;
-        return(false);
-      }
-      if (Choice==3)
-      {
-        Cmd->Overwrite=OVERWRITE_ALL;
-        break;
-      }
-      if (Choice==4)
-      {
-        if (UserReject!=NULL)
-          *UserReject=true;
-        Cmd->Overwrite=OVERWRITE_NONE;
-        return(false);
-      }
-      if (Choice==5)
-      {
-        mprintf(St(MAskNewName));
-
-        char NewName[NM];
-#ifdef  _WIN_32
-        File SrcFile;
-        SrcFile.SetHandleType(FILE_HANDLESTD);
-        int Size=SrcFile.Read(NewName,sizeof(NewName)-1);
-        NewName[Size]=0;
-        OemToChar(NewName,NewName);
-#else
-        fgets(NewName,sizeof(NewName),stdin);
-#endif
-        RemoveLF(NewName);
-        if (PointToName(NewName)==NewName)
-          strcpy(PointToName(Name),NewName);
-        else
-          strcpy(Name,NewName);
-        if (NameW!=NULL)
-          *NameW=0;
-        continue;
-      }
-      if (Choice==6)
-        ErrHandler.Exit(USER_BREAK);
-    }
-    if (Mode==OVERWRITE_AUTORENAME)
-    {
-      if (GetAutoRenamedName(Name))
-      {
-        if (NameW!=NULL)
-          *NameW=0;
-      }
-      else
-        Mode=OVERWRITE_ASK;
-      continue;
-    }
+    if (Choice==UIASKREP_R_CANCEL)
+      ErrHandler.Exit(RARX_USERBREAK);
   }
-  if (NewFile!=NULL && NewFile->Create(Name,NameW))
-    return(true);
-  PrepareToDelete(Name,NameW);
-  CreatePath(Name,NameW,true);
-  return(NewFile!=NULL ? NewFile->Create(Name,NameW):DelFile(Name,NameW));
+
+  // Try to truncate the existing file first instead of delete,
+  // so we preserve existing file permissions, such as NTFS permissions,
+  // also as "Compressed" attribute and hard links. In GUI version we avoid
+  // deleting an existing file for non-.rar archive formats as well.
+  uint FileMode=WriteOnly ? FMF_WRITE|FMF_SHAREREAD:FMF_UPDATE|FMF_SHAREREAD;
+  if (NewFile!=NULL && NewFile->Create(Name,FileMode))
+    return true;
+
+  CreatePath(Name,true,Cmd->DisableNames);
+  return NewFile!=NULL ? NewFile->Create(Name,FileMode):DelFile(Name);
 }
 
 
-bool GetAutoRenamedName(char *Name)
+#if defined(_WIN_ALL)
+// If we find a file, which short name is equal to 'Name', we try to change
+// its short name, while preserving the long name. It helps when unpacking
+// an archived file, which long name is equal to short name of already
+// existing file. Otherwise we would overwrite the already existing file,
+// even though its long name does not match the name of unpacking file.
+bool UpdateExistingShortName(const std::wstring &Name)
 {
-  char NewName[NM];
+  DWORD Res=GetLongPathName(Name.c_str(),NULL,0);
+  if (Res==0)
+    return false;
+  std::vector<wchar> LongPathBuf(Res);
+  Res=GetLongPathName(Name.c_str(),&LongPathBuf[0],(DWORD)LongPathBuf.size());
+  if (Res==0 || Res>=LongPathBuf.size())
+    return false;
+  Res=GetShortPathName(Name.c_str(),NULL,0);
+  if (Res==0)
+    return false;
+  std::vector<wchar> ShortPathBuf(Res);
+  Res=GetShortPathName(Name.c_str(),&ShortPathBuf[0],(DWORD)ShortPathBuf.size());
+  if (Res==0 || Res>=ShortPathBuf.size())
+    return false;
+  std::wstring LongPathName=&LongPathBuf[0];
+  std::wstring ShortPathName=&ShortPathBuf[0];
+  
+  std::wstring LongName=PointToName(LongPathName);
+  std::wstring ShortName=PointToName(ShortPathName);
 
-  if (strlen(Name)>sizeof(NewName)-10)
-    return(false);
-  char *Ext=GetExt(Name);
-  if (Ext==NULL)
-    Ext=Name+strlen(Name);
-  for (int FileVer=1;;FileVer++)
+  // We continue only if file has a short name, which does not match its
+  // long name, and this short name is equal to name of file which we need
+  // to create.
+  if (ShortName.empty() || wcsicomp(LongName,ShortName)==0 ||
+      wcsicomp(PointToName(Name),ShortName)!=0)
+    return false;
+
+  // Generate the temporary new name for existing file.
+  std::wstring NewName;
+  for (uint I=0;I<10000 && NewName.empty();I+=123)
   {
-    sprintf(NewName,"%.*s(%d)%s",Ext-Name,Name,FileVer,Ext);
-    if (!FileExist(NewName))
-    {
-      strcpy(Name,NewName);
-      break;
-    }
-    if (FileVer>=1000000)
-      return(false);
+    // Here we copy the path part of file to create. We'll make the temporary
+    // file in the same folder.
+    NewName=Name;
+
+    // Here we set the random name part.
+    { wchar NumBuf[32]; swprintf(NumBuf,L"%u",(uint)I); SetName(NewName,std::wstring(L"rtmp")+NumBuf); }
+    
+    // If such file is already exist, try next random name.
+    if (FileExist(NewName))
+      NewName.erase(NewName.begin(),NewName.end());
   }
-  return(true);
-}
 
+  // If we could not generate the name not used by any other file, we return.
+  if (NewName.empty())
+    return false;
+  
+  // FastFind returns the name without path, but we need the fully qualified
+  // name for renaming, so we use the path from file to create and long name
+  // from existing file.
+  std::wstring FullName=Name;
+  SetName(FullName,LongName);
+  
+  // Rename the existing file to randomly generated name. Normally it changes
+  // the short name too.
+  if (!MoveFile(FullName.c_str(),NewName.c_str()))
+    return false;
 
-#if defined(_WIN_32) && !defined(_WIN_CE)
-bool UpdateExistingShortName(char *Name,wchar *NameW)
-{
-  FindData fd;
-  if (!FindFile::FastFind(Name,NameW,&fd))
-    return(false);
-  if (*fd.Name==0 || *fd.ShortName==0)
-    return(false);
-  if (stricomp(PointToName(fd.Name),fd.ShortName)==0 ||
-      stricomp(PointToName(Name),fd.ShortName)!=0)
-    return(false);
-
-  char NewName[NM];
-  for (int I=0;I<10000;I+=123)
-  {
-    strncpy(NewName,Name,sizeof(NewName));
-    sprintf(PointToName(NewName),"rtmp%d",I);
-    if (!FileExist(NewName))
-      break;
-  }
-  if (FileExist(NewName))
-    return(false);
-  char FullName[NM];
-  strncpy(FullName,Name,sizeof(FullName));
-  strcpy(PointToName(FullName),PointToName(fd.Name));
-  if (!MoveFile(FullName,NewName))
-    return(false);
+  // Now we need to create the temporary empty file with same name as
+  // short name of our already existing file. We do it to occupy its previous
+  // short name and not allow to use it again when renaming the file back to
+  // its original long name.
   File KeepShortFile;
   bool Created=false;
   if (!FileExist(Name))
-    Created=KeepShortFile.Create(Name);
-  MoveFile(NewName,FullName);
+    Created=KeepShortFile.Create(Name,FMF_WRITE|FMF_SHAREREAD);
+
+  // Now we rename the existing file from temporary name to original long name.
+  // Since its previous short name is occupied by another file, it should
+  // get another short name.
+  MoveFile(NewName.c_str(),FullName.c_str());
+
   if (Created)
   {
+    // Delete the temporary zero length file occupying the short name,
     KeepShortFile.Close();
     KeepShortFile.Delete();
   }
-  return(true);
+  // We successfully changed the short name. We do not use the simpler
+  // SetFileShortName Windows API call, because it requires SE_RESTORE_NAME
+  // privilege.
+  return true;
 }
-
-/*
-bool UpdateExistingShortName(char *Name,wchar *NameW)
-{
-  if (WinNT()<5)
-    return(false);
-  FindData fd;
-  if (!FindFile::FastFind(Name,NameW,&fd))
-    return(false);
-  if (*fd.Name==0 || *fd.ShortName==0)
-    return(false);
-  if (stricomp(PointToName(fd.Name),fd.ShortName)==0 ||
-      stricomp(PointToName(Name),fd.ShortName)!=0)
-    return(false);
-
-  typedef BOOL (WINAPI *SETFILESHORTNAME)(HANDLE,LPCSTR);
-  static SETFILESHORTNAME pSetFileShortName=NULL;
-  if (pSetFileShortName==NULL)
-  {
-    HMODULE hKernel=GetModuleHandle("kernel32.dll");
-    if (hKernel!=NULL)
-      pSetFileShortName=(SETFILESHORTNAME)GetProcAddress(hKernel,"SetFileShortNameA");
-    if (pSetFileShortName==NULL)
-      return(false);
-  }
-  static bool RestoreEnabled=false;
-  if (!RestoreEnabled)
-  {
-    HANDLE hToken;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &hToken))
-      return(false);
-
-    TOKEN_PRIVILEGES tp;
-    tp.PrivilegeCount = 1;
-    tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-
-    if (LookupPrivilegeValue(NULL,SE_RESTORE_NAME,&tp.Privileges[0].Luid))
-      AdjustTokenPrivileges(hToken, FALSE, &tp, 0, NULL, NULL);
-
-    CloseHandle(hToken);
-    RestoreEnabled=true;
-  }
-
-  wchar FileNameW[NM];
-  GetWideName(Name,NameW,FileNameW);
-  HANDLE hFile=CreateFileW(FileNameW,GENERIC_WRITE|DELETE,FILE_SHARE_READ|FILE_SHARE_WRITE,
-                           NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS,NULL);
-  if (hFile==INVALID_HANDLE_VALUE)
-    return(false);
-
-  bool RetCode=false;
-
-  char FullName[NM];
-  wchar FullNameW[NM];
-  strcpy(FullName,Name);
-  strcpyw(FullNameW,NullToEmpty(NameW));
-  for (int I=1;I<1000000;I++)
-  {
-    char NewName[NM];
-    sprintf(NewName,"NAME~%d.%d",I%1000,I/1000+1);
-    strcpy(PointToName(FullName),NewName);
-    if (*FullNameW)
-      CharToWide(NewName,PointToName(FullNameW));
-    if (!FileExist(FullName,FullNameW))
-    {
-      RetCode=pSetFileShortName(hFile,NewName);
-      break;
-    }
-  }
-  CloseHandle(hFile);
-  return(RetCode);
-}
-*/
 #endif

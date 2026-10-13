@@ -6,23 +6,23 @@ RAROptions::RAROptions()
 }
 
 
-RAROptions::~RAROptions()
-{
-  memset(this,0,sizeof(RAROptions));
-}
-
-
 void RAROptions::Init()
 {
   memset(this,0,sizeof(RAROptions));
-  WinSize=0x400000;
-  Overwrite=OVERWRITE_ASK;
+  WinSize=0x2000000;
+  WinSizeLimit=0x100000000;
+  Overwrite=OVERWRITE_DEFAULT;
   Method=3;
   MsgStream=MSG_STDOUT;
   ConvertNames=NAMES_ORIGINALCASE;
-  ProcessEA=true;
-  xmtime=EXTTIME_HIGH3;
-  CurVolNum=0;
-  FileSizeLess=INT64ERR;
-  FileSizeMore=INT64ERR;
+  xmtime=EXTTIME_MAX;
+  FileSizeLess=INT64NDF;
+  FileSizeMore=INT64NDF;
+  HashType=HASH_CRC32;
+#ifdef RAR_SMP
+  Threads=GetNumberOfThreads();
+#endif
+#ifdef USE_QOPEN
+  QOpenMode=QOPEN_AUTO;
+#endif
 }

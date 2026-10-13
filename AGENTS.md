@@ -78,7 +78,7 @@ no binary-only dependencies (AMD64 port preparation).
 - LZH samples: `opencode\lhasa\test\archives` (all methods incl. pm0-2).
   CAB: `opencode\cabtest`, `opencode\isbisect`. SQX: `opencode\sqxtest`.
   ZIP: `opencode\ismedia`. `LIBCMT.LIB` + `cpmshar.lbr` in workarea root.
-- Vendored sources and their commits: `unrar-3.6.1`, `yz32lib`,
+- Vendored sources and their commits: `unrar-7.2.7`, `yz32lib`,
   `ZData-recon`, `src-0.49.17/lhasa`, `src-0.49.17/unsqx`,
   `src-0.49.17/fdi`, `src-0.49.17/jcalg1lib`, `src-0.49.17/ZData`.
 - Bundled decompression libs are version-pinned deliberately: `zlib`
@@ -97,8 +97,28 @@ no binary-only dependencies (AMD64 port preparation).
   (patch to `-MAX_WBITS` for `-16` raw Deflate64); the `#else` branches
   are dead code in our build (dispatch is always 32-based, tables switch
   at runtime). Verified: tar.gz 278 list + 171/171 extract MATCH, ZIP
-  124/124, crafted method-9 ZIP PASS (= official). Do NOT
-  upgrade UnRAR (era fidelity: official handles RAR 2.x/3.x only).
+  124/124, crafted method-9 ZIP PASS (= official).
+- UnRAR 7.2.7 (RAR 1.5-5.x; deliberate divergence, official does 2.x/3.x
+  only): stable `RAR*` API made it a source drop-in (`Rar3Tool.cpp` glue
+  untouched); VC6 port via `vc6compat/` shims (`stdint.h`, SDK headers)
+  + `patchunrar7*.py` (`wchar_t`, `constexpr`/NSDMI/`auto`/range-for/
+  `nullptr`=`NULL`, `override` shim, enum-hack in-class consts,
+  `vector::data()`->`&[0]`, `string::clear/back/pop_back` rewrites,
+  `_snwprintf`+NUL, `USE_SSE` off, `nullptr` caveat: overload risk);
+  `/MT` (not `/ML`) to avoid LIBC/LIBCMT clash; `motw.cpp`+`isnt.cpp`
+  added (lib omits them, our link needs them); `TzSpecific...`/
+  `CheckTokenMembership` via GetProcAddress (XP load safety);
+  `SetSuspendState` stubbed (tool-only). RAR5 listing is a new
+  `FindSub5` path in `COpenRar` (Ex API; dirs skipped, volumes refused,
+  UTF-8 names pass through, >4GB sizes truncate to DWORD).
+  Port traps: `#define wchar_t` rewrites system headers (use raros
+  typedef stanza); `#endif`-glued lines; `for`-scope (rename inner or
+  brace-wrap); `T var{}` -> `T var`/`memset` per POD-ness; `T var()` on
+  POD leaves garbage (use memset); `explicit member-template<T>()`
+  calls (use plain new/delete, RARDLL has large pages off anyway).
+  Verified: RAR4 list+extract PASS (byte-identical vs official),
+  RAR5 list+extract PASS (same bytes via unpack50). No RAR 2.x/3.x
+  fixtures in tree (gap). Fixtures: `GPLv2-rar4/5.rar` workarea root.
 - bzip2 fixtures: upstream `sample1/2/3.bz2` + `.ref` (in TEMP
   `bz2test/`), plus generated multi-block + ZIP-method-12 fixtures
   (`mkbz2.py`, `runbz2matrix.ps1` — 6/6 MATCH).

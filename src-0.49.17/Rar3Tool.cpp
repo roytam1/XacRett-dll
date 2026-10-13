@@ -125,11 +125,17 @@ int CRar3Tool::check_archive(const unsigned char *buf, size_t buf_size)
 {
   static const unsigned char  RAR_SIGNATURE[]
     = { 0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00 };
+  static const unsigned char  RAR5_SIGNATURE[] /* UnRAR 7.x: RAR 5.0 format */
+    = { 0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x01, 0x00 };
 
   if (buf_size < sizeof(RAR_SIGNATURE))
     return 1;
 
-  return memcmp(RAR_SIGNATURE, buf, sizeof(RAR_SIGNATURE));
+  if (0 == memcmp(RAR_SIGNATURE, buf, sizeof(RAR_SIGNATURE)))
+    return 0;
+  if (buf_size < sizeof(RAR5_SIGNATURE))
+    return 1;
+  return memcmp(RAR5_SIGNATURE, buf, sizeof(RAR5_SIGNATURE));
 }
 
 

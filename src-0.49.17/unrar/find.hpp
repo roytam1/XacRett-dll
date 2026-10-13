@@ -1,37 +1,39 @@
 #ifndef _RAR_FINDDATA_
 #define _RAR_FINDDATA_
 
+enum FINDDATA_FLAGS {
+  FDDF_SECONDDIR=1  // Second encounter of same directory in SCAN_GETDIRSTWICE ScanTree mode.
+};
+
 struct FindData
 {
-  char Name[NM];
-  wchar NameW[NM];
-  Int64 Size;
+  std::wstring Name;
+  uint64 Size;
   uint FileAttr;
-  uint FileTime;
   bool IsDir;
+  bool IsLink;
   RarTime mtime;
   RarTime ctime;
   RarTime atime;
-#ifdef _WIN_32
-  char ShortName[NM];
+#ifdef _WIN_ALL
   FILETIME ftCreationTime; 
   FILETIME ftLastAccessTime; 
   FILETIME ftLastWriteTime; 
 #endif
+  uint Flags;
   bool Error;
 };
 
 class FindFile
 {
   private:
-#ifdef _WIN_32
-    static HANDLE Win32Find(HANDLE hFind,const char *Mask,const wchar *MaskW,struct FindData *fd);
+#ifdef _WIN_ALL
+    static HANDLE Win32Find(HANDLE hFind,const std::wstring &Mask,FindData *fd);
 #endif
 
-    char FindMask[NM];
-    wchar FindMaskW[NM];
-    int FirstCall;
-#ifdef _WIN_32
+    std::wstring FindMask;
+    bool FirstCall;
+#ifdef _WIN_ALL
     HANDLE hFind;
 #else
     DIR *dirp;
@@ -39,10 +41,9 @@ class FindFile
   public:
     FindFile();
     ~FindFile();
-    void SetMask(const char *FindMask);
-    void SetMaskW(const wchar *FindMaskW);
-    bool Next(struct FindData *fd,bool GetSymLink=false);
-    static bool FastFind(const char *FindMask,const wchar *FindMaskW,struct FindData *fd,bool GetSymLink=false);
+    void SetMask(const std::wstring &Mask);
+    bool Next(FindData *fd,bool GetSymLink=false);
+    static bool FastFind(const std::wstring &FindMask,FindData *fd,bool GetSymLink=false);
 };
 
 #endif

@@ -1,13 +1,26 @@
 #include "stdafx.h"
 #include "OpenRar.h"
+#include "..\unrar\dll.hpp" /* UnRAR 7.x RAR5 list path */
 
 bool COpenRar::FindFirst(INDIVIDUALINFO *lpSubInfo)
 {
+	if (rar5_state == 0) {
+		rar5_state = 1;
+		static const unsigned char RAR5SIG[8] = { 0x52,0x61,0x72,0x21,0x1a,0x07,0x01,0x00 };
+		unsigned char sig[8];
+		if (fp != NULL && fread(sig, 1, 8, fp) == 8 && 0 == memcmp(sig, RAR5SIG, 8))
+			rar5_state = 2;
+		if (fp != NULL) fseek(fp, 0, SEEK_SET);
+	}
+	if (rar5_state == 2)
+		return FindSub5(lpSubInfo);
 	return FindSub(lpSubInfo);
 }
 
 bool COpenRar::FindNext(INDIVIDUALINFO *lpSubInfo)
 {
+	if (rar5_state == 2)
+		return FindSub5(lpSubInfo);
 	return FindSub(lpSubInfo);
 }
 
@@ -327,4 +340,66 @@ DWORD COpenRar::UpdateChecker( DWORD StartVal,BYTE *ptr,DWORD Size,bool b32Bit )
 		for(DWORD i=0;i!=Size;i++)
 			StartVal+=ptr[i],StartVal=(WORD)rol(StartVal,1);
 	return StartVal;
+}
+
+
+// --- RAR 5.0 listing via UnRAR API (added for UnRAR 7.x) ---
+static int CALLBACK rar5_callback(UINT msg, LONG usr_dat, LONG p1, LONG p2)
+{
+	(void)usr_dat; (void)p1; (void)p2;
+	if (msg == UCM_PROCESSDATA)
+		return 0;
+	return -1; /* refuse volumes/passwords: no interactive channel */
+}
+
+bool COpenRar::FindSub5(INDIVIDUALINFO *lpSubInfo)
+{
+	if (rar5_h == NULL) {
+		RAROpenArchiveDataEx arc_data;
+		memset(&arc_data, 0, sizeof(arc_data));
+		arc_data.ArcName = szArcFileName; /* 7.x: ArcName is char*, not an array */
+		arc_data.OpenMode = RAR_OM_LIST;
+		rar5_h = RAROpenArchiveEx(&arc_data);
+		if (rar5_h == NULL)
+			return false;
+		RARSetCallback(rar5_h, rar5_callback, (LPARAM)NULL);
+	}
+	for (;;) {
+		RARHeaderDataEx hdr;
+		memset(&hdr, 0, sizeof(hdr));
+		if (0 != RARReadHeaderEx(rar5_h, &hdr)) {
+			RARCloseArchive(rar5_h);
+			rar5_h = NULL;
+			return false;
+		}
+		if (hdr.Flags & RHDF_DIRECTORY)
+			continue;
+		lstrcpyn(lpSubInfo->szFileName, hdr.FileName, sizeof(lpSubInfo->szFileName));
+		lpSubInfo->dwCompressedSize = hdr.PackSize;
+		lpSubInfo->dwOriginalSize = hdr.UnpSize;
+		lpSubInfo->dwCRC = hdr.FileCRC;
+		lstrcpy(lpSubInfo->szAttribute, "----W");
+		if (hdr.FileAttr & FILE_ATTRIBUTE_READONLY)
+			lpSubInfo->szAttribute[4] = 'R';
+		if (hdr.FileAttr & FILE_ATTRIBUTE_HIDDEN)
+			lpSubInfo->szAttribute[2] = 'H';
+		if (hdr.FileAttr & FILE_ATTRIBUTE_SYSTEM)
+			lpSubInfo->szAttribute[3] = 'S';
+		if (hdr.FileAttr & FILE_ATTRIBUTE_DIRECTORY)
+			lpSubInfo->szAttribute[1] = 'D';
+		if (hdr.FileAttr & FILE_ATTRIBUTE_ARCHIVE)
+			lpSubInfo->szAttribute[0] = 'A';
+		{ int m = (int)hdr.Method; if (m >= '0') m -= '0'; /* RAR5 reports 0x30-based like new-style RAR */
+		  if (m >= 0 && m <= 5) wsprintf(lpSubInfo->szMode, "m%d", m);
+		  else lstrcpy(lpSubInfo->szMode, "?"); }
+		lpSubInfo->uOSType = hdr.HostOS;
+		double tmp1 = (double)lpSubInfo->dwOriginalSize;
+		double tmp2 = (double)lpSubInfo->dwCompressedSize;
+		if (lpSubInfo->dwOriginalSize > 0 && lpSubInfo->dwCompressedSize > 0) {
+			lpSubInfo->wRatio = (WORD)((tmp2 * 1000 / tmp1));
+		}
+		lpSubInfo->wDate = (WORD)(hdr.FileTime >> 16);
+		lpSubInfo->wTime = (WORD)hdr.FileTime;
+		return true;
+	}
 }

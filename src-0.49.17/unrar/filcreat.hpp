@@ -1,13 +1,12 @@
 #ifndef _RAR_FILECREATE_
 #define _RAR_FILECREATE_
 
-bool FileCreate(RAROptions *Cmd,File *NewFile,char *Name,wchar *NameW,
-                OVERWRITE_MODE Mode,bool *UserReject,Int64 FileSize=INT64ERR,
-                uint FileTime=0);
-bool GetAutoRenamedName(char *Name);
+bool FileCreate(CommandData *Cmd,File *NewFile,std::wstring &Name,
+                bool *UserReject,int64 FileSize=INT64NDF,
+                RarTime *FileTime=NULL,bool WriteOnly=false);
 
-#if defined(_WIN_32) && !defined(_WIN_CE)
-bool UpdateExistingShortName(char *Name,wchar *NameW);
+#if defined(_WIN_ALL)
+bool UpdateExistingShortName(const std::wstring &Name);
 #endif
 
 #endif

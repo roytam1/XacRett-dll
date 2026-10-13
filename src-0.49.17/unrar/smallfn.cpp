@@ -1,17 +1,17 @@
 #include "rar.hpp"
 
-int ToPercent(Int64 N1,Int64 N2)
+int ToPercent(int64 N1,int64 N2)
 {
-  if (N2==0)
-    return(0);
   if (N2<N1)
-    return(100);
-  return(int64to32(N1*100/N2));
+    return 100;
+  return ToPercentUnlim(N1,N2);
 }
 
 
-void RARInitData()
+// Allows the percent larger than 100.
+int ToPercentUnlim(int64 N1,int64 N2)
 {
-  InitCRC();
-  ErrHandler.Clean();
+  if (N2==0)
+    return 0;
+  return (int)(N1*100/N2);
 }

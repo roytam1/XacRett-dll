@@ -4,143 +4,127 @@
 #define FALSE 0
 #define TRUE  1
 
-#ifdef __EMX__
-  #define INCL_BASE
-#endif
-
-#if defined(_WIN_32) || defined(_EMX)
-#define ENABLE_BAD_ALLOC
+#if defined(RARDLL) && !defined(SILENT)
+#define SILENT
 #endif
 
 
-#if defined(_WIN_32) || defined(_EMX)
+#include <new>
+#include <string>
+#include <vector>
+#include <deque>
+#include <stdexcept> // For std::length_error.
+#include <memory> // For automatic pointers.
+#include <algorithm>
+
+#ifdef _WIN_ALL
 
 #define LITTLE_ENDIAN
-#define NM  1024
 
-#ifdef _WIN_32
 
-  #define STRICT
-  #undef WINVER
-  #undef _WIN32_WINNT
-  #define WINVER 0x0400
-  #define _WIN32_WINNT 0x0300
+// We got a report that just "#define STRICT" is incompatible with
+// "#define STRICT 1" in Windows 10 SDK minwindef.h and depending on the order
+// in which these statements are reached this may cause a compiler warning
+// and build break for other projects incorporating this source.
+// So we changed it to "#define STRICT 1".
+#ifndef STRICT
+#define STRICT 1
+#endif
 
+// 'ifndef' check here is needed for unrar.dll header to avoid macro
+// re-definition warnings in third party projects.
+#ifndef UNICODE
+#define UNICODE
+#define _UNICODE // Set _T() macro to convert from narrow to wide strings.
+#endif
+
+#define WINVER 0x0501 /* VC6: _WIN32_WINNT_WINXP unknown to VC98 SDK (==0x0501) */
+#define _WIN32_WINNT 0x0501
+
+#if !defined(ZIPSFX)
+#define RAR_SMP
+#endif
 
 #define WIN32_LEAN_AND_MEAN
 
 #include <windows.h>
-#include <prsht.h>
+#if defined(_MSC_VER) && (_MSC_VER < 1300)
+#include <richedit.h> /* VC6: sole SDK home of NMHDR (for shlobj/prsht/commctrl) */
+#endif
+#if defined(_MSC_VER) && (_MSC_VER < 1300)
+typedef ULONG DWORD_PTR; /* VC6: no basetsd.h (VC6_DWORDPTR) */
+#endif
+/* VC6: prsht.h needs NMHDR (absent from VC98 SDK); unused by unrar, dropped */
+#include <shlwapi.h>
+#pragma comment(lib, "Shlwapi.lib")
+#include <PowrProf.h>
+/* VC6: no PowrProf.lib in VC98, callers shimmed */
+#include <psapi.h>
+/* VC6: no Psapi.lib in VC98, callers shimmed */ // For GetProcessMemoryInfo().
+#include <shellapi.h>
+#include <shlobj.h>
+#include <winioctl.h>
+#include <wincrypt.h>
+#include <wchar.h>
+#include <wctype.h>
+#include <Sddl.h>
+#include <ntsecapi.h>
 
-#ifndef _WIN_CE
-  #include <winioctl.h>
-#endif
 
-#endif
+// For WMI requests.
+#include <comdef.h>
+#include <Wbemidl.h>
+/* VC6: no wbemuuid.lib in VC98, callers shimmed */
 
-#ifndef _WIN_CE
-  #include <sys/types.h>
-  #include <sys/stat.h>
-  #include <dos.h>
-#endif
 
-#if !defined(_EMX) && !defined(_MSC_VER) && !defined(_WIN_CE)
-  #include <dir.h>
-#endif
-#ifdef _MSC_VER
-  #define for if (0) ; else for
-#ifndef _WIN_CE
-  #include <direct.h>
-#endif
-#else
-  #include <dirent.h>
-#endif
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <dos.h>
+#include <direct.h>
+#include <intrin.h>
 
-#ifndef _WIN_CE
-  #include <share.h>
-#endif
-
-#if defined(ENABLE_BAD_ALLOC) && !defined(_WIN_CE)
-  #include <new.h>
-#endif
-
-#ifdef _EMX
-  #include <unistd.h>
-  #include <pwd.h>
-  #include <grp.h>
-  #include <errno.h>
-  #ifdef _DJGPP
-    #include <utime.h>
-  #else
-    #include <os2.h>
-    #include <sys/utime.h>
-    #include <emx/syscalls.h>
-  #endif
-#else
-  #if defined(_MSC_VER) || defined(__MINGW32__)
-      #include <exception>
-  #else
-    #include <except.h>
-  #endif
-#endif
+// Use SSE only for x86/x64, not ARM Windows.
+#if (defined(_M_IX86) || defined(_M_X64)) && (!defined(_MSC_VER) || (_MSC_VER >= 1400))
+  #define USE_SSE
+  #define SSE_ALIGNMENT 16
+#endif /* VC6 (_MSC_VER<1400) has no SSE intrinsics */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
 #include <ctype.h>
-#ifndef _WIN_CE
-  #include <fcntl.h>
-  #include <dos.h>
-  #include <io.h>
-  #include <time.h>
-  #include <signal.h>
-#endif
+#include <fcntl.h>
+#include <dos.h>
+#include <io.h>
+#include <time.h>
+#include <signal.h>
 
-/*
-#ifdef _WIN_32
-#pragma hdrstop
-#endif
-*/
+#define SAVE_LINKS
 
 #define ENABLE_ACCESS
 
-#define DefConfigName  "rar.ini"
-#define DefLogName     "rar.log"
+#define DefConfigName  L"rar.ini"
+#define DefLogName     L"rar.log"
 
 
-#define PATHDIVIDER  "\\"
-#define PATHDIVIDERW L"\\"
-#define CPATHDIVIDER '\\'
-#define MASKALL      "*"
-#define MASKALLW     L"*"
+#define SPATHDIVIDER L"\\"
+#define CPATHDIVIDER L'\\'
+#define MASKALL      L"*"
 
 #define READBINARY   "rb"
 #define READTEXT     "rt"
 #define UPDATEBINARY "r+b"
 #define CREATEBINARY "w+b"
+#define WRITEBINARY  "wb"
 #define APPENDTEXT   "at"
 
-#if defined(_WIN_32)
-  #ifdef _MSC_VER
-    #define _stdfunction __cdecl
-  #else
-    #define _stdfunction _USERENTRY
-  #endif
-#else
-  #define _stdfunction
-#endif
+#define _stdfunction __cdecl
+#define _forceinline __forceinline
 
-#endif
+#endif // _WIN_ALL
 
 #ifdef _UNIX
-
-#define  NM  1024
-
-#ifdef _BEOS
-#include <be/kernel/fs_info.h>
-#include <be/kernel/fs_attr.h>
-#endif
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -149,16 +133,20 @@
 #if defined(__QNXNTO__)
   #include <sys/param.h>
 #endif
-#if defined(__FreeBSD__) || defined (__NetBSD__) || defined (__OpenBSD__) || defined(__APPLE__)
-  #include <sys/param.h>
-  #include <sys/mount.h>
-#else
+#ifdef _APPLE
+  #include <sys/sysctl.h>
+#endif
+#ifndef SFX_MODULE
+    #include <sys/statvfs.h>
 #endif
 #include <pwd.h>
 #include <grp.h>
+#include <wchar.h>
+#include <wctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stddef.h> // Needed for ptrdiff_t in some UnRAR source builds.
 #include <string.h>
 #include <ctype.h>
 #include <fcntl.h>
@@ -169,37 +157,67 @@
 #include <utime.h>
 #include <locale.h>
 
+#ifdef __GNUC__
+  #if defined(__i386__) || defined(__x86_64__)
+    #include <x86intrin.h>
+    
+    #define USE_SSE
+    #define SSE_ALIGNMENT 16
+  #endif
+#endif
+
+#if defined(__aarch64__) && (defined(__ARM_FEATURE_CRYPTO) || defined(__ARM_FEATURE_CRC32))
+#include <arm_neon.h>
+#ifndef _APPLE
+#include <sys/auxv.h>
+#include <asm/hwcap.h>
+#endif
+#ifdef __ARM_FEATURE_CRYPTO
+#define USE_NEON_AES
+#endif
+#ifdef __ARM_FEATURE_CRC32
+#define USE_NEON_CRC32
+#endif
+#endif
+
 #ifdef  S_IFLNK
 #define SAVE_LINKS
 #endif
 
+#if defined(__linux) || defined(__FreeBSD__)
+#include <sys/time.h>
+#define USE_LUTIMES
+#endif
+
 #define ENABLE_ACCESS
 
-#define DefConfigName  ".rarrc"
-#define DefLogName     ".rarlog"
+#define DefConfigName  L".rarrc"
+#define DefLogName     L".rarlog"
 
 
-#define PATHDIVIDER  "/"
-#define PATHDIVIDERW L"/"
-#define CPATHDIVIDER '/'
-#define MASKALL      "*"
-#define MASKALLW     L"*"
+#define SPATHDIVIDER L"/"
+#define CPATHDIVIDER L'/'
+#define MASKALL      L"*"
 
 #define READBINARY   "r"
 #define READTEXT     "r"
 #define UPDATEBINARY "r+"
 #define CREATEBINARY "w+"
+#define WRITEBINARY  "w"
 #define APPENDTEXT   "a"
 
 #define _stdfunction 
+#define _forceinline inline
 
 #ifdef _APPLE
-	#ifndef BIG_ENDIAN
-		#define BIG_ENDIAN
-	#endif
-	#ifdef LITTLE_ENDIAN
-		#undef LITTLE_ENDIAN
-	#endif
+  #if defined(__BIG_ENDIAN__) && !defined(BIG_ENDIAN)
+    #define BIG_ENDIAN
+    #undef LITTLE_ENDIAN
+  #endif
+  #if defined(__i386__) && !defined(LITTLE_ENDIAN)
+    #define LITTLE_ENDIAN
+    #undef BIG_ENDIAN
+  #endif
 #endif
 
 #if defined(__sparc) || defined(sparc) || defined(__hpux)
@@ -208,11 +226,42 @@
   #endif
 #endif
 
+#ifdef __VMS
+# define LITTLE_ENDIAN
 #endif
 
-typedef const char* MSGID;
+// Unlike Apple x64, utimensat shall be available in all Apple M1 systems.
+#if _POSIX_C_SOURCE >= 200809L || defined(__APPLE__) && defined(__arm64__)
+  #define UNIX_TIME_NS // Nanosecond time precision in Unix.
+#endif
 
-#define safebuf static
+#endif // _UNIX
+
+  typedef const wchar* MSGID;
+
+#ifndef SSE_ALIGNMENT // No SSE use and no special data alignment is required.
+  #define SSE_ALIGNMENT 1
+#endif
+
+// Solaris defines _LITTLE_ENDIAN or _BIG_ENDIAN.
+#if defined(_LITTLE_ENDIAN) && !defined(LITTLE_ENDIAN)
+  #define LITTLE_ENDIAN
+#endif
+#if defined(_BIG_ENDIAN) && !defined(BIG_ENDIAN)
+  #define BIG_ENDIAN
+#endif
+
+#if !defined(LITTLE_ENDIAN) && !defined(BIG_ENDIAN)
+  #if defined(__i386) || defined(i386) || defined(__i386__) || defined(__x86_64)
+    #define LITTLE_ENDIAN
+  #elif defined(BYTE_ORDER) && BYTE_ORDER == LITTLE_ENDIAN || defined(__LITTLE_ENDIAN__)
+    #define LITTLE_ENDIAN
+  #elif defined(BYTE_ORDER) && BYTE_ORDER == BIG_ENDIAN || defined(__BIG_ENDIAN__)
+    #define BIG_ENDIAN
+  #else
+    #error "Neither LITTLE_ENDIAN nor BIG_ENDIAN are defined. Define one of them."
+  #endif
+#endif
 
 #if defined(LITTLE_ENDIAN) && defined(BIG_ENDIAN)
   #if defined(BYTE_ORDER) && BYTE_ORDER == BIG_ENDIAN
@@ -220,12 +269,13 @@ typedef const char* MSGID;
   #elif defined(BYTE_ORDER) && BYTE_ORDER == LITTLE_ENDIAN
     #undef BIG_ENDIAN
   #else
-    #error "Both LITTLE_ENDIAN and BIG_ENDIAN are defined. Undef something one"
+    #error "Both LITTLE_ENDIAN and BIG_ENDIAN are defined. Undef one of them."
   #endif
 #endif
 
-#if !defined(BIG_ENDIAN) && !defined(_WIN_CE) && defined(_WIN_32)
-#define ALLOW_NOT_ALIGNED_INT
+#if !defined(BIG_ENDIAN) && defined(_WIN_ALL) || defined(__i386__) || defined(__x86_64__) || defined(__aarch64__)
+// Allow unaligned integer access, increases speed in some operations.
+#define ALLOW_MISALIGNED
 #endif
 
 #endif // _RAR_OS_

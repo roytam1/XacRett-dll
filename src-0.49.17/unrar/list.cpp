@@ -1,132 +1,161 @@
 #include "rar.hpp"
 
-static void ListFileHeader(FileHeader &hd,bool Verbose,bool Technical,bool &TitleShown,bool Bare);
-static void ListSymLink(Archive &Arc);
-static void ListFileAttr(uint A,int HostOS);
+static void ListFileHeader(Archive &Arc,FileHeader &hd,bool &TitleShown,bool Verbose,bool Technical,bool Bare,bool DisableNames);
+static void ListFileAttr(uint A,HOST_SYSTEM_TYPE HostType,wchar *AttrStr,size_t AttrSize);
 static void ListOldSubHeader(Archive &Arc);
-static void ListNewSubHeader(CommandData *Cmd,Archive &Arc,bool Technical);
+static void ListNewSubHeader(CommandData *Cmd,Archive &Arc);
 
 void ListArchive(CommandData *Cmd)
 {
-  Int64 SumPackSize=0,SumUnpSize=0;
+  int64 SumPackSize=0,SumUnpSize=0;
   uint ArcCount=0,SumFileCount=0;
   bool Technical=(Cmd->Command[1]=='T');
+  bool ShowService=Technical && Cmd->Command[2]=='A';
   bool Bare=(Cmd->Command[1]=='B');
-  bool Verbose=(*Cmd->Command=='V');
+  bool Verbose=(Cmd->Command[0]=='V');
 
-  char ArcName[NM];
-  wchar ArcNameW[NM];
-
-  while (Cmd->GetArcName(ArcName,ArcNameW,sizeof(ArcName)))
+  std::wstring ArcName;
+  while (Cmd->GetArcName(ArcName))
   {
+    if (Cmd->ManualPassword)
+      Cmd->Password.Clean(); // Clean user entered password before processing next archive.
+
     Archive Arc(Cmd);
-#ifdef _WIN_32
-    Arc.RemoveSequentialFlag();
-#endif
-    if (!Arc.WOpen(ArcName,ArcNameW))
+    if (!Arc.WOpen(ArcName))
       continue;
     bool FileMatched=true;
-    while (1)
+    while (true)
     {
-      Int64 TotalPackSize=0,TotalUnpSize=0;
+      int64 TotalPackSize=0,TotalUnpSize=0;
       uint FileCount=0;
       if (Arc.IsArchive(true))
       {
-        if (!Arc.IsOpened())
-          break;
         bool TitleShown=false;
         if (!Bare)
         {
           Arc.ViewComment();
-          mprintf("\n");
+          mprintf(L"\n%s: %s",St(MListArchive),Arc.FileName.c_str());
+
+          mprintf(L"\n%s: ",St(MListDetails));
+          const wchar *Fmt=Arc.Format==RARFMT14 ? L"RAR 1.4":(Arc.Format==RARFMT15 ? L"RAR 1.5":L"RAR 5");
+          mprintf(L"%s", Fmt);
           if (Arc.Solid)
-            mprintf(St(MListSolid));
+            mprintf(L", %s", St(MListSolid));
           if (Arc.SFXSize>0)
-            mprintf(St(MListSFX));
+            mprintf(L", %s", St(MListSFX));
           if (Arc.Volume)
-            if (Arc.Solid)
-              mprintf(St(MListVol1));
+            if (Arc.Format==RARFMT50)
+            {
+              // RAR 5.0 archives store the volume number in main header,
+              // so it is already available now.
+              mprintf(L", ");
+              mprintf(St(MVolumeNumber),Arc.VolNumber+1);
+            }
             else
-              mprintf(St(MListVol2));
-          else
-            if (Arc.Solid)
-              mprintf(St(MListArc1));
-            else
-              mprintf(St(MListArc2));
-          mprintf(" %s\n",Arc.FileName);
-          if (Technical)
+              mprintf(L", %s", St(MListVolume));
+          if (Arc.Protected)
+            mprintf(L", %s", St(MListRR));
+          if (Arc.Locked)
+            mprintf(L", %s", St(MListLock));
+          if (Arc.Encrypted)
+            mprintf(L", %s", St(MListEncHead));
+
+          if (!Arc.MainHead.OrigName.empty())
+            mprintf(L"\n%s: %s",St(MOrigName),Arc.MainHead.OrigName.c_str());
+          if (Arc.MainHead.OrigTime.IsSet())
           {
-            if (Arc.Protected)
-              mprintf(St(MListRecRec));
-            if (Arc.Locked)
-              mprintf(St(MListLock));
+            wchar DateStr[50];
+            Arc.MainHead.OrigTime.GetText(DateStr,ASIZE(DateStr),Technical);
+            mprintf(L"\n%s: %s",St(MOriginalTime),DateStr);
           }
+
+          mprintf(L"\n");
         }
-        while(Arc.ReadHeader()>0)
+
+        wchar VolNumText[50];
+        *VolNumText=0;
+        while (Arc.ReadHeader()>0)
         {
-          switch(Arc.GetHeaderType())
+          Wait(); // Allow quit listing with Ctrl+C.
+          HEADER_TYPE HeaderType=Arc.GetHeaderType();
+          if (HeaderType==HEAD_ENDARC)
           {
-            case FILE_HEAD:
-              IntToExt(Arc.NewLhd.FileName,Arc.NewLhd.FileName);
-              if ((FileMatched=Cmd->IsProcessFile(Arc.NewLhd))==true)
+#ifndef SFX_MODULE
+            // Only RAR 1.5 archives store the volume number in end record.
+            if (Arc.EndArcHead.StoreVolNumber && Arc.Format==RARFMT15)
+              { _snwprintf(VolNumText,ASIZE(VolNumText),L"%.10ls %u",St(MListVolume),Arc.VolNumber+1); VolNumText[ASIZE(VolNumText)-1]=0; }
+#endif
+            if (Technical && ShowService)
+            {
+              mprintf(L"\n%12ls: %ls",St(MListService),L"EOF");
+              if (*VolNumText!=0)
+                mprintf(L"\n%12ls: %ls",St(MListFlags),VolNumText);
+              mprintf(L"\n");
+            }
+            break;
+          }
+          switch(HeaderType)
+          {
+            case HEAD_FILE:
+              FileMatched=Cmd->IsProcessFile(Arc.FileHead,NULL,MATCH_WILDSUBPATH,0,NULL)!=0;
+              if (FileMatched)
               {
-                ListFileHeader(Arc.NewLhd,Verbose,Technical,TitleShown,Bare);
-                if (!(Arc.NewLhd.Flags & LHD_SPLIT_BEFORE))
+                ListFileHeader(Arc,Arc.FileHead,TitleShown,Verbose,Technical,Bare,Cmd->DisableNames);
+                if (!Arc.FileHead.SplitBefore)
                 {
-                  TotalUnpSize+=Arc.NewLhd.FullUnpSize;
+                  TotalUnpSize+=Arc.FileHead.UnpSize;
                   FileCount++;
                 }
-                TotalPackSize+=Arc.NewLhd.FullPackSize;
-                if (Technical)
-                  ListSymLink(Arc);
-#ifndef SFX_MODULE
-                if (Verbose)
-                  Arc.ViewFileComment();
-#endif
+                TotalPackSize+=Arc.FileHead.PackSize;
               }
               break;
-#ifndef SFX_MODULE
-            case SUB_HEAD:
-              if (Technical && FileMatched && !Bare)
-                ListOldSubHeader(Arc);
-              break;
-#endif
-            case NEWSUB_HEAD:
+            case HEAD_SERVICE:
+              // For service blocks dependent on previous block, such as ACL
+              // or NTFS stream, we use "file matched" flag of host file.
+              // Independent blocks like RR are matched separately,
+              // so we can list them by their name. Also we match even
+              // dependent blocks separately if "vta -idn" are set. User may
+              // want to see service blocks only in this case.
+              if (!Arc.SubHead.SubBlock || Cmd->DisableNames)
+                FileMatched=Cmd->IsProcessFile(Arc.SubHead,NULL,MATCH_WILDSUBPATH,0,NULL)!=0;
               if (FileMatched && !Bare)
               {
-                if (Technical)
-                  ListFileHeader(Arc.SubHead,Verbose,true,TitleShown,false);
-                ListNewSubHeader(Cmd,Arc,Technical);
+                // Here we set DisableNames parameter to true regardless of
+                // Cmd->DisableNames. If "vta -idn" are set together, user
+                // wants to see service blocks like RR only.
+                if (Technical && ShowService)
+                  ListFileHeader(Arc,Arc.SubHead,TitleShown,Verbose,true,false,false);
               }
               break;
           }
           Arc.SeekToNext();
         }
-        if (!Bare)
+        if (!Bare && !Technical)
           if (TitleShown)
           {
-            mprintf("\n");
-            for (int I=0;I<79;I++)
-              mprintf("-");
-            char UnpSizeText[20];
-            itoa(TotalUnpSize,UnpSizeText);
+            wchar UnpSizeText[20];
+            itoa(TotalUnpSize,UnpSizeText,ASIZE(UnpSizeText));
         
-            char PackSizeText[20];
-            itoa(TotalPackSize,PackSizeText);
+            wchar PackSizeText[20];
+            itoa(TotalPackSize,PackSizeText,ASIZE(PackSizeText));
         
-            mprintf("\n%5lu %16s %8s %3d%%",FileCount,UnpSizeText,
-                    PackSizeText,ToPercent(TotalPackSize,TotalUnpSize));
+            if (Verbose)
+            {
+              mprintf(L"\n----------- ---------- ---------- ----- ---------- -----  --------  ----");
+              mprintf(L"\n%22ls %10ls %3d%%  %-27ls %u",UnpSizeText,
+                      PackSizeText,ToPercentUnlim(TotalPackSize,TotalUnpSize),
+                      VolNumText,FileCount);
+            }
+            else
+            {
+              mprintf(L"\n----------- ----------  ---------- -----  ----");
+              mprintf(L"\n%22ls  %-16ls  %u",UnpSizeText,VolNumText,FileCount);
+            }
+
             SumFileCount+=FileCount;
             SumUnpSize+=TotalUnpSize;
             SumPackSize+=TotalPackSize;
-#ifndef SFX_MODULE
-            if (Arc.EndArcHead.Flags & EARC_VOLNUMBER)
-            {
-              mprintf("       ");
-              mprintf(St(MVolumeNumber),Arc.EndArcHead.VolNumber+1);
-            }
-#endif
-            mprintf("\n");
+            mprintf(L"\n");
           }
           else
             mprintf(St(MListNoFiles));
@@ -134,247 +163,340 @@ void ListArchive(CommandData *Cmd)
         ArcCount++;
 
 #ifndef NOVOLUME
-        if (Cmd->VolSize!=0 && ((Arc.NewLhd.Flags & LHD_SPLIT_AFTER) ||
-            Arc.GetHeaderType()==ENDARC_HEAD &&
-            (Arc.EndArcHead.Flags & EARC_NEXT_VOLUME)!=0) &&
-            MergeArchive(Arc,NULL,false,*Cmd->Command))
-        {
+        if (Cmd->VolSize==VOLSIZE_AUTO && (Arc.FileHead.SplitAfter ||
+            Arc.GetHeaderType()==HEAD_ENDARC && Arc.EndArcHead.NextVolume) &&
+            MergeArchive(Arc,NULL,false,Cmd->Command[0]))
           Arc.Seek(0,SEEK_SET);
-        }
         else
 #endif
           break;
       }
       else
       {
-        if (Cmd->ArcNames->ItemsCount()<2 && !Bare)
-          mprintf(St(MNotRAR),Arc.FileName);
+        if (Cmd->ArcNames.ItemsCount()<2 && !Bare)
+          mprintf(St(MNotRAR),Arc.FileName.c_str());
         break;
       }
     }
   }
-  if (ArcCount>1 && !Bare)
+
+  // Clean user entered password. Not really required, just for extra safety.
+  if (Cmd->ManualPassword)
+    Cmd->Password.Clean();
+
+  if (ArcCount>1 && !Bare && !Technical)
   {
-    char UnpSizeText[20],PackSizeText[20];
-    itoa(SumUnpSize,UnpSizeText);
-    itoa(SumPackSize,PackSizeText);
-    mprintf("\n%5lu %16s %8s %3d%%\n",SumFileCount,UnpSizeText,
-            PackSizeText,ToPercent(SumPackSize,SumUnpSize));
+    wchar UnpSizeText[20],PackSizeText[20];
+    itoa(SumUnpSize,UnpSizeText,ASIZE(UnpSizeText));
+    itoa(SumPackSize,PackSizeText,ASIZE(PackSizeText));
+
+    if (Verbose)
+      mprintf(L"%21ls %9ls %3d%% %28ls %u",UnpSizeText,PackSizeText,
+              ToPercentUnlim(SumPackSize,SumUnpSize),L"",SumFileCount);
+    else
+      mprintf(L"%21ls %18s %lu",UnpSizeText,L"",SumFileCount);
   }
 }
 
 
-void ListFileHeader(FileHeader &hd,bool Verbose,bool Technical,bool &TitleShown,bool Bare)
+enum LISTCOL_TYPE {
+  LCOL_NAME,LCOL_ATTR,LCOL_SIZE,LCOL_PACKED,LCOL_RATIO,LCOL_CSUM,LCOL_ENCR
+};
+
+
+void ListFileHeader(Archive &Arc,FileHeader &hd,bool &TitleShown,bool Verbose,bool Technical,bool Bare,bool DisableNames)
 {
-  if (!Bare)
+  if (!TitleShown && !Technical && !Bare)
   {
-    if (!TitleShown)
+    if (Verbose)
     {
-      if (Verbose)
-        mprintf(St(MListPathComm));
-      else
-        mprintf(St(MListName));
-      mprintf(St(MListTitle));
-      if (Technical)
-        mprintf(St(MListTechTitle));
-      for (int I=0;I<79;I++)
-        mprintf("-");
-      TitleShown=true;
+      mprintf(L"\n%ls",St(MListTitleV));
+      if (!DisableNames)
+        mprintf(L"\n----------- ---------- ---------- ----- ---------- -----  --------  ----");
     }
-
-    if (hd.HeadType==NEWSUB_HEAD)
-      mprintf(St(MSubHeadType),hd.FileName);
-
-    mprintf("\n%c",(hd.Flags & LHD_PASSWORD) ? '*' : ' ');
+    else
+    {
+      mprintf(L"\n%ls",St(MListTitleL));
+      if (!DisableNames)
+        mprintf(L"\n----------- ----------  ---------- -----  ----");
+    }
+    // Must be set even in DisableNames mode to suppress "0 files" output
+    // unless no files are matched.
+    TitleShown=true;
   }
+  if (DisableNames)
+    return;
 
-  char *Name=hd.FileName;
-
-#ifdef UNICODE_SUPPORTED
-  char ConvertedName[NM];
-  if ((hd.Flags & LHD_UNICODE)!=0 && *hd.FileNameW!=0 && UnicodeEnabled())
-  {
-    if (WideToChar(hd.FileNameW,ConvertedName) && *ConvertedName!=0)
-      Name=ConvertedName;
-  }
-#endif
+  const wchar *Name=hd.FileName.c_str();
+  RARFORMAT Format=Arc.Format;
 
   if (Bare)
   {
-    mprintf("%s\n",Verbose ? Name:PointToName(Name));
+    mprintf(L"%s\n",Name);
     return;
   }
 
-  if (Verbose)
-    mprintf("%s\n%12s ",Name,"");
+  wchar UnpSizeText[30],PackSizeText[30];
+  if (hd.UnpSize==INT64NDF)
+    wcsncpyz(UnpSizeText,L"?",ASIZE(UnpSizeText));
   else
-    mprintf("%-12s",PointToName(Name));
+    itoa(hd.UnpSize,UnpSizeText,ASIZE(UnpSizeText));
+  itoa(hd.PackSize,PackSizeText,ASIZE(PackSizeText));
 
-  char UnpSizeText[20],PackSizeText[20];
-  if (hd.FullUnpSize==INT64MAX)
-    strcpy(UnpSizeText,"?");
+  wchar AttrStr[30];
+  if (hd.HeaderType==HEAD_SERVICE)
+    { _snwprintf(AttrStr,ASIZE(AttrStr),L"%cB",hd.Inherited ? 'I' : '.'); AttrStr[ASIZE(AttrStr)-1]=0; }
   else
-    itoa(hd.FullUnpSize,UnpSizeText);
-  itoa(hd.FullPackSize,PackSizeText);
+    ListFileAttr(hd.FileAttr,hd.HSType,AttrStr,ASIZE(AttrStr));
 
-  mprintf(" %8s %8s ",UnpSizeText,PackSizeText);
+  wchar RatioStr[10];
 
-  if ((hd.Flags & LHD_SPLIT_BEFORE) && (hd.Flags & LHD_SPLIT_AFTER))
-    mprintf(" <->");
+  if (hd.SplitBefore && hd.SplitAfter)
+    wcsncpyz(RatioStr,L"<->",ASIZE(RatioStr));
   else
-    if (hd.Flags & LHD_SPLIT_BEFORE)
-      mprintf(" <--");
+    if (hd.SplitBefore)
+      wcsncpyz(RatioStr,L"<--",ASIZE(RatioStr));
     else
-      if (hd.Flags & LHD_SPLIT_AFTER)
-        mprintf(" -->");
+      if (hd.SplitAfter)
+        wcsncpyz(RatioStr,L"-->",ASIZE(RatioStr));
       else
-        mprintf("%3d%%",ToPercent(hd.FullPackSize,hd.FullUnpSize));
+        { _snwprintf(RatioStr,ASIZE(RatioStr),L"%u%%",ToPercentUnlim(hd.PackSize,hd.UnpSize)); RatioStr[ASIZE(RatioStr)-1]=0; }
 
-  char DateStr[50];
-  hd.mtime.GetText(DateStr,false);
-  mprintf(" %s ",DateStr);
-
-  if (hd.HeadType==NEWSUB_HEAD)
-    mprintf("  %c....B  ",(hd.SubFlags & SUBHEAD_FLAGS_INHERITED) ? 'I' : '.');
-  else
-    ListFileAttr(hd.FileAttr,hd.HostOS);
-
-  mprintf(" %8.8X",hd.FileCRC);
-  mprintf(" m%d",hd.Method-0x30);
-  if ((hd.Flags & LHD_WINDOWMASK)<=6*32)
-    mprintf("%c",((hd.Flags&LHD_WINDOWMASK)>>5)+'a');
-  else
-    mprintf(" ");
-  mprintf(" %d.%d",hd.UnpVer/10,hd.UnpVer%10);
-
-  static const char *RarOS[]={
-    "DOS","OS/2","Win95/NT","Unix","MacOS","BeOS","WinCE","","",""
-  };
+  wchar DateStr[50];
+  hd.mtime.GetText(DateStr,ASIZE(DateStr),Technical);
 
   if (Technical)
-    mprintf("\n%22s %8s %4s",
-            (hd.HostOS<sizeof(RarOS)/sizeof(RarOS[0]) ? RarOS[hd.HostOS]:""),
-            (hd.Flags & LHD_SOLID) ? St(MYes):St(MNo),
-            (hd.Flags & LHD_VERSION) ? St(MYes):St(MNo));
-}
-
-
-void ListSymLink(Archive &Arc)
-{
-  if (Arc.NewLhd.HostOS==HOST_UNIX && (Arc.NewLhd.FileAttr & 0xF000)==0xA000)
   {
-    char FileName[NM];
-    int DataSize=Min(Arc.NewLhd.PackSize,sizeof(FileName)-1);
-    Arc.Read(FileName,DataSize);
-    FileName[DataSize]=0;
-    mprintf("\n%22s %s","-->",FileName);
+    mprintf(L"\n%12s: %s",St(MListName),Name);
+
+    bool FileBlock=hd.HeaderType==HEAD_FILE;
+
+    if (!FileBlock && Arc.SubHead.CmpName(SUBHEAD_TYPE_STREAM))
+    {
+      mprintf(L"\n%12ls: %ls",St(MListType),St(MListStream));
+      std::wstring StreamName=GetStreamNameNTFS(Arc);
+      mprintf(L"\n%12ls: %ls",St(MListTarget),StreamName.c_str());
+    }
+    else
+    {
+      const wchar *Type=St(FileBlock ? (hd.Dir ? MListDir:MListFile):MListService);
+    
+      if (hd.RedirType!=FSREDIR_NONE)
+        switch(hd.RedirType)
+        {
+          case FSREDIR_UNIXSYMLINK:
+            Type=St(MListUSymlink); break;
+          case FSREDIR_WINSYMLINK:
+            Type=St(MListWSymlink); break;
+          case FSREDIR_JUNCTION:
+            Type=St(MListJunction); break;
+          case FSREDIR_HARDLINK:
+            Type=St(MListHardlink); break;
+          case FSREDIR_FILECOPY:
+            Type=St(MListCopy);     break;
+        }
+      mprintf(L"\n%12ls: %ls",St(MListType),Type);
+      if (hd.RedirType!=FSREDIR_NONE)
+        if (Format==RARFMT15)
+        {
+          std::string LinkTargetA;
+          if (Arc.FileHead.Encrypted)
+          {
+            // Link data are encrypted. We would need to ask for password
+            // and initialize decryption routine to display the link target.
+            LinkTargetA="*<-?->";
+          }
+          else
+          {
+            size_t DataSize=(size_t)Min(hd.PackSize,MAXPATHSIZE);
+            std::vector<char> Buf(DataSize+1);
+            Arc.Read(&Buf[0],DataSize);
+            Buf[DataSize] = 0;
+            LinkTargetA=&Buf[0];
+          }
+          std::wstring LinkTarget;
+          CharToWide(LinkTargetA,LinkTarget);
+          mprintf(L"\n%12ls: %ls",St(MListTarget),LinkTarget.c_str());
+        }
+        else
+          mprintf(L"\n%12ls: %ls",St(MListTarget),hd.RedirName.c_str());
+    }
+    if (!hd.Dir)
+    {
+      mprintf(L"\n%12ls: %ls",St(MListSize),UnpSizeText);
+      mprintf(L"\n%12ls: %ls",St(MListPacked),PackSizeText);
+      mprintf(L"\n%12ls: %ls",St(MListRatio),RatioStr);
+
+      if (!FileBlock && Arc.SubHead.CmpName(SUBHEAD_TYPE_RR))
+      {
+        // Display the original -rrN percent if available.
+        int RecoveryPercent=Arc.GetRecoveryPercent();
+        if (RecoveryPercent>0) // It can be -1 if failed to detect.
+          mprintf(L"\n%12ls: %u%%",L"RR%", RecoveryPercent);
+      }
+    }
+    bool WinTitles=false;
+#ifdef _WIN_ALL
+    WinTitles=true;
+#endif
+    if (hd.mtime.IsSet())
+      mprintf(L"\n%12ls: %ls",St(WinTitles ? MListModified:MListMtime),DateStr);
+    if (hd.ctime.IsSet())
+    {
+      hd.ctime.GetText(DateStr,ASIZE(DateStr),true);
+      mprintf(L"\n%12ls: %ls",St(WinTitles ? MListCreated:MListCtime),DateStr);
+    }
+    if (hd.atime.IsSet())
+    {
+      hd.atime.GetText(DateStr,ASIZE(DateStr),true);
+      mprintf(L"\n%12ls: %ls",St(WinTitles ? MListAccessed:MListAtime),DateStr);
+    }
+    mprintf(L"\n%12ls: %ls",St(MListAttr),AttrStr);
+    if (hd.FileHash.Type==HASH_CRC32)
+      mprintf(L"\n%12ls: %8.8X",
+        hd.UseHashKey ? L"CRC32 MAC":hd.SplitAfter ? L"Pack-CRC32":L"CRC32",
+        hd.FileHash.CRC32);
+    if (hd.FileHash.Type==HASH_BLAKE2)
+    {
+      std::wstring BlakeStr;
+      BinToHex(hd.FileHash.Digest,BLAKE2_DIGEST_SIZE,BlakeStr);
+      mprintf(L"\n%12ls: %ls",
+        hd.UseHashKey ? L"BLAKE2 MAC":hd.SplitAfter ? L"Pack-BLAKE2":L"BLAKE2",
+        BlakeStr.c_str());
+    }
+
+    const wchar *HostOS=L"";
+    if (Format==RARFMT50 && hd.HSType!=HSYS_UNKNOWN)
+      HostOS=hd.HSType==HSYS_WINDOWS ? L"Windows":L"Unix";
+    if (Format==RARFMT15)
+    {
+      static const wchar *RarOS[]={
+        L"DOS",L"OS/2",L"Windows",L"Unix",L"Mac OS",L"BeOS",L"WinCE",L"",L"",L""
+      };
+      if (hd.HostOS<ASIZE(RarOS))
+        HostOS=RarOS[hd.HostOS];
+    }
+    if (*HostOS!=0)
+      mprintf(L"\n%12ls: %ls",St(MListHostOS),HostOS);
+
+    std::wstring WinSize;
+    if (!hd.Dir)
+      if (hd.WinSize%1073741824==0)
+        { wchar SzBuf[32]; swprintf(SzBuf,L"%u",(uint)(hd.WinSize/1073741824)); WinSize=std::wstring(L" -md=")+SzBuf+L"g"; }
+      else
+        if (hd.WinSize%1048576==0)
+          { wchar SzBuf[32]; swprintf(SzBuf,L"%u",(uint)(hd.WinSize/1048576)); WinSize=std::wstring(L" -md=")+SzBuf+L"m"; }
+        else
+          if (hd.WinSize>=1024)
+            { wchar SzBuf[32]; swprintf(SzBuf,L"%u",(uint)(hd.WinSize/1024)); WinSize=std::wstring(L" -md=")+SzBuf+L"k"; }
+          else
+            WinSize=L" -md=?";
+
+    mprintf(L"\n%12ls: RAR %ls(v%d) -m%d%s",St(MListCompInfo),
+            Format==RARFMT15 ? L"1.5":L"5.0",
+            hd.UnpVer==VER_UNKNOWN ? 0 : hd.UnpVer,hd.Method,WinSize.c_str());
+
+    if (hd.Solid || hd.Encrypted)
+    {
+      mprintf(L"\n%12ls: ",St(MListFlags));
+      if (hd.Solid)
+        mprintf(L"%ls ",St(MListSolid));
+      if (hd.Encrypted)
+        mprintf(L"%ls ",St(MListEnc));
+    }
+
+    if (hd.Version)
+    {
+      uint Version=ParseVersionFileName(hd.FileName,false);
+      if (Version!=0)
+        mprintf(L"\n%12ls: %u",St(MListFileVer),Version);
+    }
+
+    if (hd.UnixOwnerSet)
+    {
+      mprintf(L"\n%12ls: ",L"Unix owner");
+      if (*hd.UnixOwnerName!=0)
+        mprintf(L"%ls",GetWide(hd.UnixOwnerName).c_str());
+      else
+        if (hd.UnixOwnerNumeric)
+          mprintf(L"#%d",hd.UnixOwnerID);
+      mprintf(L":");
+      if (*hd.UnixGroupName!=0)
+        mprintf(L"%ls",GetWide(hd.UnixGroupName).c_str());
+      else
+        if (hd.UnixGroupNumeric)
+          mprintf(L"#%d",hd.UnixGroupID);
+    }
+
+    mprintf(L"\n");
+    return;
   }
+
+  // 2025.12.01: Size field width incremented to properly align 1+ GB sizes.
+  mprintf(L"\n%c%10ls %10ls ",hd.Encrypted ? '*' : ' ',AttrStr,UnpSizeText);
+
+  if (Verbose)
+    mprintf(L"%10ls %4ls ",PackSizeText,RatioStr);
+
+  mprintf(L" %ls  ",DateStr);
+
+  if (Verbose)
+  {
+    if (hd.FileHash.Type==HASH_CRC32)
+      mprintf(L"%8.8X  ",hd.FileHash.CRC32);
+    else
+      if (hd.FileHash.Type==HASH_BLAKE2)
+      {
+        byte *S=hd.FileHash.Digest;
+        mprintf(L"%02x%02x..%02x  ",S[0],S[1],S[31]);
+      }
+      else
+        mprintf(hd.Dir ? L"          ":L"????????  "); // Missing checksum is ok for folder, not for file.
+  }
+  mprintf(L"%ls",Name);
 }
 
 
-void ListFileAttr(uint A,int HostOS)
+void ListFileAttr(uint A,HOST_SYSTEM_TYPE HostType,wchar *AttrStr,size_t AttrSize)
 {
-  switch(HostOS)
+  switch(HostType)
   {
-    case HOST_MSDOS:
-    case HOST_OS2:
-    case HOST_WIN32:
-    case HOST_MACOS:
-      mprintf(" %c%c%c%c%c%c%c  ",
-              (A & 0x08) ? 'V' : '.',
-              (A & 0x10) ? 'D' : '.',
-              (A & 0x01) ? 'R' : '.',
-              (A & 0x02) ? 'H' : '.',
-              (A & 0x04) ? 'S' : '.',
-              (A & 0x20) ? 'A' : '.',
-              (A & 0x800) ? 'C' : '.');
+    case HSYS_WINDOWS:
+      { _snwprintf(AttrStr,AttrSize,L"%c%c%c%c%c%c%c", /* VC6: counted (VC6_SNWPRINTF2) */
+              (A & 0x2000)!=0 ? 'I' : '.',  // Not content indexed.
+              (A & 0x0800)!=0 ? 'C' : '.',  // Compressed.
+              (A & 0x0020)!=0 ? 'A' : '.',  // Archive.
+              (A & 0x0010)!=0 ? 'D' : '.',  // Directory.
+              (A & 0x0004)!=0 ? 'S' : '.',  // System.
+              (A & 0x0002)!=0 ? 'H' : '.',  // Hidden.
+              (A & 0x0001)!=0 ? 'R' : '.'); AttrStr[AttrSize-1]=0; } // Read-only.
       break;
-    case HOST_UNIX:
-    case HOST_BEOS:
+    case HSYS_UNIX:
       switch (A & 0xF000)
       {
         case 0x4000:
-          mprintf("d");
+          AttrStr[0]='d';
           break;
         case 0xA000:
-          mprintf("l");
+          AttrStr[0]='l';
           break;
         default:
-          mprintf("-");
+          AttrStr[0]='-';
           break;
       }
-      mprintf("%c%c%c%c%c%c%c%c%c",
+      { _snwprintf(AttrStr+1,AttrSize-1,L"%c%c%c%c%c%c%c%c%c",
               (A & 0x0100) ? 'r' : '-',
               (A & 0x0080) ? 'w' : '-',
-              (A & 0x0040) ? ((A & 0x0800) ? 's':'x'):((A & 0x0800) ? 'S':'-'),
+              (A & 0x0040) ? ((A & 0x0800)!=0 ? 's':'x'):((A & 0x0800)!=0 ? 'S':'-'),
               (A & 0x0020) ? 'r' : '-',
               (A & 0x0010) ? 'w' : '-',
-              (A & 0x0008) ? ((A & 0x0400) ? 's':'x'):((A & 0x0400) ? 'S':'-'),
+              (A & 0x0008) ? ((A & 0x0400)!=0 ? 's':'x'):((A & 0x0400)!=0 ? 'S':'-'),
               (A & 0x0004) ? 'r' : '-',
               (A & 0x0002) ? 'w' : '-',
-              (A & 0x0001) ? 'x' : '-');
+              (A & 0x0001) ? ((A & 0x200)!=0 ? 't' : 'x') : '-'); AttrStr[AttrSize-1]=0; }
       break;
-  }
-}
-
-
-#ifndef SFX_MODULE
-void ListOldSubHeader(Archive &Arc)
-{
-  switch(Arc.SubBlockHead.SubType)
-  {
-    case EA_HEAD:
-      mprintf(St(MListEAHead));
+    case HSYS_UNKNOWN:
+      wcsncpyz(AttrStr,L"?",AttrSize);
       break;
-    case UO_HEAD:
-      mprintf(St(MListUOHead),Arc.UOHead.OwnerName,Arc.UOHead.GroupName);
-      break;
-    case MAC_HEAD:
-      mprintf(St(MListMACHead1),Arc.MACHead.fileType>>24,Arc.MACHead.fileType>>16,Arc.MACHead.fileType>>8,Arc.MACHead.fileType);
-      mprintf(St(MListMACHead2),Arc.MACHead.fileCreator>>24,Arc.MACHead.fileCreator>>16,Arc.MACHead.fileCreator>>8,Arc.MACHead.fileCreator);
-      break;
-    case BEEA_HEAD:
-      mprintf(St(MListBeEAHead));
-      break;
-    case NTACL_HEAD:
-      mprintf(St(MListNTACLHead));
-      break;
-    case STREAM_HEAD:
-      mprintf(St(MListStrmHead),Arc.StreamHead.StreamName);
-      break;
-    default:
-      mprintf(St(MListUnkHead),Arc.SubBlockHead.SubType);
-      break;
-  }
-}
-#endif
-
-
-void ListNewSubHeader(CommandData *Cmd,Archive &Arc,bool Technical)
-{
-  if (Technical && Arc.SubHead.CmpName(SUBHEAD_TYPE_CMT) &&
-      (Arc.SubHead.Flags & LHD_SPLIT_BEFORE)==0 && !Cmd->DisableComment)
-  {
-    Array<byte> CmtData;
-    int ReadSize=Arc.ReadCommentData(&CmtData,NULL);
-    if (ReadSize!=0)
-    {
-      mprintf(St(MFileComment));
-      OutComment((char *)&CmtData[0],ReadSize);
-    }
-  }
-  if (Arc.SubHead.CmpName(SUBHEAD_TYPE_STREAM) &&
-      (Arc.SubHead.Flags & LHD_SPLIT_BEFORE)==0)
-  {
-    int DestSize=Arc.SubHead.SubData.Size()/2;
-    wchar DestNameW[NM];
-    char DestName[NM];
-    if (DestSize<sizeof(DestName))
-    {
-      RawToWide(&Arc.SubHead.SubData[0],DestNameW,DestSize);
-      DestNameW[DestSize]=0;
-      WideToChar(DestNameW,DestName);
-      mprintf("\n %s",DestName);
-    }
   }
 }

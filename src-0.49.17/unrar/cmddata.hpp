@@ -1,57 +1,103 @@
 #ifndef _RAR_CMDDATA_
 #define _RAR_CMDDATA_
 
-#define DefaultStoreList "7z;ace;arj;bz2;cab;gz;jpeg;jpg;lha;lzh;mp3;rar;taz;tgz;z;zip"
+#if defined(_WIN_ALL) && !defined(SFX_MODULE)
+// In Windows we implement our own command line parser to avoid replacing
+// \" by " in standard parser. Such replacing corrupts destination paths
+// like "dest path\" in extraction commands.
+#define CUSTOM_CMDLINE_PARSER
+#endif
+
+#define DefaultStoreList L"7z;arj;bz2;cab;gz;jpeg;jpg;lha;lz;lzh;mp3;rar;taz;tbz;tbz2;tgz;txz;xz;z;zip;zipx;zst;tzst"
+
+enum RAR_CMD_LIST_MODE {RCLM_AUTO,RCLM_REJECT_LISTS,RCLM_ACCEPT_LISTS};
+
+enum IS_PROCESS_FILE_FLAGS {IPFF_EXCLUDE_PARENT=1};
 
 class CommandData:public RAROptions
 {
   private:
-    void ProcessSwitchesString(char *Str);
-    void ProcessSwitch(char *Switch);
-    void BadSwitch(char *Switch);
-    bool ExclCheckArgs(StringList *Args,char *CheckName,bool CheckFullPath,int MatchMode);
-    uint GetExclAttr(char *Str);
+    void ProcessSwitch(const wchar *Switch);
+    void BadSwitch(const wchar *Switch);
+    uint GetExclAttr(const wchar *Str,bool &Dir);
+#if !defined(SFX_MODULE)
+    void SetTimeFilters(const wchar *Mod,bool Before,bool Age);
+    void SetStoreTimeMode(const wchar *S);
+#endif
+    int64 GetModSize(const wchar *S,uint DefMultiplier);
 
     bool FileLists;
     bool NoMoreSwitches;
-    bool TimeConverted;
+    RAR_CMD_LIST_MODE ListMode;
     bool BareOutput;
   public:
     CommandData();
-    ~CommandData();
     void Init();
-    void Close();
-    void ParseArg(char *Arg,wchar *ArgW);
+
+    void ParseCommandLine(bool Preprocess,int argc, char *argv[]);
+    void ParseArg(const wchar *ArgW);
     void ParseDone();
     void ParseEnvVar();
-    void ReadConfig(int argc,char *argv[]);
-    bool IsConfigEnabled(int argc,char *argv[]);
+    void ReadConfig();
+    void PreprocessArg(const wchar *Arg);
+    void ProcessSwitchesString(const std::wstring &Str);
     void OutTitle();
-    void OutHelp();
+    void OutHelp(RAR_EXIT ExitCode);
     bool IsSwitch(int Ch);
-    bool ExclCheck(char *CheckName,bool CheckFullPath);
-    bool StoreCheck(char *CheckName);
-    bool TimeCheck(RarTime &ft);
-    bool SizeCheck(Int64 Size);
-    int IsProcessFile(FileHeader &NewLhd,bool *ExactMatch=NULL,int MatchType=MATCH_WILDSUBPATH);
+    bool ExclCheck(const std::wstring &CheckName,bool Dir,bool CheckFullPath,bool CheckInclList);
+    static bool CheckArgs(StringList *Args,bool Dir,const std::wstring &CheckName,bool CheckFullPath,int MatchMode);
+    bool ExclDirByAttr(uint FileAttr);
+    bool TimeCheck(RarTime &ftm,RarTime &ftc,RarTime &fta);
+    bool SizeCheck(int64 Size);
+    bool AnyFiltersActive();
+    int IsProcessFile(FileHeader &FileHead,bool *ExactMatch,int MatchType,
+                      bool Flags,std::wstring *MatchedArg);
     void ProcessCommand();
-    void AddArcName(char *Name,wchar *NameW);
-    bool GetArcName(char *Name,wchar *NameW,int MaxSize);
-    bool CheckWinSize();
+    void AddArcName(const std::wstring &Name);
+    bool GetArcName(wchar *Name,int MaxSize);
+    bool GetArcName(std::wstring &Name);
 
-    int GetRecoverySize(char *Str,int DefSize);
 
-    char Command[NM+16];
-    wchar CommandW[NM+16];
+#ifndef SFX_MODULE
+    void ReportWrongSwitches(RARFORMAT Format);
+#endif
 
-    char ArcName[NM];
-    wchar ArcNameW[NM];
+    void GetBriefMaskList(const std::wstring &Masks,StringList &Args);
 
-    StringList *FileArgs;
-    StringList *ExclArgs;
-    StringList *InclArgs;
-    StringList *ArcNames;
-    StringList *StoreArgs;
+
+    std::wstring Command;
+    std::wstring ArcName;
+    std::wstring ExtrPath;
+    std::wstring TempPath;
+    std::wstring SFXModule;
+    std::wstring CommentFile;
+    std::wstring ArcPath; // For -ap<path>.
+    std::wstring ExclArcPath; // For -ep4<path> switch.
+    std::wstring LogName;
+    std::wstring EmailTo;
+
+    // Read data from stdin and store in archive under a name specified here
+    // when archiving. Read an archive from stdin if any non-empty string
+    // is specified here when extracting.
+    std::wstring UseStdin;
+
+    StringList FileArgs;
+    StringList ExclArgs;
+    StringList InclArgs;
+    StringList ArcNames;
+    StringList StoreArgs;
+#ifdef PROPAGATE_MOTW
+    StringList MotwList;  // Extensions to assign the mark of the web.
+#endif
+
+    SecPassword Password;
+
+    std::vector<int64> NextVolSizes;
+
+
+#ifdef RARDLL
+    std::wstring DllDestName;
+#endif
 };
 
 #endif

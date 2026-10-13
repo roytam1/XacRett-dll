@@ -2,11 +2,12 @@
 
 
 
-#if !defined(SILENT) || !defined(RARDLL)
-const char *St(MSGID StringId)
+
+
+#ifndef RARDLL
+const wchar* St(MSGID StringId)
 {
-  return(StringId);
+  return StringId;
 }
 #endif
-
 

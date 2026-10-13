@@ -1,278 +1,231 @@
 #include "rar.hpp"
 
-MKDIR_CODE MakeDir(const char *Name,const wchar *NameW,uint Attr)
+MKDIR_CODE MakeDir(const std::wstring &Name,bool SetAttr,uint Attr)
 {
-#ifdef _WIN_32
-  int Success;
-  if (WinNT() && NameW!=NULL && *NameW!=0)
-    Success=CreateDirectoryW(NameW,NULL);
-  else
-    Success=CreateDirectory(Name,NULL);
-  if (Success)
+#ifdef _WIN_ALL
+  // Windows automatically removes dots and spaces in the end of directory
+  // name. So we detect such names and process them with \\?\ prefix.
+  wchar LastChar=GetLastChar(Name);
+  bool Special=LastChar=='.' || LastChar==' ';
+  BOOL RetCode=Special ? FALSE : CreateDirectory(Name.c_str(),NULL);
+  if (RetCode==0 && !FileExist(Name))
   {
-    SetFileAttr(Name,NameW,Attr);
-    return(MKDIR_SUCCESS);
+    std::wstring LongName;
+    if (GetWinLongPath(Name,LongName))
+      RetCode=CreateDirectory(LongName.c_str(),NULL);
+  }
+  if (RetCode!=0) // Non-zero return code means success for CreateDirectory.
+  {
+    if (SetAttr)
+      SetFileAttr(Name,Attr);
+    return MKDIR_SUCCESS;
   }
   int ErrCode=GetLastError();
   if (ErrCode==ERROR_FILE_NOT_FOUND || ErrCode==ERROR_PATH_NOT_FOUND)
-    return(MKDIR_BADPATH);
-  return(MKDIR_ERROR);
-#endif
-#ifdef _EMX
-#ifdef _DJGPP
-  if (mkdir(Name,(Attr & FA_RDONLY) ? 0:S_IWUSR)==0)
-#else
-  if (__mkdir(Name)==0)
-#endif
-  {
-    SetFileAttr(Name,NameW,Attr);
-    return(MKDIR_SUCCESS);
-  }
-  return(errno==ENOENT ? MKDIR_BADPATH:MKDIR_ERROR);
-#endif
-#ifdef _UNIX
-  int prevmask=umask(0);
-  int ErrCode=Name==NULL ? -1:mkdir(Name,(mode_t)Attr);
-  umask(prevmask);
+    return MKDIR_BADPATH;
+  return MKDIR_ERROR;
+#elif defined(_UNIX)
+  std::string NameA;
+  WideToChar(Name,NameA);
+  mode_t uattr=SetAttr ? (mode_t)Attr:0777;
+  int ErrCode=mkdir(NameA.c_str(),uattr);
   if (ErrCode==-1)
-    return(errno==ENOENT ? MKDIR_BADPATH:MKDIR_ERROR);
-  return(MKDIR_SUCCESS);
+    return errno==ENOENT ? MKDIR_BADPATH:MKDIR_ERROR;
+  return MKDIR_SUCCESS;
+#else
+  return MKDIR_ERROR;
 #endif
 }
 
 
-void CreatePath(const char *Path,const wchar *PathW,bool SkipLastName)
+// Simplified version of MakeDir().
+bool CreateDir(const std::wstring &Name)
 {
-#ifdef _WIN_32
+  return MakeDir(Name,false,0)==MKDIR_SUCCESS;
+}
+
+
+bool CreatePath(const std::wstring &Path,bool SkipLastName,bool Silent)
+{
+  if (Path.empty())
+    return false;
+
+#ifdef _WIN_ALL
   uint DirAttr=0;
 #else
   uint DirAttr=0777;
 #endif
-#ifdef UNICODE_SUPPORTED
-  bool Wide=PathW!=NULL && *PathW!=0 && UnicodeEnabled();
-#else
-  bool Wide=false;
-#endif
-  bool IgnoreAscii=false;
+  
+  bool Success=true;
 
-  const char *s=Path;
-  for (int PosW=0;;PosW++)
+  for (size_t I=0;I<Path.size();I++)
   {
-    if (s==NULL || s-Path>=NM || *s==0)
-      IgnoreAscii=true;
-    if (Wide && (PosW>=NM || PathW[PosW]==0) || !Wide && IgnoreAscii)
-      break;
-    if (Wide && PathW[PosW]==CPATHDIVIDER || !Wide && *s==CPATHDIVIDER)
+    // Process all kinds of path separators, so user can enter Unix style
+    // path in Windows or Windows in Unix. I>0 check avoids attempting
+    // creating an empty directory for paths starting from path separator.
+    if (IsPathDiv(Path[I]) && I>0)
     {
-      wchar *DirPtrW=NULL,DirNameW[NM];
-      if (Wide)
-      {
-        strncpyw(DirNameW,PathW,PosW);
-        DirNameW[PosW]=0;
-        DirPtrW=DirNameW;
-      }
-      char DirName[NM];
-      if (IgnoreAscii)
-        WideToChar(DirPtrW,DirName);
-      else
-      {
-#ifndef DBCS_SUPPORTED
-        if (*s!=CPATHDIVIDER)
-          for (const char *n=s;*n!=0 && n-Path<NM;n++)
-            if (*n==CPATHDIVIDER)
-            {
-              s=n;
-              break;
-            }
+#ifdef _WIN_ALL
+      // We must not attempt to create "D:" directory, because first
+      // CreateDirectory will fail, so we'll use \\?\D:, which forces Wine
+      // to create "D:" directory.
+      if (I==2 && Path[1]==':')
+        continue;
 #endif
-        strncpy(DirName,Path,s-Path);
-        DirName[s-Path]=0;
-      }
-      if (MakeDir(DirName,DirPtrW,DirAttr)==MKDIR_SUCCESS)
+      std::wstring DirName=Path.substr(0,I);
+      Success=MakeDir(DirName,true,DirAttr)==MKDIR_SUCCESS;
+      if (Success && !Silent)
       {
-#ifndef GUI
-        mprintf(St(MCreatDir),DirName);
-        mprintf(" %s",St(MOk));
-#endif
+        mprintf(St(MCreatDir),DirName.c_str());
+        mprintf(L" %s",St(MOk));
       }
     }
-    if (!IgnoreAscii)
-      s=charnext(s);
   }
-  if (!SkipLastName && !IsPathDiv(*PointToLastChar(Path)))
-    MakeDir(Path,PathW,DirAttr);
+  if (!SkipLastName && !IsPathDiv(GetLastChar(Path)))
+    Success=MakeDir(Path,true,DirAttr)==MKDIR_SUCCESS;
+  return Success;
 }
 
 
-void SetDirTime(const char *Name,RarTime *ftm,RarTime *ftc,RarTime *fta)
+void SetDirTime(const std::wstring &Name,RarTime *ftm,RarTime *ftc,RarTime *fta)
 {
-#ifdef _WIN_32
-  if (!WinNT())
-    return;
-
+#if defined(_WIN_ALL)
   bool sm=ftm!=NULL && ftm->IsSet();
   bool sc=ftc!=NULL && ftc->IsSet();
   bool sa=fta!=NULL && fta->IsSet();
 
-  unsigned int DirAttr=GetFileAttr(Name);
-  bool ResetAttr=(DirAttr!=0xffffffff && (DirAttr & FA_RDONLY)!=0);
+  uint DirAttr=GetFileAttr(Name);
+  bool ResetAttr=(DirAttr!=0xffffffff && (DirAttr & FILE_ATTRIBUTE_READONLY)!=0);
   if (ResetAttr)
-    SetFileAttr(Name,NULL,0);
-  HANDLE hFile=CreateFile(Name,GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,
+    SetFileAttr(Name,0);
+
+  HANDLE hFile=CreateFile(Name.c_str(),GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,
                           NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS,NULL);
+  if (hFile==INVALID_HANDLE_VALUE)
+  {
+    std::wstring LongName;
+    if (GetWinLongPath(Name,LongName))
+      hFile=CreateFile(LongName.c_str(),GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,
+                       NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS,NULL);
+  }
+
   if (hFile==INVALID_HANDLE_VALUE)
     return;
   FILETIME fm,fc,fa;
   if (sm)
-    ftm->GetWin32(&fm);
+    ftm->GetWinFT(&fm);
   if (sc)
-    ftc->GetWin32(&fc);
+    ftc->GetWinFT(&fc);
   if (sa)
-    fta->GetWin32(&fa);
+    fta->GetWinFT(&fa);
   SetFileTime(hFile,sc ? &fc:NULL,sa ? &fa:NULL,sm ? &fm:NULL);
   CloseHandle(hFile);
   if (ResetAttr)
-    SetFileAttr(Name,NULL,DirAttr);
+    SetFileAttr(Name,DirAttr);
 #endif
-#if defined(_UNIX) || defined(_EMX)
+#ifdef _UNIX
   File::SetCloseFileTimeByName(Name,ftm,fta);
 #endif
 }
 
 
-bool IsRemovable(const char *Name)
+
+
+bool IsRemovable(const std::wstring &Name)
 {
-#ifdef _WIN_32
-  char Root[NM];
+#if defined(_WIN_ALL)
+  std::wstring Root;
   GetPathRoot(Name,Root);
-  int Type=GetDriveType(*Root ? Root:NULL);
-  return(Type==DRIVE_REMOVABLE || Type==DRIVE_CDROM);
-#elif defined(_EMX)
-  char Drive=toupper(Name[0]);
-  return((Drive=='A' || Drive=='B') && Name[1]==':');
+  int Type=GetDriveType(Root.empty() ? nullptr : Root.c_str());
+  return Type==DRIVE_REMOVABLE || Type==DRIVE_CDROM;
 #else
-  return(false);
+  return false;
 #endif
 }
 
 
 #ifndef SFX_MODULE
-Int64 GetFreeDisk(const char *Name)
+int64 GetFreeDisk(const std::wstring &Name)
 {
-#ifdef _WIN_32
-  char Root[NM];
-  GetPathRoot(Name,Root);
+#ifdef _WIN_ALL
+  std::wstring Root;
+  GetPathWithSep(Name,Root);
 
-  typedef BOOL (WINAPI *GETDISKFREESPACEEX)(
-    LPCTSTR,PULARGE_INTEGER,PULARGE_INTEGER,PULARGE_INTEGER
-   );
-  static GETDISKFREESPACEEX pGetDiskFreeSpaceEx=NULL;
-
-  if (pGetDiskFreeSpaceEx==NULL)
-  {
-    HMODULE hKernel=GetModuleHandle("kernel32.dll");
-    if (hKernel!=NULL)
-      pGetDiskFreeSpaceEx=(GETDISKFREESPACEEX)GetProcAddress(hKernel,"GetDiskFreeSpaceExA");
-  }
-  if (pGetDiskFreeSpaceEx!=NULL)
-  {
-    GetFilePath(Name,Root);
-    ULARGE_INTEGER uiTotalSize,uiTotalFree,uiUserFree;
-    uiUserFree.u.LowPart=uiUserFree.u.HighPart=0;
-    if (pGetDiskFreeSpaceEx(*Root ? Root:NULL,&uiUserFree,&uiTotalSize,&uiTotalFree) &&
-        uiUserFree.u.HighPart<=uiTotalFree.u.HighPart)
-      return(int32to64(uiUserFree.u.HighPart,uiUserFree.u.LowPart));
-  }
-
-  DWORD SectorsPerCluster,BytesPerSector,FreeClusters,TotalClusters;
-  if (!GetDiskFreeSpace(*Root ? Root:NULL,&SectorsPerCluster,&BytesPerSector,&FreeClusters,&TotalClusters))
-    return(1457664);
-  Int64 FreeSize=SectorsPerCluster*BytesPerSector;
-  FreeSize=FreeSize*FreeClusters;
-  return(FreeSize);
-#elif defined(_BEOS)
-  char Root[NM];
-  GetFilePath(Name,Root);
-  dev_t Dev=dev_for_path(*Root ? Root:".");
-  if (Dev<0)
-    return(1457664);
-  fs_info Info;
-  if (fs_stat_dev(Dev,&Info)!=0)
-    return(1457664);
-  Int64 FreeSize=Info.block_size;
-  FreeSize=FreeSize*Info.free_blocks;
-  return(FreeSize);
+  ULARGE_INTEGER uiTotalSize,uiTotalFree,uiUserFree;
+  uiUserFree.u.LowPart=uiUserFree.u.HighPart=0;
+  if (GetDiskFreeSpaceEx(Root.empty() ? NULL:Root.c_str(),&uiUserFree,&uiTotalSize,&uiTotalFree) &&
+      uiUserFree.u.HighPart<=uiTotalFree.u.HighPart)
+    return INT32TO64(uiUserFree.u.HighPart,uiUserFree.u.LowPart);
+  return 0;
 #elif defined(_UNIX)
-  return(1457664);
-#elif defined(_EMX)
-  int Drive=(!isalpha(Name[0]) || Name[1]!=':') ? 0:toupper(Name[0])-'A'+1;
-  if (_osmode == OS2_MODE)
-  {
-    FSALLOCATE fsa;
-    if (DosQueryFSInfo(Drive,1,&fsa,sizeof(fsa))!=0)
-      return(1457664);
-    Int64 FreeSize=fsa.cSectorUnit*fsa.cbSector;
-    FreeSize=FreeSize*fsa.cUnitAvail;
-    return(FreeSize);
-  }
-  else
-  {
-    union REGS regs,outregs;
-    memset(&regs,0,sizeof(regs));
-    regs.h.ah=0x36;
-    regs.h.dl=Drive;
-    _int86 (0x21,&regs,&outregs);
-    if (outregs.x.ax==0xffff)
-      return(1457664);
-    Int64 FreeSize=outregs.x.ax*outregs.x.cx;
-    FreeSize=FreeSize*outregs.x.bx;
-    return(FreeSize);
-  }
+  std::wstring Root;
+  GetPathWithSep(Name,Root);
+  std::string RootA;
+  WideToChar(Root,RootA);
+  struct statvfs sfs;
+  if (statvfs(RootA.empty() ? ".":RootA.c_str(),&sfs)!=0)
+    return 0;
+  int64 FreeSize=sfs.f_bsize;
+  FreeSize=FreeSize*sfs.f_bavail;
+  return FreeSize;
 #else
-  #define DISABLEAUTODETECT
-  return(1457664);
+  return 0;
 #endif
 }
 #endif
 
 
-bool FileExist(const char *Name,const wchar *NameW)
+#if defined(_WIN_ALL) && !defined(SFX_MODULE) && !defined(SILENT)
+// Return 'true' for FAT and FAT32, so we can adjust the maximum supported
+// file size to 4 GB for these file systems.
+bool IsFAT(const std::wstring &Name)
 {
-#ifdef _WIN_32
-    if (WinNT() && NameW!=NULL && *NameW!=0)
-      return(GetFileAttributesW(NameW)!=0xffffffff);
-    else
-      return(GetFileAttributes(Name)!=0xffffffff);
+  std::wstring Root;
+  GetPathRoot(Name,Root);
+  wchar FileSystem[MAX_PATH+1];
+  // Root can be empty, when we create volumes with -v in the current folder.
+  if (GetVolumeInformation(Root.empty() ? NULL:Root.c_str(),NULL,0,NULL,NULL,NULL,FileSystem,ASIZE(FileSystem)))
+    return wcscmp(FileSystem,L"FAT")==0 || wcscmp(FileSystem,L"FAT32")==0;
+  return false;
+}
+#endif
+
+
+bool FileExist(const std::wstring &Name)
+{
+#ifdef _WIN_ALL
+  return GetFileAttr(Name)!=0xffffffff;
 #elif defined(ENABLE_ACCESS)
-  return(access(Name,0)==0);
+  std::string NameA;
+  WideToChar(Name,NameA);
+  return access(NameA.c_str(),0)==0;
 #else
-  struct FindData FD;
-  return(FindFile::FastFind(Name,NameW,&FD));
+  FindData FD;
+  return FindFile::FastFind(Name,&FD);
 #endif
 }
+ 
 
-
-bool WildFileExist(const char *Name,const wchar *NameW)
+bool WildFileExist(const std::wstring &Name)
 {
-  if (IsWildcard(Name,NameW))
+  if (IsWildcard(Name))
   {
     FindFile Find;
     Find.SetMask(Name);
-    Find.SetMaskW(NameW);
-    struct FindData fd;
-    return(Find.Next(&fd));
+    FindData fd;
+    return Find.Next(&fd);
   }
-  return(FileExist(Name,NameW));
+  return FileExist(Name);
 }
 
 
 bool IsDir(uint Attr)
 {
-#if defined (_WIN_32) || defined(_EMX)
-  return(Attr!=0xffffffff && (Attr & 0x10)!=0);
+#ifdef _WIN_ALL
+  return Attr!=0xffffffff && (Attr & FILE_ATTRIBUTE_DIRECTORY)!=0;
 #endif
 #if defined(_UNIX)
-  return((Attr & 0xF000)==0x4000);
+  return (Attr & 0xF000)==0x4000;
 #endif
 }
 
@@ -280,18 +233,9 @@ bool IsDir(uint Attr)
 bool IsUnreadable(uint Attr)
 {
 #if defined(_UNIX) && defined(S_ISFIFO) && defined(S_ISSOCK) && defined(S_ISCHR)
-  return(S_ISFIFO(Attr) || S_ISSOCK(Attr) || S_ISCHR(Attr));
-#endif
-  return(false);
-}
-
-
-bool IsLabel(uint Attr)
-{
-#if defined (_WIN_32) || defined(_EMX)
-  return((Attr & 8)!=0);
+  return S_ISFIFO(Attr) || S_ISSOCK(Attr) || S_ISCHR(Attr);
 #else
-  return(false);
+  return false;
 #endif
 }
 
@@ -299,9 +243,12 @@ bool IsLabel(uint Attr)
 bool IsLink(uint Attr)
 {
 #ifdef _UNIX
-  return((Attr & 0xF000)==0xA000);
+  return (Attr & 0xF000)==0xA000;
+#elif defined(_WIN_ALL)
+  return (Attr & FILE_ATTRIBUTE_REPARSE_POINT)!=0;
+#else
+  return false;
 #endif
-  return(false);
 }
 
 
@@ -311,231 +258,374 @@ bool IsLink(uint Attr)
 
 bool IsDeleteAllowed(uint FileAttr)
 {
-#if defined(_WIN_32) || defined(_EMX)
-  return((FileAttr & (FA_RDONLY|FA_SYSTEM|FA_HIDDEN))==0);
+#ifdef _WIN_ALL
+  return (FileAttr & (FILE_ATTRIBUTE_READONLY|FILE_ATTRIBUTE_SYSTEM|FILE_ATTRIBUTE_HIDDEN))==0;
 #else
-  return((FileAttr & (S_IRUSR|S_IWUSR))==(S_IRUSR|S_IWUSR));
+  return (FileAttr & (S_IRUSR|S_IWUSR))==(S_IRUSR|S_IWUSR);
 #endif
 }
 
 
-void PrepareToDelete(const char *Name,const wchar *NameW)
+void PrepareToDelete(const std::wstring &Name)
 {
-#if defined(_WIN_32) || defined(_EMX)
-  SetFileAttr(Name,NameW,0);
+#ifdef _WIN_ALL
+  SetFileAttr(Name,0);
 #endif
 #ifdef _UNIX
-  chmod(Name,S_IRUSR|S_IWUSR|S_IXUSR);
+  std::string NameA;
+  WideToChar(Name,NameA);
+  chmod(NameA.c_str(),S_IRUSR|S_IWUSR|S_IXUSR);
 #endif
 }
 
 
-uint GetFileAttr(const char *Name,const wchar *NameW)
+uint GetFileAttr(const std::wstring &Name)
 {
-#ifdef _WIN_32
-    if (WinNT() && NameW!=NULL && *NameW!=0)
-      return(GetFileAttributesW(NameW));
-    else
-      return(GetFileAttributes(Name));
-#elif defined(_DJGPP)
-  return(_chmod(Name,0));
+#ifdef _WIN_ALL
+  DWORD Attr=GetFileAttributes(Name.c_str());
+  if (Attr==0xffffffff)
+  {
+    std::wstring LongName;
+    if (GetWinLongPath(Name,LongName))
+      Attr=GetFileAttributes(LongName.c_str());
+  }
+  return Attr;
 #else
+  std::string NameA;
+  WideToChar(Name,NameA);
   struct stat st;
-  if (stat(Name,&st)!=0)
-    return(0);
-#ifdef _EMX
-  return(st.st_attr);
-#else
-  return(st.st_mode);
-#endif
+  if (stat(NameA.c_str(),&st)!=0)
+    return 0;
+  return st.st_mode;
 #endif
 }
 
 
-bool SetFileAttr(const char *Name,const wchar *NameW,uint Attr)
+bool SetFileAttr(const std::wstring &Name,uint Attr)
 {
-  bool Success;
-#ifdef _WIN_32
-    if (WinNT() && NameW!=NULL && *NameW!=0)
-      Success=SetFileAttributesW(NameW,Attr)!=0;
-    else
-      Success=SetFileAttributes(Name,Attr)!=0;
-#elif defined(_DJGPP)
-  Success=_chmod(Name,1,Attr)!=-1;
-#elif defined(_EMX)
-  Success=__chmod(Name,1,Attr)!=-1;
+#ifdef _WIN_ALL
+  bool Success=SetFileAttributes(Name.c_str(),Attr)!=0;
+  if (!Success)
+  {
+    std::wstring LongName;
+    if (GetWinLongPath(Name,LongName))
+      Success=SetFileAttributes(LongName.c_str(),Attr)!=0;
+  }
+  return Success;
 #elif defined(_UNIX)
-  Success=chmod(Name,(mode_t)Attr)==0;
+  std::string NameA;
+  WideToChar(Name,NameA);
+  return chmod(NameA.c_str(),(mode_t)Attr)==0;
 #else
-  Success=false;
-#endif
-  return(Success);
-}
-
-
-void ConvertNameToFull(const char *Src,char *Dest)
-{
-#ifdef _WIN_32
-#ifndef _WIN_CE
-  char FullName[NM],*NamePtr;
-  if (GetFullPathName(Src,sizeof(FullName),FullName,&NamePtr))
-    strcpy(Dest,FullName);
-  else
-#endif
-    if (Src!=Dest)
-      strcpy(Dest,Src);
-#else
-  char FullName[NM];
-  if (IsPathDiv(*Src) || IsDiskLetter(Src))
-    strcpy(FullName,Src);
-  else
-  {
-    getcwd(FullName,sizeof(FullName));
-    AddEndSlash(FullName);
-    strcat(FullName,Src);
-  }
-  strcpy(Dest,FullName);
+  return false;
 #endif
 }
 
 
-#ifndef SFX_MODULE
-void ConvertNameToFull(const wchar *Src,wchar *Dest)
+// Ext is the extension with the leading dot, like L".bat", or nullptr to use
+// the default extension.
+bool MkTemp(std::wstring &Name,const wchar *Ext)
 {
-  if (Src==NULL || *Src==0)
-  {
-    *Dest=0;
-    return;
-  }
-#ifdef _WIN_32
-#ifndef _WIN_CE
-  if (WinNT())
-#endif
-  {
-#ifndef _WIN_CE
-    wchar FullName[NM],*NamePtr;
-    if (GetFullPathNameW(Src,sizeof(FullName)/sizeof(FullName[0]),FullName,&NamePtr))
-      strcpyw(Dest,FullName);
-    else
-#endif
-      if (Src!=Dest)
-        strcpyw(Dest,Src);
-  }
-#ifndef _WIN_CE
-  else
-  {
-    char AnsiName[NM];
-    WideToChar(Src,AnsiName);
-    ConvertNameToFull(AnsiName,AnsiName);
-    CharToWide(AnsiName,Dest);
-  }
-#endif
-#else
-  char AnsiName[NM];
-  WideToChar(Src,AnsiName);
-  ConvertNameToFull(AnsiName,AnsiName);
-  CharToWide(AnsiName,Dest);
-#endif
-}
+  RarTime CurTime;
+  CurTime.SetCurrentTime();
+
+  // We cannot use CurTime.GetWin() as is, because its lowest bits can
+  // have low informational value, like being a zero or few fixed numbers.
+  uint Random=(uint)(CurTime.GetWin()/100000);
+
+  // Using PID we guarantee that different RAR copies use different temp names
+  // even if started in exactly the same time.
+  uint PID=0;
+#ifdef _WIN_ALL
+  PID=(uint)GetCurrentProcessId();
+#elif defined(_UNIX)
+  PID=(uint)getpid();
 #endif
 
-
-#ifndef SFX_MODULE
-char *MkTemp(char *Name)
-{
-  int Length=strlen(Name);
-  if (Length<=6)
-    return(NULL);
-  int Random=clock();
-  for (int Attempt=0;;Attempt++)
+  for (uint Attempt=0;;Attempt++)
   {
-    sprintf(Name+Length-6,"%06u",Random+Attempt);
-    Name[Length-4]='.';
-    if (!FileExist(Name))
-      break;
+    uint RandomExt=Random%50000+Attempt;
     if (Attempt==1000)
-      return(NULL);
+      return false;
+
+    // User asked to specify the single extension for all temporary files,
+    // so it can be added to server ransomware protection exceptions.
+    // He wrote, this protection blocks temporary files when adding
+    // a file to RAR archive with drag and drop. So unless a calling code
+    // requires a specific extension, like .bat file when uninstalling,
+    // we set the uniform extension here.
+    if (Ext==nullptr)
+      Ext=L".rartemp";
+
+    wchar PIDBuf[32],ExtBuf[32]; swprintf(PIDBuf,L"%u",(uint)PID); swprintf(ExtBuf,L"%u",(uint)RandomExt);
+    std::wstring NewName=Name + PIDBuf + L"." + ExtBuf + Ext;
+    if (!FileExist(NewName))
+    {
+      Name=NewName;
+      break;
+    }
   }
-  return(Name);
+  return true;
 }
+
+
+#if !defined(SFX_MODULE)
+void CalcFileSum(File *SrcFile,uint *CRC32,byte *Blake2,uint Threads,int64 Size,uint Flags)
+{
+  int64 SavePos=SrcFile->Tell();
+#ifndef SILENT
+  int64 FileLength=Size==INT64NDF ? SrcFile->FileLength() : Size;
 #endif
 
+  if ((Flags & (CALCFSUM_SHOWTEXT|CALCFSUM_SHOWPERCENT))!=0)
+    uiMsg(UIEVENT_FILESUMSTART);
 
+  if ((Flags & CALCFSUM_CURPOS)==0)
+    SrcFile->Seek(0,SEEK_SET);
 
+  const size_t BufSize=0x100000;
+  std::vector<byte> Data(BufSize);
 
-#ifndef SFX_MODULE
-uint CalcFileCRC(File *SrcFile,Int64 Size)
-{
-  SaveFilePos SavePos(*SrcFile);
-  const int BufSize=0x10000;
-  Array<byte> Data(BufSize);
-  Int64 BlockCount=0;
-  uint DataCRC=0xffffffff;
-  int ReadSize;
+  DataHash HashCRC,HashBlake2;
+  HashCRC.Init(HASH_CRC32,Threads);
+  HashBlake2.Init(HASH_BLAKE2,Threads);
 
-
-  SrcFile->Seek(0,SEEK_SET);
-  while ((ReadSize=SrcFile->Read(&Data[0],int64to32(Size==INT64ERR ? Int64(BufSize):Min(Int64(BufSize),Size))))!=0)
+  int64 BlockCount=0;
+  int64 TotalRead=0;
+  while (true)
   {
-    ++BlockCount;
-    if ((BlockCount & 15)==0)
+    size_t SizeToRead;
+    if (Size==INT64NDF)   // If we process the entire file.
+      SizeToRead=BufSize; // Then always attempt to read the entire buffer.
+    else
+      SizeToRead=(size_t)Min((int64)BufSize,Size);
+    int ReadSize=SrcFile->Read(&Data[0],SizeToRead);
+    if (ReadSize==0)
+      break;
+    TotalRead+=ReadSize;
+
+    if ((++BlockCount & 0xf)==0)
     {
+#ifndef SILENT
+      if ((Flags & CALCFSUM_SHOWPROGRESS)!=0)
+      {
+        // Update only the current file progress in WinRAR, set the total to 0
+        // to keep it as is. It looks better for WinRAR.
+        uiExtractProgress(TotalRead,FileLength,0,0);
+      }
+      else
+      {
+        if ((Flags & CALCFSUM_SHOWPERCENT)!=0)
+          uiMsg(UIEVENT_FILESUMPROGRESS,ToPercent(TotalRead,FileLength));
+      }
+#endif
       Wait();
     }
-    DataCRC=CRC(DataCRC,&Data[0],ReadSize);
-    if (Size!=INT64ERR)
+
+    if (CRC32!=NULL)
+      HashCRC.Update(&Data[0],ReadSize);
+    if (Blake2!=NULL)
+      HashBlake2.Update(&Data[0],ReadSize);
+
+    if (Size!=INT64NDF)
       Size-=ReadSize;
   }
-  return(DataCRC^0xffffffff);
+  SrcFile->Seek(SavePos,SEEK_SET);
+
+  if ((Flags & CALCFSUM_SHOWPERCENT)!=0)
+    uiMsg(UIEVENT_FILESUMEND);
+
+  if (CRC32!=NULL)
+    *CRC32=HashCRC.GetCRC32();
+  if (Blake2!=NULL)
+  {
+    HashValue Result;
+    HashBlake2.Result(&Result);
+    memcpy(Blake2,Result.Digest,sizeof(Result.Digest));
+  }
 }
 #endif
 
 
-bool RenameFile(const char *SrcName,const wchar *SrcNameW,const char *DestName,const wchar *DestNameW)
+bool RenameFile(const std::wstring &SrcName,const std::wstring &DestName)
 {
-  return(rename(SrcName,DestName)==0);
+#ifdef _WIN_ALL
+  bool Success=MoveFile(SrcName.c_str(),DestName.c_str())!=0;
+  if (!Success)
+  {
+    std::wstring LongName1,LongName2;
+    if (GetWinLongPath(SrcName,LongName1) && GetWinLongPath(DestName,LongName2))
+      Success=MoveFile(LongName1.c_str(),LongName2.c_str())!=0;
+  }
+  return Success;
+#else
+  std::string SrcNameA,DestNameA;
+  WideToChar(SrcName,SrcNameA);
+  WideToChar(DestName,DestNameA);
+  bool Success=rename(SrcNameA.c_str(),DestNameA.c_str())==0;
+  return Success;
+#endif
 }
 
 
-bool DelFile(const char *Name)
+bool DelFile(const std::wstring &Name)
 {
-  return(DelFile(Name,NULL));
+#ifdef _WIN_ALL
+  bool Success=DeleteFile(Name.c_str())!=0;
+  if (!Success)
+  {
+    std::wstring LongName;
+    if (GetWinLongPath(Name,LongName))
+      Success=DeleteFile(LongName.c_str())!=0;
+  }
+  return Success;
+#else
+  std::string NameA;
+  WideToChar(Name,NameA);
+  bool Success=remove(NameA.c_str())==0;
+  return Success;
+#endif
 }
 
 
-bool DelFile(const char *Name,const wchar *NameW)
+bool DelDir(const std::wstring &Name)
 {
-  return(remove(Name)==0);
+#ifdef _WIN_ALL
+  bool Success=RemoveDirectory(Name.c_str())!=0;
+  if (!Success)
+  {
+    std::wstring LongName;
+    if (GetWinLongPath(Name,LongName))
+      Success=RemoveDirectory(LongName.c_str())!=0;
+  }
+  return Success;
+#else
+  std::string NameA;
+  WideToChar(Name,NameA);
+  bool Success=rmdir(NameA.c_str())==0;
+  return Success;
+#endif
 }
 
 
-bool DelDir(const char *Name)
+#if defined(_WIN_ALL) && !defined(SFX_MODULE)
+bool SetFileCompression(const std::wstring &Name,bool State)
 {
-  return(DelDir(Name,NULL));
-}
-
-
-bool DelDir(const char *Name,const wchar *NameW)
-{
-  return(rmdir(Name)==0);
-}
-
-
-#if defined(_WIN_32) && !defined(_WIN_CE)
-bool SetFileCompression(char *Name,wchar *NameW,bool State)
-{
-  wchar FileNameW[NM];
-  GetWideName(Name,NameW,FileNameW);
-  HANDLE hFile=CreateFileW(FileNameW,FILE_READ_DATA|FILE_WRITE_DATA,
+  HANDLE hFile=CreateFile(Name.c_str(),FILE_READ_DATA|FILE_WRITE_DATA,
                  FILE_SHARE_READ|FILE_SHARE_WRITE,NULL,OPEN_EXISTING,
                  FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_SEQUENTIAL_SCAN,NULL);
   if (hFile==INVALID_HANDLE_VALUE)
-    return(false);
+  {
+    std::wstring LongName;
+    if (GetWinLongPath(Name,LongName))
+      hFile=CreateFile(LongName.c_str(),FILE_READ_DATA|FILE_WRITE_DATA,
+                 FILE_SHARE_READ|FILE_SHARE_WRITE,NULL,OPEN_EXISTING,
+                 FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_SEQUENTIAL_SCAN,NULL);
+    if (hFile==INVALID_HANDLE_VALUE)
+      return false;
+  }
+  bool Success=SetFileCompression(hFile,State);
+  CloseHandle(hFile);
+  return Success;
+}
+
+
+bool SetFileCompression(HANDLE hFile,bool State)
+{
   SHORT NewState=State ? COMPRESSION_FORMAT_DEFAULT:COMPRESSION_FORMAT_NONE;
   DWORD Result;
   int RetCode=DeviceIoControl(hFile,FSCTL_SET_COMPRESSION,&NewState,
                               sizeof(NewState),NULL,0,&Result,NULL);
-  CloseHandle(hFile);
-  return(RetCode!=0);
+  return RetCode!=0;
+}
+
+
+void ResetFileCache(const std::wstring &Name)
+{
+  // To reset file cache in Windows it is enough to open it with
+  // FILE_FLAG_NO_BUFFERING and then close it.
+  HANDLE hSrc=CreateFile(Name.c_str(),GENERIC_READ,
+                         FILE_SHARE_READ|FILE_SHARE_WRITE,
+                         NULL,OPEN_EXISTING,FILE_FLAG_NO_BUFFERING,NULL);
+  if (hSrc!=INVALID_HANDLE_VALUE)
+    CloseHandle(hSrc);
 }
 #endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Delete symbolic links in file path, if any, and replace them by directories.
+// Prevents extracting files outside of destination folder with symlink chains.
+bool LinksToDirs(const std::wstring &SrcName,const std::wstring &SkipPart,std::wstring &LastChecked)
+{
+  // Unlike Unix, Windows doesn't expand lnk1 in symlink targets like
+  // "lnk1/../dir", but converts the path to "dir". In Unix we need to call
+  // this function to prevent placing unpacked files outside of destination
+  // folder if previously we unpacked "dir/lnk1" -> "..",
+  // "dir/lnk2" -> "lnk1/.." and "dir/lnk2/anypath/poc.txt".
+  // We may still need this function to prevent abusing symlink chains
+  // in link source path if we remove detection of such chains
+  // in IsRelativeSymlinkSafe. This function seems to make other symlink
+  // related safety checks redundant, but for now we prefer to keep them too.
+  //
+  // 2022.12.01: the performance impact is minimized after adding the check
+  // against the previous path and enabling this verification only after
+  // extracting a symlink with ".." in target. So we enabled it for Windows
+  // as well for extra safety.
+//#ifdef _UNIX
+  std::wstring Path=SrcName;
+
+  size_t SkipLength=SkipPart.size();
+
+  if (SkipLength>0 && !starts_with(Path,SkipPart))
+    SkipLength=0; // Parameter validation, not really needed now.
+
+  // Do not check parts already checked in previous path to improve performance.
+  for (size_t I=0;I<Path.size() && I<LastChecked.size() && Path[I]==LastChecked[I];I++)
+    if (IsPathDiv(Path[I]) && I>SkipLength)
+      SkipLength=I;
+
+  // Avoid converting symlinks in destination path part specified by user.
+  while (SkipLength<Path.size() && IsPathDiv(Path[SkipLength]))
+    SkipLength++;
+
+  if (Path.size()>0)
+    for (size_t I=Path.size()-1;I>SkipLength;I--)
+      if (IsPathDiv(Path[I]))
+      {
+        Path.erase(I);
+        FindData FD;
+        if (FindFile::FastFind(Path,&FD,true) && FD.IsLink)
+        {
+#ifdef _WIN_ALL
+          // Normally Windows symlinks to directory look like a directory
+          // and are deleted with DelDir(). It is possible to create
+          // a file-like symlink pointing at directory, which can be deleted
+          // only with  && DelFile, but such symlink isn't really functional.
+          // Here we prefer to fail deleting such symlink and skip extracting
+          // a file.
+          if (!DelDir(Path))
+#else
+          if (!DelFile(Path))
+#endif
+          {
+            ErrHandler.CreateErrorMsg(SrcName); // Extraction command will skip this file or directory.
+            return false; // Couldn't delete the symlink to replace it with directory.
+          }
+        }
+      }
+  LastChecked=SrcName;
+//#endif
+  return true;
+}

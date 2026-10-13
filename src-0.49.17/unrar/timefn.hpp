@@ -9,7 +9,7 @@ struct RarLocalTime
   uint Hour;
   uint Minute;
   uint Second;
-  uint Reminder;
+  uint Reminder; // Part of time smaller than 1 second, represented in 1/REMINDER_PRECISION intervals.
   uint wDay;
   uint yDay;
 };
@@ -18,40 +18,79 @@ struct RarLocalTime
 class RarTime
 {
   private:
-    Int64 GetRaw();
-    void SetRaw(Int64 RawTime);
+    #if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+    enum { TICKS_PER_SECOND = 1000000000 }; // Internal precision.
+    #else
+    #if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+    enum { TICKS_PER_SECOND = 1000000000 }; // Internal precision.
+    #else
+    static const uint TICKS_PER_SECOND = 1000000000; // Internal precision.
+    #endif /* VC6 */
 
-    RarLocalTime rlt;
+    #endif /* VC6 */
 
-    Int64 Time;
+
+    // Internal time representation in 1/TICKS_PER_SECOND since 01.01.1601.
+    // We use nanoseconds here to handle the high precision Unix time.
+    // It allows dates up to July 2185.
+    //
+    // If we'll ever need to extend the date range, we can define a lower
+    // precision Windows version of TICKS_PER_SECOND. But then Unix and Windows
+    // versions can differ in least significant digits of "lt" time output
+    // for Unix archives.
+    // Alternatively we can introduce 'bool HighPrecision' set to true
+    // in SetUnixNS() and TicksPerSecond() instead of constant above.
+    // It might be more reliable than defining TicksPerSecond variable,
+    // which wouldn't survive memset of any structure hosting RarTime.
+    // We would need to eliminate all such memsets in the entire code first.
+    uint64 itime;
   public:
-    RarTime();
-#ifdef _WIN_32
-    RarTime& operator =(FILETIME &ft);
-    void GetWin32(FILETIME *ft);
+    // RarLocalTime::Reminder precision. Must be equal to TICKS_PER_SECOND.
+    // Unlike TICKS_PER_SECOND, it is a public field.
+    #if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+    enum { REMINDER_PRECISION = TICKS_PER_SECOND };
+    #else
+    #if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+    enum { REMINDER_PRECISION = TICKS_PER_SECOND };
+    #else
+    static const uint REMINDER_PRECISION = TICKS_PER_SECOND;
+    #endif /* VC6 */
+
+    #endif /* VC6 */
+
+  public:
+    RarTime() {Reset();}
+    bool operator == (const RarTime &rt) const {return itime==rt.itime;}
+    bool operator != (const RarTime &rt) const {return itime!=rt.itime;}
+    bool operator < (const RarTime &rt)  const {return itime<rt.itime;}
+    bool operator <= (const RarTime &rt) const {return itime<rt.itime || itime==rt.itime;}
+    bool operator > (const RarTime &rt)  const {return itime>rt.itime;}
+    bool operator >= (const RarTime &rt) const {return itime>rt.itime || itime==rt.itime;}
+
+    void GetLocal(RarLocalTime *lt);
+    void SetLocal(RarLocalTime *lt);
+#ifdef _WIN_ALL
+    void GetWinFT(FILETIME *ft);
+    void SetWinFT(FILETIME *ft);
 #endif
-#if defined(_UNIX) || defined(_EMX)
-    RarTime& operator =(time_t ut);
+    uint64 GetWin();
+    void SetWin(uint64 WinTime);
     time_t GetUnix();
-#endif
-    bool operator == (RarTime &rt);
-    bool operator < (RarTime &rt);
-    bool operator <= (RarTime &rt);
-    bool operator > (RarTime &rt);
-    bool operator >= (RarTime &rt);
-    void GetLocal(RarLocalTime *lt) {*lt=rlt;}
-    void SetLocal(RarLocalTime *lt) {rlt=*lt;}
+    void SetUnix(time_t ut);
+    uint64 GetUnixNS();
+    void SetUnixNS(uint64 ns);
     uint GetDos();
     void SetDos(uint DosTime);
-    void GetText(char *DateStr,bool FullYear);
-    void SetIsoText(char *TimeText);
-    void SetAgeText(char *TimeText);
+    void GetText(wchar *DateStr,size_t MaxSize,bool FullMS);
+    void SetIsoText(const wchar *TimeText);
+    void SetAgeText(const wchar *TimeText);
     void SetCurrentTime();
-    void Reset() {rlt.Year=0;}
-    bool IsSet() {return(rlt.Year!=0);}
+    void Reset() {itime=0;}
+    bool IsSet() {return itime!=0;}
+    void Adjust(int64 ns);
 };
 
-const char *GetMonthName(int Month);
-bool IsLeapYear(int Year);
+const wchar *GetMonthName(uint Month);
+bool IsLeapYear(uint Year);
 
 #endif
