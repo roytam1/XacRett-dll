@@ -1,6 +1,6 @@
 
 This directory contains a little bit modified version of
-libbzip2 Version 1.0.3 of 15 February 2005.
+libbzip2 Version 1.0.8 of 13 July 2019.
 
 - Since the compression stuff is not required for XacRett,
  some files are omitted from original libbzip2 archive and

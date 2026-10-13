@@ -81,6 +81,15 @@ no binary-only dependencies (AMD64 port preparation).
 - Vendored sources and their commits: `unrar-3.6.1`, `yz32lib`,
   `ZData-recon`, `src-0.49.17/lhasa`, `src-0.49.17/unsqx`,
   `src-0.49.17/fdi`, `src-0.49.17/jcalg1lib`, `src-0.49.17/ZData`.
+- Bundled decompression libs are version-pinned deliberately: `zlib`
+  1.2.2 + `libbzip2` 1.0.8, both with compression sources stripped
+  (`NO_GZCOMPRESS`, `#ifdef XACRETT_BZ_COMPRESSION`; see
+  `libbzip2/KI.README`). The 1.0.8 bump fixes CVE-2019-12900
+  (`nSelectors` clamp in `decompress.c`, verified present). Do NOT
+  upgrade UnRAR (era fidelity: official handles RAR 2.x/3.x only).
+- bzip2 fixtures: upstream `sample1/2/3.bz2` + `.ref` (in TEMP
+  `bz2test/`), plus generated multi-block + ZIP-method-12 fixtures
+  (`mkbz2.py`, `runbz2matrix.ps1` — 6/6 MATCH).
 - ARC fixtures: `opencode\mkarc1/2/3.ps1` generate `%TEMP%\arctest`
   (18 fixtures + manifest + `plain/` originals). `runarcwatch.ps1` runs
   the matrix with a 60s watchdog per case (modal dialogs block headless
