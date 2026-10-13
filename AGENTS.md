@@ -117,8 +117,11 @@ no binary-only dependencies (AMD64 port preparation).
   POD leaves garbage (use memset); `explicit member-template<T>()`
   calls (use plain new/delete, RARDLL has large pages off anyway).
   Verified: RAR4 list+extract PASS (byte-identical vs official),
-  RAR5 list+extract PASS (same bytes via unpack50). No RAR 2.x/3.x
-  fixtures in tree (gap). Fixtures: `GPLv2-rar4/5.rar` workarea root.
+  RAR5 list+extract PASS (same bytes via unpack50), RAR 1.5/2.0/2.9
+  list+extract PASS (same 48959-byte RAR.DOC, CRC 0753067E, identical
+  across all three; official PASSes 2.0/2.9 identically but fails 1.5).
+  Fixtures: `GPLv2-rar4/5.rar` + `rar15/20/29.rar` workarea root
+  (all untracked, like `LIBCMT.LIB`).
 - bzip2 fixtures: upstream `sample1/2/3.bz2` + `.ref` (in TEMP
   `bz2test/`), plus generated multi-block + ZIP-method-12 fixtures
   (`mkbz2.py`, `runbz2matrix.ps1` — 6/6 MATCH).
