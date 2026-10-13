@@ -1,7 +1,7 @@
 
-This directory contains a modified version of zlib 1.2.2 + two security patches:
-  ftp://ftp.FreeBSD.org/pub/FreeBSD/CERT/patches/SA-05:16/zlib.patch
-  ftp://ftp.FreeBSD.org/pub/FreeBSD/CERT/patches/SA-05:18/zlib.patch
+This directory contains a modified version of zlib 1.2.13.
+(The 1.2.2-era FreeBSD SA-05:16/SA-05:18 security patches are superseded:
+ 1.2.13 already contains those fixes and all later ones.)
 
 -  Since the compression stuff is not required for XacRett,
   some files are omitted from original zlib archive and

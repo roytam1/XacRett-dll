@@ -738,8 +738,22 @@ SOURCE=.\zlib\crc32.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\zlib\gzio.c
+SOURCE=.\zlib\gzclose.c
 # SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\zlib\gzlib.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\zlib\gzread.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\zlib\gzguts.h
 # End Source File
 # Begin Source File
 

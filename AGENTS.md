@@ -82,10 +82,22 @@ no binary-only dependencies (AMD64 port preparation).
   `ZData-recon`, `src-0.49.17/lhasa`, `src-0.49.17/unsqx`,
   `src-0.49.17/fdi`, `src-0.49.17/jcalg1lib`, `src-0.49.17/ZData`.
 - Bundled decompression libs are version-pinned deliberately: `zlib`
-  1.2.2 + `libbzip2` 1.0.8, both with compression sources stripped
+  1.2.13 + `libbzip2` 1.0.8, both with compression sources stripped
   (`NO_GZCOMPRESS`, `#ifdef XACRETT_BZ_COMPRESSION`; see
-  `libbzip2/KI.README`). The 1.0.8 bump fixes CVE-2019-12900
-  (`nSelectors` clamp in `decompress.c`, verified present). Do NOT
+  `libbzip2/KI.README`, `zlib/KI.README`). The 1.0.8 bump fixes
+  CVE-2019-12900 (`nSelectors` clamp in `decompress.c`, verified
+  present). The 1.2.2->1.2.13 bump carries all upstream security fixes
+  (incl. the inftrees/inflate hardening); the xsrc51 Deflate64 patch
+  (`XACRETT_DEFLATE64`, `MAX_WBITS` 16, dual lbase/lext/dbase/dext in
+  `inftrees.c`, op-mask hunks in `inflate.c`/`inffast.c`) was ported hunk
+  by hunk, with `gzio.c` replaced by the 1.2.13 gz split
+  (`gzlib.c`/`gzread.c`/`gzclose.c` + `gzguts.h`, read side only).
+  Port traps: `#endif`-glued code lines never compile (broke LENEXT/
+  DISTEXT slow path); `inflateReset2` grew a `windowBits < -15` floor
+  (patch to `-MAX_WBITS` for `-16` raw Deflate64); the `#else` branches
+  are dead code in our build (dispatch is always 32-based, tables switch
+  at runtime). Verified: tar.gz 278 list + 171/171 extract MATCH, ZIP
+  124/124, crafted method-9 ZIP PASS (= official). Do NOT
   upgrade UnRAR (era fidelity: official handles RAR 2.x/3.x only).
 - bzip2 fixtures: upstream `sample1/2/3.bz2` + `.ref` (in TEMP
   `bz2test/`), plus generated multi-block + ZIP-method-12 fixtures
