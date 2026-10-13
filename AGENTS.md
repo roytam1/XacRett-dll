@@ -127,7 +127,9 @@ no binary-only dependencies (AMD64 port preparation).
   (`CreateHardLinkW`, `GetLongPathNameW`, `SetThreadExecutionState`,
   `AllocateAndInitializeSid`/`FreeSid`/`LookupPrivilegeValueW`,
   `GetProcessAffinityMask`, `FoldStringW`,
-  `SystemTimeToTzSpecificLocalTime`; `SetSuspendState` stubbed).
+  `SystemTimeToTzSpecificLocalTime`, `PathSetDlgItemPathA` (fallback
+  `SetDlgItemTextA`; drops the whole SHLWAPI.dll dependency, which
+  stock 95/NT4 lack entirely); `SetSuspendState` stubbed).
   Verify with `dumpbin /imports` diff vs official after any unrar change.
 - bzip2 fixtures: upstream `sample1/2/3.bz2` + `.ref` (in TEMP
   `bz2test/`), plus generated multi-block + ZIP-method-12 fixtures

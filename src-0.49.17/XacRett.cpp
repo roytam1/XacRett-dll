@@ -172,6 +172,18 @@ int MeltArchive(LPCSTR lpArchiveName , LPCSTR lpBaseDir ,std::vector<std::string
 void DllEnd(void);//後始末
 void DllSub(void);
 
+// shlwapi.dll is absent on stock Win95/NT4: load PathSetDlgItemPathA
+// at runtime, fall back to the raw path text.
+static void SetDlgItemPathCompat(HWND dlg, int id, LPCSTR path)
+{
+	typedef void (WINAPI *PSDPATHFUNC)(HWND, int, LPCSTR);
+	HMODULE hSh = GetModuleHandleA("shlwapi.dll");
+	if (hSh == NULL) hSh = LoadLibraryA("shlwapi.dll");
+	PSDPATHFUNC pF = hSh == NULL ? NULL : (PSDPATHFUNC)GetProcAddress(hSh, "PathSetDlgItemPathA");
+	if (pF != NULL) pF(dlg, id, path);
+	else SetDlgItemTextA(dlg, id, path);
+}
+
 class CInfoDlg //状況表示ダイアログ
 {
 public:
@@ -278,7 +290,7 @@ public:
 				SetWindowLong( dlg,GWL_USERDATA,lp );
 				SetWindowText( dlg,p->m_RName );
 				//SetWindowText( GetDlgItem(dlg,IDC_FNAME), p->m_FName );
-				PathSetDlgItemPath(dlg,IDC_FNAME,p->m_FName);
+				SetDlgItemPathCompat(dlg,IDC_FNAME,p->m_FName);
 				ShowWindow( dlg,SW_SHOW );
 				UpdateWindow( dlg );
 			}
@@ -289,7 +301,7 @@ public:
 				{
 					case ARCEXTRACT_OPEN:
 					{
-						PathSetDlgItemPath(hWnd,IDC_ENAME,info->szSourceFileName);
+						SetDlgItemPathCompat(hWnd,IDC_ENAME,info->szSourceFileName);
 						UpdateWindow( dlg );
 						return flgEND;
 					}
