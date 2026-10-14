@@ -46,6 +46,7 @@ enum ZipMethod
 			// 13 reserved
 	Lzma=14,	// 14
 	Bwt=18,	// 18 Xceed BWT
+	Zstd=93,	// 93 Zstd
 	Xz=95,	// 95 XZ
 	Ppmd=98,	// 98 PPMd
 	Aes=99,	// 99 WinZip AES
@@ -249,6 +250,8 @@ private: //-- Zipì‡ïîèàóùóp -----------------------
 	void UnPpmd( DWORD usz, DWORD csz );
 	// bwt (xceedbwt.c)
 	void UnBwt( DWORD usz, DWORD csz, DWORD crc );
+	// zstd (zstd 1.5.6, ZIP method 93)
+	void UnZstd( DWORD usz, DWORD csz );
 	// xz (method 95: XZ container over Lzma2Dec)
 		void UnXz( DWORD usz, DWORD csz );
 	struct XzZipIO { CZipTool *tool; DWORD left; };

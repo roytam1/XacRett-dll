@@ -1780,6 +1780,70 @@ SOURCE=.\xceedbwt\xceedbwt.c
 SOURCE=.\xceedbwt\xceedbwt.h
 # End Source File
 # End Group
+# Begin Group "zstd"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\zstd\zstd.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zstd\zstd_errors.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zstd\common\zstd_common.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\zstd\common\error_private.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\zstd\common\error_private.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zstd\common\fse_decompress.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\zstd\common\entropy_common.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\zstd\common\xxhash64.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zstd\decompress\huf_decompress.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\zstd\decompress\zstd_ddict.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\zstd\decompress\zstd_decompress.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\zstd\decompress\zstd_decompress_block.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\zstd\decompress\zstd_decompress_block.h
+# End Source File
+# End Group
 # Begin Group "YZ1"
 
 # PROP Default_Filter ""

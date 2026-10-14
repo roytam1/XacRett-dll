@@ -91,6 +91,7 @@ private:
 		BZip2=12,
 		Lzma=14,
 		Bwt=18,
+		Zstd=93,
 		Xz=95,
 		Ppmd=98,
 		Aes=99,

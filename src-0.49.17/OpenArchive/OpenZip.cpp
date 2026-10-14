@@ -49,6 +49,7 @@ bool COpenZip::Find_sub(INDIVIDUALINFO *lpSubInfo)
 		break;
 	case Ppmd: lstrcpy(lpSubInfo->szMode,"ppmd"); break;
 	case Bwt: lstrcpy(lpSubInfo->szMode,"bwt"); break;
+	case Zstd: lstrcpy(lpSubInfo->szMode,"zstd"); break;
 	case Xz: lstrcpy(lpSubInfo->szMode,"xz"); break;
 	default: lstrcpy(lpSubInfo->szMode,"?"); break;
 	}
@@ -130,7 +131,7 @@ bool COpenZip::read_header( ZipLocalHeader* hdr,unsigned char* buf )
 	char* pp;
 	for( pp=hdr->fnm; *pp!=0; pp++ );
 
-	if( hdr->mhd==Tokenized || hdr->mhd==11 || (hdr->mhd>12 && hdr->mhd!=Lzma && hdr->mhd!=Aes && hdr->mhd!=Ppmd && hdr->mhd!=Bwt && hdr->mhd!=Xz) )
+	if( hdr->mhd==Tokenized || hdr->mhd==11 || (hdr->mhd>12 && hdr->mhd!=Lzma && hdr->mhd!=Aes && hdr->mhd!=Ppmd && hdr->mhd!=Bwt && hdr->mhd!=Xz && hdr->mhd!=Zstd) )
 		{ if(del)delete [] buf; return false; }
 	if( pp-hdr->fnm != l )
 		{ if(del)delete [] buf; return false; }

@@ -1,0 +1,107 @@
+zstd/ - Zstandard decoder for ZIP method 93.
+==========================================
+
+Source
+------
+zstd 1.5.6 (Meta Platforms, BSD + GPLv2 dual license; LICENSE
+vendored at zstd/LICENSE), decompression subset only:
+
+    zstd.h / zstd_errors.h       public API + error enum (root)
+    common/zstd_common.c         version helpers
+    common/error_private.c       error strings
+    common/fse_decompress.c      FSE table reader
+    common/entropy_common.c      Huffman/FSE weight reader
+    common/huf.h                 (HUF static linking for huf_decompress)
+    common/*.h                   mem/bits/bitstream/compiler/cpu/
+                                 debug/fse/portability/zstd_deps/
+                                 zstd_internal/zstd_trace (headers)
+    decompress/huf_decompress.c  Huffman decoder (4-stream capable)
+    decompress/zstd_ddict.c      dictionary support
+    decompress/zstd_decompress.c frame + multi-frame + streaming shell
+    decompress/zstd_decompress_block.c  block decoder (all block types)
+    decompress/zstd_decompress_block.h, zstd_decompress_internal.h
+
+Compiled in: the 8 .c files above (see XacRett.dsp "zstd" group).
+NOT compiled in: debug.c (own assert/trace TU, unneeded), xxhash.c
+(replaced, see below), anything under lib/compress, lib/dictBuilder,
+lib/legacy, lib/common/pool|threading|xxhash.c.
+
+Why official C, not the kangaroo Go port
+----------------------------------------
+The first attempt was a from-scratch Go translation of zstd (kangaroo
+port, go-zstd mechanics transcribed). It decoded nothing: sequence
+execution missed the `prevOffset` update for non-first sequences
+(Go used offset 0, C repeats), the FSE decoder took `bitCount` from
+the wrong end of the accumulator, and the bit reader consumed bytes
+big-endian instead of little-endian. Three independent spec-level
+bugs in ~400 lines, each invisible without a C oracle at hand. The
+format's own spec (go-zstd docs) documents the same class of traps
+(offset reload edge rules, FSE initial-state layout) without giving
+implementable detail. Lesson, same as DCL/BWT before: never trust a
+clean-room decoder that only its own fixtures exercise. The official
+C source is the oracle AND the implementation; the porting work
+shrinks to mechanical VC6 shims, each verified by round-trip proof.
+
+VC6 port shims (all guarded, upstream path intact for modern MSVC)
+------------------------------------------------------------------
+o zstd.h: ZSTD_DEPRECATED forced empty for _MSC_VER < 1400
+  (VC6 has no __declspec(deprecated); C2485+C2059 otherwise).
+o common/mem.h, compiler.h, debug.h, portability_macros.h,
+  zstd_deps.h: U64/S64/U32/S32/U16/S16/U8/S8 typedefs onto
+  __int64/long/short/char; ULL constants to ui64 suffix;
+  `inline` to __inline; `static const` struct init kept (C89-OK).
+o common/debug.h: RAWLOG/DEBUGLOG become zstd_debug_nop() calls
+  at DEBUGLEVEL 0 (VC6 has no variadic macros).
+o common/error_private.h: _FORCE_HAS_FORMAT_STRING / RETURN_ERROR /
+  RETURN_ERROR_IF / FORWARD_IF_ERROR redefined fixed-arity for old
+  MSVC. Safe because the variadic tail only feeds RAWLOG (compiled
+  out), and because VC6 merely warns (C4002, locally disabled) on
+  surplus macro arguments - all 190 call sites work unchanged.
+o common/cpu.h: <intrin.h> gated to _MSC_VER >= 1400.
+o common/compiler.h: FORCE_NOINLINE drops __declspec(noinline)
+  below VS2002 (plain static; hint only, no semantics).
+o common/bits.h: ZSTD_countTrailing/LeadingZeros32 steered to the
+  built-in De Bruijn fallbacks below MSVC 1400 (no _BitScan*;
+  LNK2001 otherwise). The 64-bit halves already avoid _WIN64.
+o common/zstd_internal.h + decompress/zstd_decompress.c: include
+  the minimal xxhash64.h instead of xxhash.h for old MSVC.
+
+common/xxhash64.h (clean-room, NOT upstream)
+--------------------------------------------
+Upstream xxhash.h needs ULL/long long/SIMD paths VC6 cannot take.
+This header implements exactly what the decompressor uses: the
+XXH64 one-shot plus reset/update/digest streaming over a 32-byte
+buffer, little-endian loads via MEM_readLE64, unsigned __int64
+arithmetic. Verified against canonical vectors (empty -> EF46DB37
+51D8E999, "abc" -> 44BC2CF5AD770999) AND end to end: every
+checksummed test frame below has its XXH64 content checksum
+verified by this code inside ZSTD_decompress (a wrong digest
+fails the decode, not the comparison).
+
+ZIP method-93 framing
+---------------------
+Member data = one raw zstd frame (magic 0xFD2FB528, no ZIP-level
+framing, no extra-field dictionary protocol). `CZipTool::UnZstd`
+reads exactly `csz` bytes through zipread (so the WinZip-AES CTR
+hook applies unchanged - AES-inner-Zstd is exempted in the inner
+refusal gate by construction, same as XZ), one-shot
+ZSTD_decompress into a `usz` buffer, zipwrite. Short/mismatched
+output returns without writing so Extract's size check fails
+loudly (same contract as UnPpmd). `szMode` is `zstd`. Dict frames
+decode via the DCtx path (proven in-harness); no writer emits them
+inside ZIP in practice.
+
+Verification (all through the real DLL unless noted)
+----------------------------------------------------
+o harness round-trip (t_dec, TEMP-only): 6/6 byte-exact vs Python
+  zstandard ground truth (0 B .. 3 MB multi-block, checksummed).
+o edge (in-harness): skippable-frame prefix skipped, truncated and
+  garbage inputs fail loudly (no hang), level-19 large-window
+  frame, dictionary-trained frame via ZSTD_decompress_usingDict.
+o DLL: m93_zstd.zip 5/5 + m93_mixed.zip 3/3 byte-exact, list shows
+  mode='zstd' with header CRCs; m93_trunc.zip extracts the good
+  member and fails the truncated one loudly (0-byte file).
+o regression: 27/27 CRC-verified extracts across methods
+  0/8/10/12/14/18/98 with the method-93 DLL (gates are additive).
+o AES-inner-Zstd: no writer obtainable (same gap as DCL+AES);
+  refused-or-decoded through the shared CTR path, never silent.

@@ -242,20 +242,25 @@ no binary-only dependencies (AMD64 port preparation).
   PASS (7-Zip CRC32 incl. 300 KB, Python CRC32/CRC64/None/empty,
   hand-assembled 2-block, AES-inner-XZ) plus corrupt/truncated/
   SHA256 negatives (all loud, none hang).
-- ZIP method 93 (Zstd): deliberately NOT implemented (timeboxed
-  attempt concluded). A compliant decoder needs the full zstd
-  format (frames/blocks, Huffman + FSE tables, sequence engine,
-  repeat/long offsets, XXH64 checksums, skippable frames ~800
-  dense lines + VC6 C89 porting); no BSD/MIT decoder sources are
-  obtainable offline (Xtro links external libzstd; no network;
-  7-Zip mainline cannot even write method 93) and from-scratch
-  exceeds the timebox for a method almost nobody emits. Python
-  `zstandard` 0.25 is installed for fixtures/ground truth if this
-  is ever revisited. Verified: pure-93 archives refuse cleanly
-  (`OpenArchive failed`, no crash/hang); mixed archives list up
-  to the first 93 member and stop (fixed properly by the planned
-  skip-and-continue work). Fixtures in `%TEMP%\zstdfix\`
-  (`m93_zstd.zip` 31 B..3000 B + `m93_mixed.zip` probe).
+- ZIP method 93 (Zstd) is implemented via vendored zstd 1.5.6
+  decompression subset (`src-0.49.17/zstd/`, BSD/GPL, see
+  `zstd/KI.README`). The first attempt (from-scratch Go port)
+  failed on three spec traps (prevOffset repeat, FSE bitCount
+  end, LE bit-reader order) and was abandoned for the official
+  C source + mechanical VC6 shims (no ULL/long long/variadic
+  macros/`declspec(deprecated|noinline)`/`_BitScan*`/intrin.h;
+  clean-room `xxhash64.h` verified vs canonical vectors).
+  Member data is one raw zstd frame; `CZipTool::UnZstd` reads
+  exactly `csz` via zipread (AES-inner works via the CTR hook)
+  and one-shots into a `usz` buffer (short fails loudly).
+  `szMode` is `zstd`. Gates: Check scan + both read_header
+  copies + AES-inner refusal all exempt 93; `Zstd=93` lives in
+  both ZipMethod enums (ZipTool.h + OpenZip.h).
+  Verified 8/8 PASS (`%TEMP%\zstdfix\m93_zstd.zip` 5 +
+  `m93_mixed.zip` 3, CRC-exact, mode=`zstd`) plus trunc loud-
+  fail, skip-prefix/dict/level-19 edge proofs in-harness, and
+  27/27 cross-method regression (0/8/10/12/14/18/98).
+  AES-inner-Zstd untested (no writer obtainable, same as DCL).
 - Standalone `.lzma` (LZMA Alone) is a full provider (`CLzmaTool`/
   `COpenLzma`, `ARCHIVETYPE_LZMA` 65): `Check` validates the props
   byte (no magic exists), `Extract` strips `.lzma` (else appends
