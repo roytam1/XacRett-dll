@@ -13,7 +13,11 @@
 
 // 7zAES (coder id 0x06F10701) key derivation. cyclesPower/saltSize come
 // straight out of the coder props. Returns false for a power we refuse.
-bool SevenZAesDeriveKey( const char* password, unsigned cyclesPower,
+// password is the RAW password bytes the KDF hashes, which for 7zAES is
+// UTF-16LE - NOT the ANSI string the UI hands us (see the call site in
+// SevenZDecode.cpp, which does the ACP conversion).
+bool SevenZAesDeriveKey( const BYTE* password, size_t passwordSize,
+                         unsigned cyclesPower,
                          const BYTE* salt, unsigned saltSize, BYTE key[32] );
 
 // AES-256-CBC decrypt in place. len MUST be a multiple of 16.

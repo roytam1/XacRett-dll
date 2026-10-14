@@ -22,6 +22,13 @@ static ISzAlloc g_szcAlloc = { szcAlloc, szcFree };
 
 // =========================================================================
 // 7zAES key derivation (SHA-256 based KDF, ported from 7zAes.cpp)
+//
+// The KDF hashes salt || password || LE64 round-counter, repeated
+// 1<<cyclesPower times.  The password must already be UTF-16LE; 7-Zip
+// converts its ANSI input with the ACP before hashing, so hashing the
+// raw single-byte string yields a key that matches nothing.  The
+// cyclesPower == 0x3F short form hashes nothing at all and just takes
+// salt || password, zero padded to 32 bytes.
 // =========================================================================
 
 // 7-Zip unrolls the buffer up to 64 times to feed SHA-256 in big blocks.
@@ -35,7 +42,8 @@ static void szcSetUi32( Byte* p, UInt32 v )
 	p[3] = (Byte)(v >> 24);
 }
 
-bool SevenZAesDeriveKey( const char* password, unsigned cyclesPower,
+bool SevenZAesDeriveKey( const BYTE* password, size_t passwordSize,
+                         unsigned cyclesPower,
                          const BYTE* salt, unsigned saltSize, BYTE key[32] )
 {
 	CSha256 sha;
@@ -53,7 +61,7 @@ bool SevenZAesDeriveKey( const char* password, unsigned cyclesPower,
 	static BYTE prep = 0;
 	if( !prep ) { Sha256Prepare(); prep = 1; }
 	}
-	pwLen = password ? strlen(password) : 0;
+	pwLen = passwordSize;
 
 	if( cyclesPower == 0x3F )
 		{

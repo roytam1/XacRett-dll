@@ -468,7 +468,7 @@ no binary-only dependencies (AMD64 port preparation).
   license — reference use only, never vendor; our port is clean-room).
   Samples live in TEMP (`aintest\packed_corpus_*` + `corpus_*`), not the
   repo.
-- 7z support (DONE except 7zAES): clean-room container parser
+- 7z support (DONE): clean-room container parser
   (`SevenZDecode.cpp`) over the vendored SDK cores (`sevenz/`,
   public domain, Pavlov; AES/SHA-256, Bcj2, Bra+Bra86, Delta,
   Ppmd7). Signature + start-header CRC + header CRC, plain and
@@ -478,7 +478,7 @@ no binary-only dependencies (AMD64 port preparation).
   empty-file bit vector, zip-slip path sanitising. Coders: Copy,
   LZMA, LZMA2, Delta, BCJ/ARM/ARMT/PPC/SPARC/IA64/RISCV, BCJ2,
   PPMd7, Deflate, BZip2, **ZSTD (`04F71101`, 5-or-3 props
-  `[major,minor,level,0,0]`, plain zstd frame)**, 7zAES partial.
+  `[major,minor,level,0,0]`, plain zstd frame)** and 7zAES.
   `ARCHIVETYPE_7Z` 71; registered BEFORE the LZMA/XZ providers so
   their lax `Check` cannot steal `.7z`.
   `sevenz/7zTypes.h` and `lzma/7zTypes.h` share the include guard
@@ -502,7 +502,7 @@ no binary-only dependencies (AMD64 port preparation).
   `PPMD7_SYM_END` / `IsFinishedOK` / `pos==len` rejects every valid
   archive - check only the exact output length and that the coder
   never read past the packed stream.
-  Verified 24/25 fixtures byte-exact in `%TEMP%\7zfix\`: 17 from the
+  Verified 25/25 fixtures byte-exact in `%TEMP%\7zfix\`: 17 from the
   real 7-Zip 26.04 CLI (lzma2, lzma, copy, bzip2, deflate, delta,
   ppmd, bcj, bcj2, aes, hdr on/off, non-solid, bigdict, mx0/mx9,
   multi-solid) + 8 py7zr-written zstd fixtures (level 1/3/19, 3-byte
@@ -513,12 +513,19 @@ no binary-only dependencies (AMD64 port preparation).
   CRC) all fail loudly and fast; a corrupt 7z is then claimed by the
   lax standalone-LZMA provider (same house behaviour as `.xz`/`.zst`)
   but fails fast without the 0xFFFFFFFF size allocation.
-  **Open gap: 7zAES.** The KDF is a faithful port of
-  `CKeyInfo::CalcKey` and matches an independent Python port, but it
-  does not reproduce the key installed 7-Zip 26.04 uses (every
-  password encoding, unrolled/classic KDF variant and 16-byte IV
-  offset was tried; no key decodes even the LZMA2 stream). Encrypted
-  7z therefore lists but refuses to extract.
+  7zAES needs three things that are all silent when wrong (no crash, no
+  error, just a key that decrypts nothing): the KDF hashes the password
+  as **UTF-16LE** (`MultiByteToWideChar(CP_ACP,...)` at the call site -
+  hashing `strlen()` ANSI bytes gives a valid-looking key that opens
+  nothing); the CBC decrypt works IN PLACE so the ciphertext must be
+  memcpy'd out of `src[0]` into the freshly `new`ed `dst` first; and a
+  7zAES payload carries **no embedded digest** - the encoder rounds the
+  plaintext up to 16 with ZEROS and the header records that padded
+  size, so any tail-digest check is meaningless (integrity comes from
+  the entry CRCs instead). With all three fixed the key matches
+  py7zr's `calculate_key` bit for bit; m93_aes.7z/"secret" and
+  aes4.7z/"testpw" extract byte-exact and a wrong password fails loudly
+  one stage later.
 - Known gaps (untouched): JCALG1 is clean-room and unverified; SQX
   method-6 EX emits zero bytes; GCA non-`GCAX` paths are stubbed;
   `OpenDummy`/`OpenCompactC` have no live listing path.

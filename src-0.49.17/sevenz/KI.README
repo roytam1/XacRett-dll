@@ -116,3 +116,34 @@ a properties version newer than our vendored zstd: the frame format is
 forward compatible, so only the output length is checked.  Verified
 against the coder record in a real 7-Zip 19.00+zstd archive
 (workarea root `7z-zstd.7z`, `Method = BCJ 04F71101`).
+
+7zAES: what actually has to be true (three bugs, all silent)
+----------------------------------------------------------
+1. The KDF hashes the password as **UTF-16LE**, never the raw bytes
+   of the ANSI string the UI hands us.  7-Zip converts its ANSI input
+   with CP_ACP and hashes the UTF-16 form, so hashing `strlen()`
+   bytes produces a perfectly well-formed key that decrypts nothing.
+   (The key is then *correct-looking*: same length, same KDF, no
+   error anywhere - the only symptom is "aes check failed".)  The
+   conversion therefore belongs at the CALL SITE (SevenZDecode.cpp,
+   `MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, ...)`), and
+   `SevenZAesDeriveKey` takes `(const BYTE*, size_t)`.
+2. `SevenZAesDecryptCbc` works IN PLACE, and `dst` in runCoder is a
+   freshly `new`ed, uninitialised output buffer - the ciphertext must
+   be memcpy'd out of `src[0]` first.  Without it you decrypt
+   whatever heap garbage was there.
+3. A 7zAES payload carries **NO embedded digest**.  The encoder
+   rounds the plaintext up to a 16-byte boundary with ZEROS (p7zip's
+   "AES filters need 16-bytes alignment" rule), and the coder outSize
+   in the header is that padded size.  So the tail of the ciphertext
+   is padding, not a SHA-256 of anything, and `IsFinishedOK`-style
+   checks over the tail are meaningless.  Verified by decrypting
+   m93_aes.7z with python-zstd-independent tooling: 310565 real bytes
+   + 11 zero bytes of padding = the recorded 310576.  Integrity comes
+   from the entry CRCs instead (Extract deletes the output on
+   mismatch), which is what py7zr and our ZIP WinZip-AES path do.
+
+With all three fixed the derived key matches py7zr's `calculate_key`
+bit for bit, and both encrypted fixtures (m93_aes.7z / "secret" and
+aes4.7z / "testpw") extract byte-exact.  A wrong password fails
+loudly one stage later ("lzma2 data"), never silently.

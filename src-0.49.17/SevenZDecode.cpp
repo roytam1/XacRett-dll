@@ -1450,10 +1450,10 @@ bool CSevenZ::runCoder( SzFolder* fo, const SzCoder* c,
 
 	case SZ_AES256:
 		{
-		BYTE key[32], iv[16], dig[32];
+		BYTE key[32], iv[16];
 		const BYTE* p = c->props;
 		DWORD ps = c->propsSize;
-		DWORD b0, b1 = 0, saltSize = 0, ivSize = 0, cycles, checkLen;
+		DWORD b0, b1 = 0, saltSize = 0, ivSize = 0, cycles;
 
 		if( ps < 1 ) { setErr("aes props"); return false; }
 		b0 = p[0];
@@ -1475,8 +1475,26 @@ bool CSevenZ::runCoder( SzFolder* fo, const SzCoder* c,
 			memcpy( iv, p + 2 + saltSize, ivSize );
 			}
 		if( !m_password ) { setErr("encrypted, no password"); return false; }
-		if( !SevenZAesDeriveKey( m_password, cycles, p + 2, saltSize, key ) )
-			{ setErr("aes key"); return false; }
+		{
+		// 7zAES hashes the password as UTF-16LE, so convert from the ACP
+		// exactly the way 7-Zip does for its own ANSI input. Hashing the
+		// raw bytes here produces a key that decrypts nothing.
+		BYTE pw[512];
+		wchar_t wbuf[256];
+		DWORD pwLen = 0, i;
+		int wc = MultiByteToWideChar( CP_ACP, MB_PRECOMPOSED, m_password, -1,
+		                               wbuf, 256 );
+		if( wc <= 0 || wc >= 256 ) wc = 1;
+		for( i = 0; i < (DWORD)wc - 1 && pwLen < sizeof(pw) - 2; i++ )
+			{
+			pw[pwLen++] = (BYTE)wbuf[i];
+			pw[pwLen++] = (BYTE)((wbuf[i] >> 8) & 0xFF);
+			}
+		if( !SevenZAesDeriveKey( pw, pwLen, cycles, p + 2, saltSize, key ) )
+			{ ZeroMemory( pw, sizeof(pw) ); setErr("aes key"); return false; }
+		ZeroMemory( pw, sizeof(pw) );
+		ZeroMemory( wbuf, sizeof(wbuf) );
+		}
 		// 7zAES encrypts payload+16-byte SHA-256 and 7-Zip records the coder's
 		// outSize INCLUDING that digest, so the encrypted input is exactly
 		// dstLen and the plaintext handed downstream is dstLen-16.
@@ -1488,17 +1506,19 @@ bool CSevenZ::runCoder( SzFolder* fo, const SzCoder* c,
 			return false;
 			}
 		if( dstLen < 16 || (dstLen & 15) != 0 ) { setErr("aes payload align"); return false; }
-		{
-		DWORD plain = dstLen - 16;
+		// A 7zAES payload carries NO embedded digest. The encoder rounds
+		// the plaintext up to a 16-byte boundary with ZEROS (the p7zip
+		// "AES filters need 16-bytes alignment" rule), so the tail of the
+		// ciphertext is padding, not a SHA-256 of anything, and the coder
+		// outSize recorded in the header is that padded size. The consumer
+		// downstream knows its own real output length and simply ignores the
+		// padding. Integrity comes from the entry CRCs (Extract deletes the
+		// output on mismatch), the same trust model py7zr and our ZIP
+		// WinZip-AES path use.
+		// SevenZAesDecryptCbc works in place, and dst is a freshly
+		// allocated (uninitialised) output buffer, so stage the ciphertext.
+		memcpy( dst, src[0], dstLen );
 		SevenZAesDecryptCbc( key, iv, dst, dstLen );
-		*produced = dstLen - 16;
-		checkLen = (DWORD)((((unsigned __int64)plain) +
-			(cycles >= 63 ? 0 : (((unsigned __int64)1 << cycles) - 1))) >> cycles);
-		if( checkLen == 0 ) checkLen = 1;
-		SevenZSha256( dst, checkLen, dig );
-		if( memcmp(dig, dst + plain, 16) != 0 )
-			{ setErr("aes check failed"); return false; }
-		}
 		{ *produced = dstLen; return true; }
 		}
 
