@@ -110,8 +110,9 @@ no binary-only dependencies (AMD64 port preparation).
   stripped names) instead of silently skipping with rc=0.
   Data descriptors via central-dir size resolve (matched by local
   offset + bit 3, so stale-offset SFX can't inject garbage).
-  Listing now covers methods 0, 8, 9, 10, 12, 14; 7, 11 and 13
-  are reserved and still refused. Unsupported-method members are
+  Listing now covers methods 0, 8, 9, 10, 12, 14, 18, 95, 98, 99;
+  everything else is refused (7/11/13 are reserved; 93 needs a
+  full zstd decoder, see below). Unsupported-method members are
   NOT yet skipped-and-continued (listing stops at the first
   exotic member); no ZIP64 central-dir attrs; no spans.
 - ZIP method 10 (DCL Implode) is implemented via vendored `pkdcl.c`/
@@ -230,6 +231,20 @@ no binary-only dependencies (AMD64 port preparation).
   PASS (7-Zip CRC32 incl. 300 KB, Python CRC32/CRC64/None/empty,
   hand-assembled 2-block, AES-inner-XZ) plus corrupt/truncated/
   SHA256 negatives (all loud, none hang).
+- ZIP method 93 (Zstd): deliberately NOT implemented (timeboxed
+  attempt concluded). A compliant decoder needs the full zstd
+  format (frames/blocks, Huffman + FSE tables, sequence engine,
+  repeat/long offsets, XXH64 checksums, skippable frames ~800
+  dense lines + VC6 C89 porting); no BSD/MIT decoder sources are
+  obtainable offline (Xtro links external libzstd; no network;
+  7-Zip mainline cannot even write method 93) and from-scratch
+  exceeds the timebox for a method almost nobody emits. Python
+  `zstandard` 0.25 is installed for fixtures/ground truth if this
+  is ever revisited. Verified: pure-93 archives refuse cleanly
+  (`OpenArchive failed`, no crash/hang); mixed archives list up
+  to the first 93 member and stop (fixed properly by the planned
+  skip-and-continue work). Fixtures in `%TEMP%\zstdfix\`
+  (`m93_zstd.zip` 31 B..3000 B + `m93_mixed.zip` probe).
 - UnRAR 7.2.7 (RAR 1.5-5.x; deliberate divergence, official does 2.x/3.x
   only): stable `RAR*` API made it a source drop-in (`Rar3Tool.cpp` glue
   untouched); VC6 port via `vc6compat/` shims (`stdint.h`, SDK headers)
