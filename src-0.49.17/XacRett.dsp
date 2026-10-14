@@ -42,8 +42,8 @@ RSC=rc.exe
 # PROP Intermediate_Dir "Release"
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
-# ADD BASE CPP /nologo /MT /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "XACRETT_EXPORTS" /D "NO_GZCOMPRESS" /I "lhasa" /Yu"stdafx.h" /FD /c
-# ADD CPP /nologo /MT /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "XACRETT_EXPORTS" /D "NO_GZCOMPRESS" /I "lhasa" /Yu"stdafx.h" /FD /c
+# ADD BASE CPP /nologo /MT /W3 /GX /O2 /I "lhasa" /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "XACRETT_EXPORTS" /D "NO_GZCOMPRESS" /Yu"stdafx.h" /FD /c
+# ADD CPP /nologo /MT /W3 /GX /O2 /I "lhasa" /I "." /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "XACRETT_EXPORTS" /D "NO_GZCOMPRESS" /Yu"stdafx.h" /FD /c
 # ADD BASE MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x411 /d "NDEBUG"
@@ -68,8 +68,8 @@ LINK32=link.exe
 # PROP Intermediate_Dir "Debug"
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
-# ADD BASE CPP /nologo /MTd /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "XACRETT_EXPORTS" /D "NO_GZCOMPRESS" /I "lhasa" /Yu"stdafx.h" /FD /GZ /c
-# ADD CPP /nologo /MTd /W3 /Gm /GX /Zi /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /FR /I "lhasa" /Yu"stdafx.h" /FD /GZ /c
+# ADD BASE CPP /nologo /MTd /W3 /Gm /GX /ZI /Od /I "lhasa" /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /D "_USRDLL" /D "XACRETT_EXPORTS" /D "NO_GZCOMPRESS" /Yu"stdafx.h" /FD /GZ /c
+# ADD CPP /nologo /MTd /W3 /Gm /GX /Zi /Od /I "lhasa" /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /FR /Yu"stdafx.h" /FD /GZ /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x411 /d "_DEBUG"
@@ -92,11 +92,19 @@ LINK32=link.exe
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 # Begin Source File
 
+SOURCE=.\AceBlock.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\AceTool.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\AceBlock.cpp
+SOURCE=.\AinCodec.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\AinTool.cpp
 # End Source File
 # Begin Source File
 
@@ -121,14 +129,6 @@ SOURCE=.\ArjTool.cpp
 # Begin Source File
 
 SOURCE=.\ArTool.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\AinCodec.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\AinTool.cpp
 # End Source File
 # Begin Source File
 
@@ -339,6 +339,10 @@ SOURCE=.\kiutil.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\LbrTool.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\LzhDecoder2.cpp
 # End Source File
 # Begin Source File
@@ -347,7 +351,15 @@ SOURCE=.\LzhTool.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\LbrTool.cpp
+SOURCE=.\LzmaDecode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\LzmaTool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\LzmaTool.h
 # End Source File
 # Begin Source File
 
@@ -424,42 +436,6 @@ SOURCE=.\XacRett.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\YncTool.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\Yz1Tool.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\ZacTool.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\ZipTool.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\ZipPpmd.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\LzmaDecode.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\XzDecode.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\XzDecode.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\LzmaTool.cpp
-# End Source File
-# Begin Source File
-
 SOURCE=.\XzDecode.cpp
 # End Source File
 # Begin Source File
@@ -476,19 +452,35 @@ SOURCE=.\XzTool.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\YncTool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\Yz1Tool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\ZacTool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\ZipPpmd.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\ZipTool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\ZooTool.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\ZstdTool.cpp
 # End Source File
 # Begin Source File
 
 SOURCE=.\ZstdTool.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\LzmaTool.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\ZooTool.cpp
 # End Source File
 # End Group
 # Begin Group "Header Files"
@@ -496,11 +488,19 @@ SOURCE=.\ZooTool.cpp
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
 # Begin Source File
 
+SOURCE=.\AceBlock.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\AceTool.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\AceBlock.h
+SOURCE=.\AinCodec.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\AinTool.h
 # End Source File
 # Begin Source File
 
@@ -525,14 +525,6 @@ SOURCE=.\ArjTool.h
 # Begin Source File
 
 SOURCE=.\ArTool.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\AinCodec.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\AinTool.h
 # End Source File
 # Begin Source File
 
@@ -652,15 +644,15 @@ SOURCE=.\kiutil.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\LbrTool.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\LzhDecoder2.h
 # End Source File
 # Begin Source File
 
 SOURCE=.\LzhTool.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\LbrTool.h
 # End Source File
 # Begin Source File
 
@@ -791,6 +783,10 @@ SOURCE=.\zlib\gzclose.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\zlib\gzguts.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\zlib\gzlib.c
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
@@ -798,10 +794,6 @@ SOURCE=.\zlib\gzlib.c
 
 SOURCE=.\zlib\gzread.c
 # SUBTRACT CPP /YX /Yc /Yu
-# End Source File
-# Begin Source File
-
-SOURCE=.\zlib\gzguts.h
 # End Source File
 # Begin Source File
 
@@ -873,15 +865,15 @@ SOURCE=.\OpenArchive\OpenAce.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\OpenArchive\OpenAin.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\OpenArchive\OpenAlz.cpp
 # End Source File
 # Begin Source File
 
 SOURCE=.\OpenArchive\OpenaPLib.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\OpenArchive\OpenAin.cpp
 # End Source File
 # Begin Source File
 
@@ -985,30 +977,6 @@ SOURCE=.\OpenArchive\OpenGz.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\OpenArchive\OpenLzma.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\OpenArchive\OpenXz.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\OpenArchive\OpenXz.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\OpenArchive\OpenZstd.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\OpenArchive\OpenZstd.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\OpenArchive\OpenLzma.h
-# End Source File
-# Begin Source File
-
 SOURCE=.\OpenArchive\OpenHqx.cpp
 # End Source File
 # Begin Source File
@@ -1042,6 +1010,14 @@ SOURCE=.\OpenArchive\OpenLbr.cpp
 # Begin Source File
 
 SOURCE=.\OpenArchive\OpenLzh.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenLzma.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenLzma.h
 # End Source File
 # Begin Source File
 
@@ -1097,6 +1073,14 @@ SOURCE=.\OpenArchive\OpenUnixDecoder.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\OpenArchive\OpenXz.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenXz.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\OpenArchive\OpenYnc.cpp
 # End Source File
 # Begin Source File
@@ -1115,6 +1099,14 @@ SOURCE=.\OpenArchive\OpenZip.cpp
 
 SOURCE=.\OpenArchive\OpenZoo.cpp
 # End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenZstd.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenZstd.h
+# End Source File
 # End Group
 # Begin Group "HeaderFile"
 
@@ -1129,15 +1121,15 @@ SOURCE=.\OpenArchive\OpenAce.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\OpenArchive\OpenAin.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\OpenArchive\OpenAlz.h
 # End Source File
 # Begin Source File
 
 SOURCE=.\OpenArchive\OpenaPLib.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\OpenArchive\OpenAin.h
 # End Source File
 # Begin Source File
 
@@ -1694,20 +1686,7 @@ SOURCE=.\pkdcl\pkdcl.h
 # PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=.\lzma\LzmaDec.c
-# SUBTRACT CPP /YX /Yc /Yu
-# End Source File
-# Begin Source File
-
-SOURCE=.\lzma\LzmaDec.h
-# End Source File
-# Begin Source File
-
 SOURCE=.\lzma\7zTypes.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\lzma\Precomp.h
 # End Source File
 # Begin Source File
 
@@ -1718,18 +1697,38 @@ SOURCE=.\lzma\Lzma2Dec.c
 
 SOURCE=.\lzma\Lzma2Dec.h
 # End Source File
+# Begin Source File
+
+SOURCE=.\lzma\LzmaDec.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\lzma\LzmaDec.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\lzma\Precomp.h
+# End Source File
 # End Group
 # Begin Group "wzaes"
 
 # PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=.\wzaes\wzaes.c
-# SUBTRACT CPP /YX /Yc /Yu
+SOURCE=.\wzaes\ae3_impl.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\wzaes\wzaes.h
+SOURCE=.\wzaes\iz_aes_x86.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\wzaes\iz_arm_caps.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\wzaes\iz_arm_crypto.h
 # End Source File
 # Begin Source File
 
@@ -1742,23 +1741,16 @@ SOURCE=.\wzaes\izsha1.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\wzaes\iz_arm_caps.h
-# End Source File
-# Begin Source File
-
 SOURCE=.\wzaes\izsha1_ni.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\wzaes\iz_aes_x86.h
+SOURCE=.\wzaes\wzaes.c
+# SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
 
-SOURCE=.\wzaes\iz_arm_crypto.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\wzaes\ae3_impl.h
+SOURCE=.\wzaes\wzaes.h
 # End Source File
 # End Group
 # Begin Group "ppmd8"
@@ -1766,12 +1758,11 @@ SOURCE=.\wzaes\ae3_impl.h
 # PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=.\ppmd8\ppmd8.c
-# SUBTRACT CPP /YX /Yc /Yu
+SOURCE=.\ppmd8\ppmd.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\ppmd8\ppmd8dec.c
+SOURCE=.\ppmd8\ppmd8.c
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
@@ -1780,7 +1771,8 @@ SOURCE=.\ppmd8\ppmd8.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\ppmd8\ppmd.h
+SOURCE=.\ppmd8\ppmd8dec.c
+# SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # End Group
 # Begin Group "xceedbwt"
@@ -1801,15 +1793,7 @@ SOURCE=.\xceedbwt\xceedbwt.h
 # PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=.\zstd\zstd.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\zstd\zstd_errors.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\zstd\common\zstd_common.c
+SOURCE=.\zstd\common\entropy_common.c
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
@@ -1828,7 +1812,7 @@ SOURCE=.\zstd\common\fse_decompress.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\zstd\common\entropy_common.c
+SOURCE=.\zstd\decompress\huf_decompress.c
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
@@ -1837,7 +1821,11 @@ SOURCE=.\zstd\common\xxhash64.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\zstd\decompress\huf_decompress.c
+SOURCE=.\zstd\zstd.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zstd\common\zstd_common.c
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
@@ -1858,6 +1846,10 @@ SOURCE=.\zstd\decompress\zstd_decompress_block.c
 # Begin Source File
 
 SOURCE=.\zstd\decompress\zstd_decompress_block.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\zstd\zstd_errors.h
 # End Source File
 # End Group
 # Begin Group "YZ1"
@@ -1908,7 +1900,7 @@ SOURCE=.\yz32lib\yzFileDe.cxx
 # PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=.\lhasa\lha_decoder.c
+SOURCE=.\lhasa\crc16.c
 
 !IF  "$(CFG)" == "XacRett - Win32 Release"
 
@@ -1921,16 +1913,11 @@ SOURCE=.\lhasa\lha_decoder.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\lhasa\null_decoder.c
+SOURCE=.\lhasa\crc16.h
+# End Source File
+# Begin Source File
 
-!IF  "$(CFG)" == "XacRett - Win32 Release"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
-
-!ENDIF 
-
+SOURCE=.\lhasa\inttypes.h
 # End Source File
 # Begin Source File
 
@@ -1986,6 +1973,40 @@ SOURCE=.\lhasa\lh7_decoder.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\lhasa\lha_decoder.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\lhasa\lha_decoder.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\LhasaBridge.cpp
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\lhasa\LhasaBridge.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\lhasa\lhx_decoder.c
 
 !IF  "$(CFG)" == "XacRett - Win32 Release"
@@ -2038,6 +2059,19 @@ SOURCE=.\lhasa\lzs_decoder.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\lhasa\null_decoder.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
 SOURCE=.\lhasa\pm1_decoder.c
 
 !IF  "$(CFG)" == "XacRett - Win32 Release"
@@ -2061,48 +2095,6 @@ SOURCE=.\lhasa\pm2_decoder.c
 
 !ENDIF 
 
-# End Source File
-# Begin Source File
-
-SOURCE=.\lhasa\crc16.c
-
-!IF  "$(CFG)" == "XacRett - Win32 Release"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
-
-!ENDIF 
-
-# End Source File
-# Begin Source File
-
-SOURCE=.\LhasaBridge.cpp
-
-!IF  "$(CFG)" == "XacRett - Win32 Release"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
-
-!ENDIF 
-
-# End Source File
-# Begin Source File
-
-SOURCE=.\lhasa\lha_decoder.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\lhasa\crc16.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\lhasa\LhasaBridge.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\lhasa\inttypes.h
 # End Source File
 # End Group
 # Begin Source File
