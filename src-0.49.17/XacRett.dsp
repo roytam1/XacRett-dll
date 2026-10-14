@@ -399,6 +399,30 @@ SOURCE=.\RezTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\SevenZCore.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\SevenZCore.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\SevenZDecode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\SevenZDecode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\SevenZTool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\SevenZTool.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\SharTool.cpp
 # End Source File
 # Begin Source File
@@ -1050,6 +1074,14 @@ SOURCE=.\OpenArchive\OpenRar.cpp
 # Begin Source File
 
 SOURCE=.\OpenArchive\OpenRez.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenSevenZ.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenSevenZ.h
 # End Source File
 # Begin Source File
 

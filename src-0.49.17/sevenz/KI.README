@@ -70,3 +70,49 @@ o AES: key schedule goes at `Aes()+4`, IV at `Aes()+0`; buffer is
   `UInt32 [AES_NUM_IVMRK_WORDS + 3]`, all 16-byte aligned.
   Decrypt needs `Aes_SetKey_Dec`, encrypt `Aes_SetKey_Enc`.
   (`AesCbc_Init` fills ONLY the IV - it does not touch the schedule.)
+
+Container side (clean-room): SevenZDecode.cpp / SevenZCore.cpp
+-----------------------------------------------------------
+The .7z container is OUR parser; only the codec cores above are
+vendored.  `SevenZDecode.cpp` walks PackInfo / UnPackInfo /
+SubStreamsInfo / FilesInfo and builds a coder graph; `SevenZCore.cpp`
+wraps the SDK cores in a plain-byte API.
+
+TU split is MANDATORY: `sevenz/7zTypes.h` and `lzma/7zTypes.h` share
+the include guard `ZIP7_7Z_TYPES_H`.  One TU cannot include both (they
+define the same ISzAlloc/ISzAllocPtr differently).  So:
+  SevenZCore.cpp  - sevenz/* only (AES, SHA-256, Bcj2, Bra, Delta, Ppmd7)
+  SevenZDecode.cpp - lzma/* + zlib + libbzip2 + zstd, via SevenZCore.h
+
+TRAPS found while wiring the cores up (all cost real debugging time)
+-----------------------------------------------------------------
+IByteIn is a DIRECT-CALL interface in this SDK vintage, not the old
+Vtbl one:
+    Z7_C_IFACE_DECL (IByteIn) { Byte (*Read)(IByteInPtr p); };
+    #define IByteIn_Read(p) (p)->Read(p)
+So `p->Stream` is a plain `const IByteIn *`, and passing a buffer
+descriptor struct cast to `IByteInPtr` makes the decoder call the
+buffer's first member as a FUNCTION POINTER -> 0xC0000005, with no
+RTC report and identical /Od and /O2.  The working shape is to embed
+`IByteIn` as the FIRST member of the wrapper struct and point
+`CPpmd7_RangeDec::Stream` at it:
+    struct SzcPpmdIn { IByteIn in; const BYTE* buf; DWORD len,pos; bool err; };
+    model.rc.dec.Stream = (IByteInPtr)&in;      // valid: in is first
+A 7z PPMd stream has NO end marker.  The encoder only FLUSHES the
+range coder after the last symbol, so `Code` ends at whatever the
+flush produced, `Ppmd7z_RangeDec_IsFinishedOK` is false, and the
+remaining input is renormalisation.  Demanding PPMD7_SYM_END (or a
+clean range coder, or `pos == len`) rejects every valid archive.
+Only two checks are honest: exact output length, and that the range
+coder never had to read past the packed stream.  Entry CRCs (and the
+header CRC for an encoded header) cover the bytes themselves.
+
+7z ZSTD coder: method id `04F71101`, properties are 5 bytes
+`[zstd_major, zstd_minor, level, 0, 0]` (3-byte historic form also
+legal).  There is NO dictionary or window size in the properties -
+those live in the zstd frame header - so the payload is one plain
+zstd frame, exactly like the ZIP method 93 payload.  Do NOT refuse on
+a properties version newer than our vendored zstd: the frame format is
+forward compatible, so only the output length is checked.  Verified
+against the coder record in a real 7-Zip 19.00+zstd archive
+(workarea root `7z-zstd.7z`, `Method = BCJ 04F71101`).

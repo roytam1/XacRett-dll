@@ -49,12 +49,7 @@ bool CXzTool::Extract( const char* fname,const char* ddir )
 	if (m_Endflg) return true;
 	if (!CheckStr(outname))return true;
 	char *name = kiutil::pathMake( outname );
-	{ FILE *lg=fopen("C:\\Users\\Roy\\AppData\\Local\\Temp\\xzdbg.txt","a");
-	 if(lg){ fprintf(lg,"extract %s -> %s\n",fname,name); fclose(lg); } }
 	if( !XzDecodeFile( fname, name ) )
-		{ FILE *lg=fopen("C:\\Users\\Roy\\AppData\\Local\\Temp\\xzdbg.txt","a");
-		 if(lg){ fprintf(lg,"decode FAILED\n"); fclose(lg); } return false; }
-	{ FILE *lg=fopen("C:\\Users\\Roy\\AppData\\Local\\Temp\\xzdbg.txt","a");
-	 if(lg){ fprintf(lg,"decode OK\n"); fclose(lg); } }
+		return false;
 	return true;
 }

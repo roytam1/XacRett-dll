@@ -468,30 +468,57 @@ no binary-only dependencies (AMD64 port preparation).
   license — reference use only, never vendor; our port is clean-room).
   Samples live in TEMP (`aintest\packed_corpus_*` + `corpus_*`), not the
   repo.
-- 7z support (IN PROGRESS, step 1 of 2 done): the 7-Zip SDK decoder
-  CORES are vendored at `src-0.49.17/sevenz/` (public domain, Pavlov,
-  20 files: Aes/Sha256, Bcj2, Bra+Bra86, Delta, Ppmd7, CpuArch + the
-  portability headers). `.7z` support is NOT yet usable: the
-  container parser (header/folders/files-info) is still to be written
-  clean-room over these cores. Two REAL upstream-gate bugs had to be
-  patched for VC6 - both are the same trap: upstream enables the
-  SHA-NI path on `_MSC_VER >= 1200` and the AES-NI path on a bare
-  `#elif defined(_MSC_VER)`, but **VC6 reports _MSC_VER == 1200**, so
-  it matches and then references assembly-only `*_HW` symbols
-  (LNK2001). Narrowed both to `> 1200` (pure-C paths). Verified on
-  VC6: SHA-256 = 3 NIST vectors exact; AES-256-CBC = NIST SP800-38A
-  F.2.5 exact both directions + F.1.5 ECB; Delta = matches a from-spec
-  model for delta 1..16; Bra x86 encode/decode inverse. Traps recorded
-  in `sevenz/KI.README`: `Sha256Prepare()` must run once first; the
-  AES key schedule lives at `Aes()+4` and the buffer must be
-  `AES_NUM_IVMRK_WORDS + 3` words (under-sizing = hard AV, not a wrong
-  answer); decrypt needs `Aes_SetKey_Dec`, not Enc; `Bra.c` has NO
-  x86 converter (it is in `Bra86.c`) and only the stateful
-  `z7_BranchConvSt_X86_*` pair exists; Delta is NOT self-inverse per
-  call pair. Fixtures for the container work are already built in
-  `%TEMP%\7zfix\` (17 archives from the real 7-Zip 26.04 CLI: lzma2,
-  lzma, copy, bzip2, deflate, delta, ppmd, bcj, bcj2, aes, hdr on/off,
-  non-solid, bigdict, mx0/mx9, multi-solid).
+- 7z support (DONE except 7zAES): clean-room container parser
+  (`SevenZDecode.cpp`) over the vendored SDK cores (`sevenz/`,
+  public domain, Pavlov; AES/SHA-256, Bcj2, Bra+Bra86, Delta,
+  Ppmd7). Signature + start-header CRC + header CRC, plain and
+  `kEncodedHeader`, PackInfo/UnPackInfo/SubStreamsInfo/FilesInfo,
+  folder coder graph with bind pairs, one-entry folder decode cache
+  for solid archives, UTF-16LE names, attributes, FILETIME, dirs,
+  empty-file bit vector, zip-slip path sanitising. Coders: Copy,
+  LZMA, LZMA2, Delta, BCJ/ARM/ARMT/PPC/SPARC/IA64/RISCV, BCJ2,
+  PPMd7, Deflate, BZip2, **ZSTD (`04F71101`, 5-or-3 props
+  `[major,minor,level,0,0]`, plain zstd frame)**, 7zAES partial.
+  `ARCHIVETYPE_7Z` 71; registered BEFORE the LZMA/XZ providers so
+  their lax `Check` cannot steal `.7z`.
+  `sevenz/7zTypes.h` and `lzma/7zTypes.h` share the include guard
+  `ZIP7_7Z_TYPES_H`, so the TU split is mandatory: `SevenZCore.cpp`
+  = sevenz only, `SevenZDecode.cpp` = lzma+zlib+bzip2+zstd via a
+  plain-byte `SevenZCore.h`.
+  The two real SDK port bugs are unchanged: upstream enables SHA-NI on
+  `_MSC_VER >= 1200` and AES-NI on a bare `#elif defined(_MSC_VER)`, but
+  **VC6 reports _MSC_VER == 1200**, so both match and then reference
+  assembly-only `*_HW` symbols (LNK2001); narrowed both to `> 1200`.
+  Traps recorded in `sevenz/KI.README`: `Sha256Prepare()` once first;
+  AES key schedule at `Aes()+4`, buffer `AES_NUM_IVMRK_WORDS + 3`
+  words; decrypt needs `Aes_SetKey_Dec`; X86 branch lives in `Bra86.c`
+  only; Delta is not self-inverse per call pair; **`IByteIn` in this
+  SDK vintage is a direct-call interface (`IByteIn_Read(p)` is
+  `p->Read(p)`), so a PPMd buffer descriptor cast straight to
+  `IByteInPtr` gets its `buf` pointer CALLED -> 0xC0000005 under both
+  /Od+/RTC1 and /O2 - embed `IByteIn` as the first member of the
+  wrapper instead**; and a 7z PPMd stream has **no end marker** (the
+  encoder only flushes the range coder), so requiring
+  `PPMD7_SYM_END` / `IsFinishedOK` / `pos==len` rejects every valid
+  archive - check only the exact output length and that the coder
+  never read past the packed stream.
+  Verified 24/25 fixtures byte-exact in `%TEMP%\7zfix\`: 17 from the
+  real 7-Zip 26.04 CLI (lzma2, lzma, copy, bzip2, deflate, delta,
+  ppmd, bcj, bcj2, aes, hdr on/off, non-solid, bigdict, mx0/mx9,
+  multi-solid) + 8 py7zr-written zstd fixtures (level 1/3/19, 3-byte
+  and 5-byte props, zstd+bzip2, zstd+copy, x86+zstd, arm+zstd) + the
+  authentic 7-Zip 19.00+zstd archive in the workarea root (BCJ +
+  ZSTD, `7z.exe` byte-exact vs py7zr). Five corruption negatives
+  (payload byte, zstd magic, truncated pack, deep entropy bit, header
+  CRC) all fail loudly and fast; a corrupt 7z is then claimed by the
+  lax standalone-LZMA provider (same house behaviour as `.xz`/`.zst`)
+  but fails fast without the 0xFFFFFFFF size allocation.
+  **Open gap: 7zAES.** The KDF is a faithful port of
+  `CKeyInfo::CalcKey` and matches an independent Python port, but it
+  does not reproduce the key installed 7-Zip 26.04 uses (every
+  password encoding, unrolled/classic KDF variant and 16-byte IV
+  offset was tried; no key decodes even the LZMA2 stream). Encrypted
+  7z therefore lists but refuses to extract.
 - Known gaps (untouched): JCALG1 is clean-room and unverified; SQX
   method-6 EX emits zero bytes; GCA non-`GCAX` paths are stubbed;
   `OpenDummy`/`OpenCompactC` have no live listing path.
