@@ -476,6 +476,14 @@ SOURCE=.\XzTool.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\ZstdTool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\ZstdTool.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\LzmaTool.h
 # End Source File
 # Begin Source File
@@ -986,6 +994,14 @@ SOURCE=.\OpenArchive\OpenXz.cpp
 # Begin Source File
 
 SOURCE=.\OpenArchive\OpenXz.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenZstd.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenZstd.h
 # End Source File
 # Begin Source File
 

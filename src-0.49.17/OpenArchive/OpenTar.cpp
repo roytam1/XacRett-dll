@@ -2,6 +2,7 @@
 #include "OpenTar.h"
 #include "..\LzmaTool.h"
 #include "..\XzTool.h"
+#include "..\ZstdTool.h"
 
 static DWORD tar_s2i(char* d,int l)
 {
@@ -332,6 +333,31 @@ size_t COpenTxz::TarRead(void* red,size_t size)
 	return COpenTar::TarRead(red, size);
 }
 void COpenTxz::TarClose()
+{
+	COpenTar::TarClose();
+	if( tmpLive ) { DeleteFile(tmpPath); tmpPath[0]=0; tmpLive = false; }
+}
+
+bool COpenTzst::TarOpen(LPCSTR fname)
+{
+	char tmp[MAX_PATH];
+	DWORD n;
+	if( tmpPath[0] ) { DeleteFile(tmpPath); tmpPath[0]=0; }
+	tmpLive = false;
+	n = GetTempPath(MAX_PATH, tmp);
+	if( n==0 || n+20>=MAX_PATH ) return false;
+	lstrcat(tmp, "XacRettTzst.tmp");
+	if( !ZstdDecodeFile(fname, tmp) ) { DeleteFile(tmp); return false; }
+	lstrcpy(tmpPath, tmp);
+	if( !COpenTar::TarOpen(tmpPath) ) { DeleteFile(tmpPath); tmpPath[0]=0; return false; }
+	tmpLive = true;
+	return true;
+}
+size_t COpenTzst::TarRead(void* red,size_t size)
+{
+	return COpenTar::TarRead(red, size);
+}
+void COpenTzst::TarClose()
 {
 	COpenTar::TarClose();
 	if( tmpLive ) { DeleteFile(tmpPath); tmpPath[0]=0; tmpLive = false; }

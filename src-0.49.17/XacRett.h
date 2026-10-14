@@ -273,7 +273,9 @@ typedef struct {
 #define ARCHIVETYPE_XZ	66
 #define ARCHIVETYPE_TLZMA	67
 #define ARCHIVETYPE_TXZ	68
+#define ARCHIVETYPE_ZSTD	69
+#define ARCHIVETYPE_TZST	70
 
-#define NUM_ARCHIVETYPE		68
+#define NUM_ARCHIVETYPE		70
 
 #endif

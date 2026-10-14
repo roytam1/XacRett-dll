@@ -119,6 +119,19 @@ private:
 	bool tmpLive;
 };
 
+class COpenTzst : public COpenTar
+{
+public:
+	COpenTzst() : COpenTar() {tmpPath[0]=0; tmpLive=false;};
+protected:
+	bool   TarOpen(LPCSTR fname);
+	size_t TarRead(void* red,size_t size);
+	void   TarClose();
+private:
+	char tmpPath[MAX_PATH];
+	bool tmpLive;
+};
+
 class COpenTaz : public COpenTar
 {
 // see complib.h

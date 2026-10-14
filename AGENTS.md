@@ -307,8 +307,32 @@ no binary-only dependencies (AMD64 port preparation).
   `XzDecodeFile` (full XZ validation reused, incl. index/footer).
   Fixtures in `%TEMP%\tarfix\` (Python tarfile + XZ CRC32, incl.
   a subdir). Verified 3/3 PASS plus `.txz` alias and plain-`.xz`-
-  stays-standalone. All four file formats (`.lzma`/`.xz`/
-  `.tar.lzma`/`.tar.xz`) are now covered end to end.
+  stays-standalone.
+- Standalone `.zst` is a full provider (`CZstdTool`/`COpenZstd`,
+  `ARCHIVETYPE_ZSTD` 69): `Check` reads the LE32 magic number
+  `0xFD2FB528` (on-disk bytes `28 B5 2F FD` - the hex rendering
+  is NOT the byte order; a first cut compared `FD 2F B5 28`
+  and every `.zst` fell through to the LZMA provider, whose
+  lax props-byte `Check` (`hdr[0] <= 224`) accepts anything),
+  `Extract` strips `.zst` (else appends `unzst`) via a new
+  streaming `ZstdDecodeFile` (multi-frame tolerant, strict tail:
+  trailing garbage/truncation fails), listing walks frames for
+  exact sizes without decoding (unknown size -> 0, multi-frame
+  sums). Two routing traps, both real: the new pairs must be
+  registered BEFORE `CLzmaTool` (same lax `Check` beats any
+  later-registered provider in the fallback sweep), and
+  `FindFirst` must rewind `fp` to 0 after the magic read (else
+  the full-file `fread` comes up short and every file refuses).
+  Fixtures in `%TEMP%\zstalone\` (7: empty..300KB + no-content-
+  size + 2-frame). Verified 7/7 PASS CRC-exact.
+- `.tar.zst` (incl. `.tzst`) is `CTzstTool`/`COpenTzst`
+  (`ARCHIVETYPE_TZST` 70), same temp-delegation design over
+  `ZstdDecodeFile`. Fixtures in `%TEMP%\tarzst\` (basic +
+  subdir + `.tzst` alias). Verified 3/3 extracts + listings
+  PASS; tar-content-named-`.zst` routes to tar (house rule).
+  Negatives: truncated/fake-magic `.zst` refuse loudly, none hang.
+  All six file formats (`.lzma`/`.xz`/`.zst`/`.tar.lzma`/
+  `.tar.xz`/`.tar.zst`) are now covered end to end.
 - UnRAR 7.2.7 (RAR 1.5-5.x; deliberate divergence, official does 2.x/3.x
   only): stable `RAR*` API made it a source drop-in (`Rar3Tool.cpp` glue
   untouched); VC6 port via `vc6compat/` shims (`stdint.h`, SDK headers)
