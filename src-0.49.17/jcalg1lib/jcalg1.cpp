@@ -12,10 +12,16 @@
 // algorithm (an LZ77/LZSS derivative), providing the two symbols
 // Jc1Tool.cpp actually references. The 10-byte block header is:
 //
-//   +0  DWORD dwChecksum
-//   +4  DWORD dwUncompressedSize
-//   +8  WORD  wSig  ('C','J')
+//   +0  WORD  wSig  ('J','C')
+//   +2  DWORD dwUncompressedSize
+//   +6  DWORD dwChecksum   (unused here; the host keeps no CRC)
 //
+// Signature at +0 and size at +2 are what the reference itself does:
+// JCALG1_gusocb.asm is "cmp word ptr [eax],'CJ' / mov eax,[eax+2]",
+// and CompressedData.cpp starts its bit reader at pSource+10. Reading
+// the signature at +8 or the size at +4 is wrong: an r5.32 file then
+// looks invalid, CJc1Tool::Check() fails, and the file gets misrouted
+// to the much laxer standalone-LZMA provider.//
 // The bitstream follows the header. Bits are consumed most-significant
 // first. Format summary:
 //
@@ -85,33 +91,39 @@ private:
 	int                  m_left;
 };
 
+// The reference decoder uses the DESTINATION buffer as its history
+// (CompressedData.cpp TransferMatch: "s = p - MatchOffset"), which is
+// what lets JCALG1 support 4K..1M windows. An earlier version of this
+// port kept a private 64K ring instead and only pushed bytes into it,
+// never into the output - so every phrase match silently produced zero
+// bytes and 53248 came out as 12168. The output pointer is the history.
 struct CState
 {
 	int  lastIndex;
 	int  indexBase;
 	int  literalBits;
 	int  literalOffset;
-	unsigned char history[0x10000];
-	int  historyPos;
 
 	CState() : lastIndex(1), indexBase(8), literalBits(8),
-	           literalOffset(0), historyPos(0)
+	           literalOffset(0)
+	{}
+
+	// distance is clamped so a corrupt stream can never read before the
+	// start of the destination; legal streams never trip this.
+	static int SafeDist(const unsigned char* out, const unsigned char* base,
+	                     int distance)
 	{
-		memset(history, 0, sizeof(history));
+		if (distance < 1) return 1;
+		if (distance > (int)(out - base)) return 1;
+		return distance;
 	}
 
-	unsigned char Emit(unsigned char c)
+	static void CopyMatch(unsigned char*& out, const unsigned char* base,
+	                      int distance, int length)
 	{
-		history[historyPos & 0xFFFF] = c;
-		++historyPos;
-		return c;
-	}
-
-	void CopyMatch(int distance, int length)
-	{
+		const unsigned char* s = out - SafeDist(out, base, distance);
 		for (int i = 0; i < length; ++i) {
-			unsigned char c = history[(historyPos - distance) & 0xFFFF];
-			Emit(c);
+			*out++ = *s++;
 		}
 	}
 };
@@ -120,7 +132,7 @@ bool ValidHeader(const void* pBlock)
 {
 	if (!pBlock) return false;
 	const unsigned char* p = (const unsigned char*)pBlock;
-	return (p[8] == 'C' && p[9] == 'J');
+	return (p[0] == 'J' && p[1] == 'C');
 }
 
 } // namespace
@@ -130,7 +142,7 @@ extern "C" DWORD _stdcall JCALG1_GetUncompressedSizeOfCompressedBlock(
 	const void *pBlock)
 {
 	if (!ValidHeader(pBlock)) return 0;
-	return *(const DWORD*)((const unsigned char*)pBlock + 4);
+	return *(const DWORD*)((const unsigned char*)pBlock + 2);
 }
 
 //--------------------------------------------------------------------
@@ -143,12 +155,17 @@ extern "C" DWORD _stdcall JCALG1_Decompress_Fast(
 	CBitReader bits((const unsigned char*)Source + 10);
 	CState     st;
 	unsigned char* out = (unsigned char*)Destination;
+	// the header states the exact output size; never write past it, so a
+	// corrupt stream fails by stopping short instead of trashing the heap
+	unsigned char* const limit = out +
+		*(const DWORD*)((const unsigned char*)Source + 2);
 
 	for (;;) {
 		if (bits.GetBit()) {
 			// literal run
-			*out++ = st.Emit((unsigned char)(bits.GetBits(st.literalBits)
-			                                + st.literalOffset));
+			*out++ = (unsigned char)(bits.GetBits(st.literalBits)
+			                       + st.literalOffset);
+			if (out >= limit) break;
 			continue;
 		}
 		if (bits.GetBit()) {
@@ -157,7 +174,8 @@ extern "C" DWORD _stdcall JCALG1_Decompress_Fast(
 			int len;
 			if (high == 2) {
 				len = bits.GetInteger();
-				st.CopyMatch(st.lastIndex, len);
+				st.CopyMatch(out, (const unsigned char*)Destination,
+				              st.lastIndex, len);
 			} else {
 				st.lastIndex = ((high - 3) << st.indexBase)
 				             + bits.GetBits(st.indexBase);
@@ -166,7 +184,8 @@ extern "C" DWORD _stdcall JCALG1_Decompress_Fast(
 				else if (st.lastIndex >= 0x37FF)  len += 2;
 				else if (st.lastIndex >= 0x27F)   len += 1;
 				else if (st.lastIndex <= 127)     len += 4;
-				st.CopyMatch(st.lastIndex, len);
+				st.CopyMatch(out, (const unsigned char*)Destination,
+				              st.lastIndex, len);
 			}
 			continue;
 		}
@@ -174,15 +193,15 @@ extern "C" DWORD _stdcall JCALG1_Decompress_Fast(
 			// one byte phrase / literal size change
 			int v = bits.GetBits(4) - 1;
 			if (v == 0) {
-				*out++ = st.Emit(0);
+				*out++ = 0;
 			} else if (v > 0) {
-				unsigned char c = st.history[(st.historyPos - v) & 0xFFFF];
-				*out++ = st.Emit(c);
+				int od = CState::SafeDist(out, (const unsigned char*)Destination, v);
+				*out++ = *(out - od);
 			} else if (bits.GetBit()) {
 				// next block: copy 256 literal bytes
 				do {
-					for (int i = 0; i < 256; ++i)
-						*out++ = st.Emit((unsigned char)bits.GetBits(8));
+					for (int i = 0; i < 256 && out < limit; ++i)
+						*out++ = (unsigned char)bits.GetBits(8);
 				} while (bits.GetBit());
 			} else {
 				// new literal size
@@ -201,7 +220,8 @@ extern "C" DWORD _stdcall JCALG1_Decompress_Fast(
 			st.indexBase = bits.GetBits(len + 1);
 		} else {
 			st.lastIndex = newIndex;
-			st.CopyMatch(st.lastIndex, len);
+			st.CopyMatch(out, (const unsigned char*)Destination,
+			              newIndex, len);
 		}
 	}
 	return (DWORD)(out - (unsigned char*)Destination);

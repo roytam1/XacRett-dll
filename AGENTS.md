@@ -544,8 +544,42 @@ no binary-only dependencies (AMD64 port preparation).
   py7zr's `calculate_key` bit for bit; m93_aes.7z/"secret" and
   aes4.7z/"testpw" extract byte-exact and a wrong password fails loudly
   one stage later.
-- Known gaps: JCALG1 is clean-room and unverified; GCA non-`GCAX` paths
-  are stubbed; `OpenDummy`/`OpenCompactC` have no live listing path.
+- Known gaps: GCA non-`GCAX` paths are stubbed; `OpenDummy`/`OpenCompactC` have no live listing path.
+- JCALG1 (`.jc1`, `ARCHIVETYPE_JC1` 59, `Jc1Tool` + the clean-room
+  `jcalg1lib/jcalg1.cpp` decompressor) is now correct. Two bugs had been
+  hiding in it and BOTH were silent:
+  - **the 10-byte block header was read at the wrong offsets.** The real
+    layout is `+0 WORD 'J','C'` / `+2 DWORD uncompressed size` /
+    `+6 DWORD checksum` / `+10 bitstream`. The port checked the signature
+    at +8 and read the size at +4, so `JCALG1_GetUncompressedSizeOf...`
+    returned 0, `CJc1Tool::Check()` failed and the file was misrouted to
+    the much laxer standalone-LZMA provider (`jcalg1_test.jc1` listed as
+    `jcalg1_test.jc1.unlzma` with orig=0xFFFFFFFF). Authority is
+    `JCALG1_gusocb.asm` ("cmp word ptr [eax],'CJ' / mov eax,[eax+2]")
+    plus `CompressedData.cpp`, which starts its bit reader at
+    `pSource+10`. Note the revision note says the signature is 'JC' while
+    the asm compares 'CJ' - the FILE is 'JC', and the size DWORD is at
+    +2 either way.
+  - **`CopyMatch` never advanced the output pointer.** It pushed bytes
+    into a private 64K history ring and threw them away, so every phrase
+    match produced ZERO bytes: 53248 came out as 12168. The reference
+    uses the destination buffer itself as the history
+    (`TransferMatch`: `s = p - MatchOffset`), which is also what lets
+    JCALG1 support 4K..1M windows - a 64K ring silently truncates any
+    stream compressed with a bigger window. The port now writes through
+    the output pointer, with a `SafeDist` clamp so a corrupt stream can
+    never read before the destination, and a hard stop at the size in
+    the header.
+  Reference is jeremycollake/jcalg1 (r5.32) - TEMP only, NEVER vendored:
+  `jcalg1_static.lib` is MASM and the repo ships both the lib and
+  `jcalg1_test.exe`, which makes it a perfect oracle. `%TEMP%\jc1fix\`
+  holds 20 fixtures built with it at window levels 1/5/6/9 (4K..1M) over
+  exe/dll/text/zeros/1-byte inputs; all 20 extract byte-exact, and
+  `jcalg1_test.jc1` is byte-identical to both the official DLL and the
+  reference `jcalg1_test.exe`. Five corruption negatives (truncated, bad
+  signature, mangled size field, 0x7FFFFFFF size field, flipped payload
+  bit) produce no hang and no crash. The reference compressor REFUSES
+  incompressible input (random data), so there is no such fixture.
   **SQX method 6 (`SQX_C1_EX_NORMAL`) emits a zero-byte member.**
   Deliberately NOT worked around - we are waiting on upstream `unsqx`.
   What is already established, so nobody re-derives it:

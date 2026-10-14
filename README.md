@@ -121,6 +121,10 @@ to the `.dsp`. Result: `XacRett.dll`, i386, `FileVersion 0.49.17`,
   headers, non-solid, multi-folder, plus an authentic 7-Zip
   19.00+zstd archive); encrypted fixtures verified through the
   non-interactive `-p` path.
+- 20/20 `.jc1` (JCALG1) fixtures byte-exact across window levels
+  4K-1M, including a file produced by the reference JCALG1 r5.32
+  library; our output is identical to the official binary and to
+  the reference `jcalg1_test.exe`.
 - See `AGENTS.md` for build/encoding constraints, per-format findings,
   reference handling (clean-room ports, reference-use-only sources),
   and the pre-commit checklist.
@@ -133,5 +137,6 @@ to the `.dsp`. Result: `XacRett.dll`, i386, `FileVersion 0.49.17`,
   `ZData-recon`, `lhasa`, `unsqx`, `fdi`, `jcalg1lib`, `ZData`,
   `pkdcl`, `lzma`, `wzaes`, `ppmd8`, `xceedbwt`, `zstd`);
   clean-room ports (`LbrTool`, `AinCodec`/`AinTool`, `AceBlock`,
+  `jcalg1lib`,
   `complib` glue) were written from reference documents and validated
   against third-party corpora, never copied.
