@@ -1296,6 +1296,8 @@ void CZipTool::UnLzma( DWORD usz, DWORD csz )
 		r = LzmaDec_DecodeToDic( &st, limit, inbuf, &slen, LZMA_FINISH_ANY, &stat );
 		if( slen < inlen )
 			{ memmove( inbuf, inbuf + slen, inlen - (DWORD)slen ); inlen -= (DWORD)slen; }
+		else
+			inlen = 0;
 		if( r != SZ_OK )
 			break;
 		if( stat == LZMA_STATUS_FINISHED_WITH_MARK )

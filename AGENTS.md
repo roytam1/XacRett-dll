@@ -232,7 +232,12 @@ no binary-only dependencies (AMD64 port preparation).
   memory); producers omit block sizes, so blocks decode to the
   LZMA2 marker; `LzmaDec_Allocate` reads dic/probs pointers, so
   `Construct` before `Allocate` is mandatory (`UnLzma` shipped
-  without it on zero-stack luck - fixed here too). BCJ chains,
+  without it on zero-stack luck - fixed here too). A second
+  `UnLzma` trap in the same family: full input-buffer consumption
+  (`slen==inlen`) must reset `inlen` to 0 or refill stalls and
+  consumed bytes re-decode (invisible while every fixture stayed
+  single-fill; proven by a 3 MB multi-fill member failing at the
+  1 MB boundary, `m14_big3m.zip`). BCJ chains,
   SHA-256 checks and oversized dicts are refused. Verified 8/8
   PASS (7-Zip CRC32 incl. 300 KB, Python CRC32/CRC64/None/empty,
   hand-assembled 2-block, AES-inner-XZ) plus corrupt/truncated/
