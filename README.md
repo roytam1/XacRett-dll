@@ -87,6 +87,14 @@ Notable behaviors: official 0.49.17 cannot extract ARC methods 4–9
 encrypted ACE/RAR members are refused; multi-volume sets gate on
 volume 0; unknown methods yield an empty file rather than an error.
 
+## Command line
+
+`XacRett()` accepts `-n1` (no dialog), `-o1` (keep existing files),
+`-j` (flatten paths) and `-p<password>` (non-interactive password).
+`-p` suppresses the password dialog for the whole chain, which is what
+makes batch extraction of encrypted 7z / ZIP / RAR / ARC / ACE / SQX
+archives possible at all; without it the modal dialog is used.
+
 ## Building
 
 Visual C++ 6.0 only, via `src-0.49.17\XacRett.dsp` (compile every
@@ -108,6 +116,11 @@ to the `.dsp`. Result: `XacRett.dll`, i386, `FileVersion 0.49.17`,
 - 8/8 ZIP method-93 members, 7/7 standalone `.zst` (+ multi-frame +
   no-content-size), 3/3 `.tar.zst` (incl. `.tzst` alias), 27/27
   cross-method ZIP regression (0/8/10/12/14/18/98) — all CRC-exact.
+- 25/25 `.7z` fixtures byte-exact (LZMA/LZMA2/Copy/BZip2/
+  Deflate/Delta/PPMd/BCJ/BCJ2/ZSTD/7zAES, plain and encoded
+  headers, non-solid, multi-folder, plus an authentic 7-Zip
+  19.00+zstd archive); encrypted fixtures verified through the
+  non-interactive `-p` path.
 - See `AGENTS.md` for build/encoding constraints, per-format findings,
   reference handling (clean-room ports, reference-use-only sources),
   and the pre-commit checklist.

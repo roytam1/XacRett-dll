@@ -12,12 +12,33 @@
 unsigned char* CTool::common_buf;
 bool m_bFlagEnd = false;
 ARCHIVERPROC CTool::arcproc=NULL;
+char* CTool::m_pPassArg=NULL;
 HWND			CTool::hWnd=NULL;
 UINT			CTool::Msg=0;
 bool			CTool::m_Endflg=false;
 
+void CTool::SetPasswordArg(const char* pw)
+{
+	delete [] m_pPassArg;
+	m_pPassArg = NULL;
+	if( pw && *pw )
+		{
+		m_pPassArg = new char[lstrlen(pw) + 1];
+		lstrcpy( m_pPassArg, pw );
+		}
+}
+
 char* CTool::GetPassword()
 {
+	if( m_pPassArg && *m_pPassArg )
+		{
+		// -p was given: use it and never show the dialog.
+		delete [] m_pPass;
+		m_pPass = new char[lstrlen(m_pPassArg) + 1];
+		lstrcpy( m_pPass, m_pPassArg );
+		return m_pPass;
+		}
+
 	delete [] m_pPass;
 
 	DialogBoxParam( InsTance, MAKEINTRESOURCE(IDD_PASS),

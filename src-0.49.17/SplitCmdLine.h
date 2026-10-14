@@ -17,6 +17,9 @@ public:
 	bool m_nodir;//ディレクトリ無視
 
 	std::vector<std::string> m_wildcard;
+	// optional password from "-p<password>" / "/p<password>"; empty when not
+	// given, in which case providers fall back to the modal dialog.
+	char m_password[256];
 	BOOL Split(LPCTSTR lpCmdLine);
 	CSplitCmdLine();
 	virtual ~CSplitCmdLine();

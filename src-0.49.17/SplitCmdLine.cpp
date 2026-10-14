@@ -7,6 +7,7 @@ CSplitCmdLine::CSplitCmdLine()
 {
 	m_lpBaseDirectory[0] = NULL;
 	m_lpArcFileName[0] = NULL;
+	m_password[0] = 0;
 }
 
 CSplitCmdLine::~CSplitCmdLine()
@@ -61,12 +62,28 @@ BOOL CSplitCmdLine::Split(LPCTSTR _lpCmdLine)
 	delete[] lpCmdLine;
 	return TRUE;
 }
+// A token is a switch when it starts with '-', or with '/' followed by
+// one of our option letters. Only those: a bare '/' must stay a path, or
+// absolute paths like /tmp/x would be swallowed as an unknown switch.
+static BOOL IsSwitchToken(LPCSTR s)
+{
+	if( s[0] == '-' )
+		return TRUE;
+	if( s[0] == '/' )
+		{
+		const char* q = "nNoOjJpP";
+		for( ; *q; q++ )
+			if( s[1] == *q ) return TRUE;
+		}
+	return FALSE;
+}
+
 void CSplitCmdLine::Analysis(std::vector<LPCSTR>* arg)
 {
 	std::vector<LPCSTR>::iterator it;
 	for (it = arg->begin(); it!=arg->end(); it++)
 	{
-		if((*it)[0]=='-')
+		if( IsSwitchToken(*it) )
 		{
 			switch((*it)[1])
 			{
@@ -91,6 +108,16 @@ void CSplitCmdLine::Analysis(std::vector<LPCSTR>* arg)
 			case 'J':
 				m_nodir=true;
 				break;
+			case 'p':
+			case 'P':
+				// Non-interactive password. Anything after the option letter
+				// is the password, so -psecret and -p secret both work
+				// (the value only has to start with the same letter).
+				{
+				LPCSTR v = (*it) + 2;
+				lstrcpyn( m_password, *v ? v : "", sizeof(m_password) );
+				break;
+				}
 			}
 		}
 		else if (FileExist((*it)) && !m_lpArcFileName[0])

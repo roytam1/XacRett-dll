@@ -13,6 +13,15 @@ typedef BOOL (CALLBACK *ARCHIVERPROC)(HWND _hwnd, UINT _uMsg,UINT _nState, LPARA
 class CTool
 {
 public:
+	// Non-interactive password handed in on the XacRett() command line
+	// via -p<password>. While set, GetPassword() returns it and never
+	// opens the modal dialog, so batch/headless extraction works for every
+	// provider that asks (ZIP WinZip-AES, 7zAES, RAR, ARC, ACE, SQX, ...).
+	// Note this is visible in the process command line, exactly as it is
+	// for every other archiver; it is opt-in and the dialog is still the
+	// default when -p is absent.
+	static void SetPasswordArg(const char* pw);
+	static char* m_pPassArg;
 
 ////////////////////////////////////////////////
 // îhê∂ÉNÉâÉXçÏê¨Ç…Ç¬Ç¢ÇƒMEMO

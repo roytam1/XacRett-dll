@@ -691,6 +691,10 @@ extern "C" int __stdcall  XacRett(const HWND hWnd,LPCSTR szCmdLine,
 
 	scd.Split(szCmdLine);
 
+	// Optional non-interactive password (-p<password>). When absent
+	// every provider still falls back to the modal dialog.
+	CTool::SetPasswordArg( scd.m_password );
+
 	int a = MeltArchive(scd.m_lpArcFileName,scd.m_lpBaseDirectory,&scd.m_wildcard,&scd);
 	EnableWindow(hWnd,true);
 	//BringWindowToTop(hWnd);

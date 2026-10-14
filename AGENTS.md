@@ -446,6 +446,24 @@ no binary-only dependencies (AMD64 port preparation).
   without one the temp-delegation path + SQ whole-file checksum
   semantics cannot be proven, so this stays a documented gap. CP/M dates convert to DOS dates (pre-1980 → 0);
   `uOSType` 15 matches LZH `C`.
+- Command line: `XacRett()` takes `-n1` (no dialog), `-o1` (keep
+  existing files) and `-j` (flatten paths). **`-p<password>` was added
+  here**: it sets a non-interactive password, so `CTool::GetPassword()`
+  returns it and never opens the modal dialog. That makes batch/headless
+  extraction work for every provider that asks - 7zAES, ZIP WinZip-AES,
+  RAR, ARC, ACE, SQX - instead of hanging on the dialog (which is what a
+  headless run does today). Verified with `%TEMP%\aesfix\` and
+  `m93_aes.7z`; a wrong password still fails per-member exactly as the
+  dialog path does. Implementation notes:
+  - `CSplitCmdLine::Analysis` takes everything after the option letter as
+    the password, so `-psecret` and `-p secret` both work;
+  - a token is a switch when it starts with `-`, or with `/` followed by
+    one of `nNoOjJpP` ONLY. Do not treat every `/` token as a switch or
+    absolute paths like `/tmp/x` get swallowed as unknown options;
+  - the password lives in `CTool::m_pPassArg` (a static), so it applies to
+    every tool in the chain, not just the one that parsed it. It is visible
+    in the process command line, same as every other archiver; `-p` is
+    opt-in and the dialog remains the default when it is absent.
 - Adding a new provider requires: `XxxTool.h/.cpp` + `OpenArchive/OpenXxx.h
   /.cpp`, `SOURCE=` blocks in `XacRett.dsp` (pure ASCII, Edit-safe;
   `genbuild.ps1` picks them up automatically, `genlink.ps1` globs the
@@ -526,9 +544,27 @@ no binary-only dependencies (AMD64 port preparation).
   py7zr's `calculate_key` bit for bit; m93_aes.7z/"secret" and
   aes4.7z/"testpw" extract byte-exact and a wrong password fails loudly
   one stage later.
-- Known gaps (untouched): JCALG1 is clean-room and unverified; SQX
-  method-6 EX emits zero bytes; GCA non-`GCAX` paths are stubbed;
-  `OpenDummy`/`OpenCompactC` have no live listing path.
+- Known gaps: JCALG1 is clean-room and unverified; GCA non-`GCAX` paths
+  are stubbed; `OpenDummy`/`OpenCompactC` have no live listing path.
+  **SQX method 6 (`SQX_C1_EX_NORMAL`) emits a zero-byte member.**
+  Deliberately NOT worked around - we are waiting on upstream `unsqx`.
+  What is already established, so nobody re-derives it:
+  - methods 6-10 (`EX_NORMAL/GOOD/HIGH/BEST/AUDIO`) are just the
+    "EX" compression levels of the same SQ codec. `ExtractArcFile()`
+    routes everything except STORED (0) and AUDIO (5) into the ONE
+    shared `DecodeFile(lCompFlags, lSolidFlag, 1<<(((lFlags>>8)&15)+15))`
+    in `unsqx/uarde.c`, and the dictionary size comes from the header
+    flags, not from the method number. So there is no method-6-specific
+    decode path to get wrong.
+  - **the trap that makes this look like a header bug:** `SQX_EX_FILE_HEAD`
+    is *not* the EX-method header. `ReadNextArcFHDR()` only uses it when
+    `usHeadFlags & SQX_FILE64_FLAG` is set, i.e. it is the >4GB
+    `SQX_FILE_HEAD` extension, and it shares `cHeadType ==
+    SQX_FILE_HEAD_ID`. Reading it as "the method-6 header" leads straight
+    to the wrong name/size offsets.
+  - consequence in our tree: the member is created, decodes to nothing,
+    and is left at 0 bytes (the house skip-and-continue then reports
+    success). Everything else about the format behaves.
 - ACE unpacker (`CAceTool`, UNACE v1.2b lineage) handles STORE + LZ1
   (`TYPE 0/1`); ACE 2.0 blocked mode (`TYPE 2`) is decoded by the
   clean-room `AceBlock` engine (bitstream/Huffman/LZ77 core + EXE/DELTA/
