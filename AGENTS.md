@@ -97,7 +97,11 @@ no binary-only dependencies (AMD64 port preparation).
   (patch to `-MAX_WBITS` for `-16` raw Deflate64); the `#else` branches
   are dead code in our build (dispatch is always 32-based, tables switch
   at runtime). Verified: tar.gz 278 list + 171/171 extract MATCH, ZIP
-  124/124, crafted method-9 ZIP PASS (= official).
+  124/124, crafted method-9 ZIP PASS (= official). ZIP legacy methods
+  verified on authentic PKZIP fixtures: `PKZ080.ZIP` 10/10 CRC-OK
+  (method 6 implode, incl. binaries), `pkz090.zip` 10/10 CRC-OK
+  (method 1 shrink x5 + method 4 reduce x5). Reduce factors 1-3 and
+  higher members untested; fixtures untracked in workarea root.
 - UnRAR 7.2.7 (RAR 1.5-5.x; deliberate divergence, official does 2.x/3.x
   only): stable `RAR*` API made it a source drop-in (`Rar3Tool.cpp` glue
   untouched); VC6 port via `vc6compat/` shims (`stdint.h`, SDK headers)
