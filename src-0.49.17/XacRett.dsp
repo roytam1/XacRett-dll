@@ -1641,6 +1641,15 @@ SOURCE=.\lzma\7zTypes.h
 
 SOURCE=.\lzma\Precomp.h
 # End Source File
+# Begin Source File
+
+SOURCE=.\lzma\Lzma2Dec.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\lzma\Lzma2Dec.h
+# End Source File
 # End Group
 # Begin Group "wzaes"
 

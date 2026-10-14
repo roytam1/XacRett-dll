@@ -213,6 +213,23 @@ no binary-only dependencies (AMD64 port preparation).
   CRC-exact (0 B .. 120 KB, multi-block/RLE-heavy/empty).
   AES-inner-BWT is refused (decoder forces a CRC-vs-header check
   but AE-2 stores no CRC); plain BWT is fully supported.
+- ZIP method 95 (XZ) is one complete XZ stream per member, decoded
+  via a hand-parsed container over the vendored `Lzma2Dec` chunk
+  layer (`src-0.49.17/lzma/`, public domain; no liblzma vendored).
+  Single LZMA2 filter only; None/CRC32/CRC64 checks (own bitwise
+  CRC64); dicts clamped to 4KB..64MB; output capped at `usz` with
+  an end-marker path that cannot stall; index/footer/CRC/exact-
+  consumption all validated. `szMode` is `xz`. Traps, all earned:
+  block-header padding sits BEFORE its CRC (not after); `Unpadded
+  Size` excludes data padding (proven against liblzma sources, not
+  memory); producers omit block sizes, so blocks decode to the
+  LZMA2 marker; `LzmaDec_Allocate` reads dic/probs pointers, so
+  `Construct` before `Allocate` is mandatory (`UnLzma` shipped
+  without it on zero-stack luck - fixed here too). BCJ chains,
+  SHA-256 checks and oversized dicts are refused. Verified 8/8
+  PASS (7-Zip CRC32 incl. 300 KB, Python CRC32/CRC64/None/empty,
+  hand-assembled 2-block, AES-inner-XZ) plus corrupt/truncated/
+  SHA256 negatives (all loud, none hang).
 - UnRAR 7.2.7 (RAR 1.5-5.x; deliberate divergence, official does 2.x/3.x
   only): stable `RAR*` API made it a source drop-in (`Rar3Tool.cpp` glue
   untouched); VC6 port via `vc6compat/` shims (`stdint.h`, SDK headers)

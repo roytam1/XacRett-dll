@@ -42,3 +42,20 @@ so marker-less streams cannot run on; dictionaries are clamped to
 Fixtures are generated with Python's `lzma` FORMAT_ALONE encoder
 (props = first 5 bytes, stream = after the 13-byte header) wrapped
 in the 4-byte prefix; one member deliberately omits the prefix.
+
+Lzma2Dec.c / Lzma2Dec.h (same origin) drive ZIP method 95 (XZ).
+  Only the chunk layer is used (`Lzma2Dec_Allocate/Init/DecodeToDic/
+  Free`); the XZ stream/block/index/footer framing is hand-parsed in
+  `CZipTool::UnXz` (verified byte-for-byte against real 7-Zip and
+  Python-lzma streams, including pad-before-CRC block headers and
+  the footer CRC over backward-size + flags). Single LZMA2 filter
+  (0x21) only; BCJ chains, SHA-256 checks and >64 MB dicts are
+  refused cleanly. Both producers omit block sizes, so blocks are
+  decoded to the LZMA2 end marker with exact-consumption tracking.
+
+Lifetime trap (real, found while wiring XZ): `LzmaDec_Allocate` /
+  `LzmaDec_AllocateProbs2` READ `p->dic`/`p->probs` before writing
+  them, so the struct must be `Construct`ed (nulled) first -
+  `Init` alone does not touch the pointers. `UnLzma` shipped without
+  it and survived only on zero-stack luck; fixed, and `UnXz`
+  Constructs per block. `Lzma2Dec_Allocate` needs the same.
