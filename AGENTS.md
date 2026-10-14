@@ -297,6 +297,13 @@ no binary-only dependencies (AMD64 port preparation).
   Fixtures in `%TEMP%\tarfix\` (Python tarfile + lzma, incl. a
   subdir; `-j` flattening matches `.tgz` parity). Verified 3/3
   PASS plus `.tlz` alias and plain-`.lzma`-stays-standalone.
+- `.tar.xz` (incl. `.txz`) is `CTxzTool`/`COpenTxz`
+  (`ARCHIVETYPE_TXZ` 68), same temp-delegation design over
+  `XzDecodeFile` (full XZ validation reused, incl. index/footer).
+  Fixtures in `%TEMP%\tarfix\` (Python tarfile + XZ CRC32, incl.
+  a subdir). Verified 3/3 PASS plus `.txz` alias and plain-`.xz`-
+  stays-standalone. All four file formats (`.lzma`/`.xz`/
+  `.tar.lzma`/`.tar.xz`) are now covered end to end.
 - UnRAR 7.2.7 (RAR 1.5-5.x; deliberate divergence, official does 2.x/3.x
   only): stable `RAR*` API made it a source drop-in (`Rar3Tool.cpp` glue
   untouched); VC6 port via `vc6compat/` shims (`stdint.h`, SDK headers)

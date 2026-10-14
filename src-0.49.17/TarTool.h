@@ -122,6 +122,23 @@ private:
 	bool tmpLive;
 };
 
+class CTxzTool : public CTarTool
+{
+// .tar.xz via whole-file XZ decode to a temp file (same design
+// as CTlzmaTarTool: full container validation reused).
+public:
+	CTxzTool() : CTarTool("Tar+XZ “WŠJ") {tmpPath[0]=0; tmpLive=false;};
+	bool IsType( const char* ext )
+		{return 0==stricmp(ext,"xz") || 0==stricmp(ext,"txz");}
+protected:
+	bool   TarOpen(const char* fname);
+	size_t TarRead(void* red,size_t size);
+	void   TarClose();
+private:
+	char tmpPath[MAX_PATH];
+	bool tmpLive;
+};
+
 class CTazTool : public CTarTool
 {
 // see complib.h

@@ -518,6 +518,10 @@ void DllSub(void)//ƒ[ƒh‚·‚é
 	o=o->AddTail( new COpenGz);
 	ArchiveListMap[t]=o;
 
+	t=t->AddTail( new CTxzTool );
+	o=o->AddTail( new COpenTxz);
+	ArchiveListMap[t]=o;
+
 	t=t->AddTail( new CTlzmaTarTool );
 	o=o->AddTail( new COpenTlzma);
 	ArchiveListMap[t]=o;
@@ -1152,6 +1156,8 @@ int ArcNameToNum(LPCSTR buffer )
 		return ARCHIVETYPE_FRZ;
 	else if ( lstrcmp(buffer,"Gzip “WŠJ")==0)
 		return ARCHIVETYPE_GZ;
+	else if ( lstrcmp(buffer,"Tar+XZ “WŠJ")==0)
+		return ARCHIVETYPE_TXZ;
 	else if ( lstrcmp(buffer,"Tar+LZMA “WŠJ")==0)
 		return ARCHIVETYPE_TLZMA;
 	else if ( lstrcmp(buffer,"LZMA “WŠJ")==0)
