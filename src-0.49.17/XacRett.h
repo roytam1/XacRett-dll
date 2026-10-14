@@ -269,7 +269,8 @@ typedef struct {
 #define ARCHIVETYPE_ASK		62
 #define ARCHIVETYPE_LBR	63
 #define ARCHIVETYPE_AIN	64
+#define ARCHIVETYPE_LZMA	65
 
-#define NUM_ARCHIVETYPE		64
+#define NUM_ARCHIVETYPE		65
 
 #endif

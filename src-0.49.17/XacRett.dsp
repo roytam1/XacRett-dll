@@ -444,6 +444,18 @@ SOURCE=.\ZipPpmd.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\LzmaDecode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\LzmaTool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\LzmaTool.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\ZooTool.cpp
 # End Source File
 # End Group
@@ -938,6 +950,14 @@ SOURCE=.\OpenArchive\OpenGca.cpp
 # Begin Source File
 
 SOURCE=.\OpenArchive\OpenGz.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenLzma.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenLzma.h
 # End Source File
 # Begin Source File
 

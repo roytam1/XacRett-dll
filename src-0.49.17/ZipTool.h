@@ -240,8 +240,11 @@ private: //-- Zipì‡ïîèàóùóp -----------------------
 	struct DclIO { CZipTool *tool; DWORD left; };
 	static unsigned short dclRead( unsigned char *buf, unsigned short *size, void *how );
 	static void dclWrite( unsigned char *buf, unsigned short *size, void *how );
-	// lzma (LzmaDec.c)
+	// lzma (LzmaDecode engine over LzmaDec.c)
 	void UnLzma( DWORD usz, DWORD csz );
+	struct LzmaZipIO { CZipTool *tool; DWORD left; };
+	static int lzmaZipFill( void *ctx, BYTE *buf, int want );
+	static void lzmaZipWrite( void *ctx, const BYTE *buf, int len );
 	// ppmd (ppmd8.c, own TU ZipPpmd.cpp: ppmd.h collides with 7zTypes.h)
 	void UnPpmd( DWORD usz, DWORD csz );
 	// bwt (xceedbwt.c)

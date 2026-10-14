@@ -1,6 +1,7 @@
 
 #include "stdafx.h"
 #include "ZipTool.h"
+#include "LzmaDecode.h"
 #include "libbzip2/bzlib.h"
 #include "zlib/zlib.h"
 extern "C" {
@@ -1156,6 +1157,28 @@ void CZipTool::UnBZip2( DWORD usz, DWORD csz )
 	BZ2_bzDecompressEnd( &bs );
 }
 
+int CZipTool::lzmaZipFill( void *ctx, BYTE *buf, int want )
+{
+	LzmaZipIO *io = (LzmaZipIO*)ctx;
+	DWORD w = (DWORD)want;
+	int got;
+	if( io->left==0 || w==0 )
+		return 0;
+	if( w > io->left )
+		w = io->left;
+	got = io->tool->zipread( buf, (int)w );
+	if( got <= 0 )
+		return 0;
+	io->left -= (DWORD)got;
+	return got;
+}
+
+void CZipTool::lzmaZipWrite( void *ctx, const BYTE *buf, int len )
+{
+	LzmaZipIO *io = (LzmaZipIO*)ctx;
+	io->tool->zipwrite( (BYTE*)buf, len );
+}
+
 ////////////////////////////////////////////////////////////////
 // DCL-implode (pkdcl.c, PKWARE Data Compression Library, ZIP method 10)
 ////////////////////////////////////////////////////////////////
@@ -1206,19 +1229,11 @@ void CZipTool::UnDcl( DWORD usz, DWORD csz )
 
 void CZipTool::UnLzma( DWORD usz, DWORD csz )
 {
-	CLzmaDec st;
-	CLzmaProps pp;
-	ELzmaStatus stat;
 	BYTE props[LZMA_PROPS_SIZE];
 	BYTE hdr[4];
-	BYTE *inbuf = NULL;
 	DWORD left = csz;
-	DWORD inlen = 0;
-	DWORD nout = 0;
 	DWORD psize;
-	SizeT limit, slen, dicPosPrev;
-	int got;
-	SRes r;
+	LzmaZipIO io;
 
 	if( usz == 0 )
 		return;
@@ -1246,74 +1261,9 @@ void CZipTool::UnLzma( DWORD usz, DWORD csz )
 		left -= 1;
 		}
 
-	// refuse absurd dictionaries before we allocate for them
-	if( LzmaProps_Decode( &pp, props, LZMA_PROPS_SIZE ) != SZ_OK )
-		return;
-	if( pp.dicSize < 0x1000 )
-		pp.dicSize = 0x1000;
-	if( pp.dicSize > 0x4000000 )
-		return;
-
-	LzmaDec_Construct( &st );
-	r = LzmaDec_Allocate( &st, props, LZMA_PROPS_SIZE, &g_lzAlloc );
-	if( r != SZ_OK )
-		return;
-	LzmaDec_Init( &st );
-
-	inbuf = new BYTE[XACR_BUFSIZE];
-	stat = LZMA_STATUS_NOT_SPECIFIED;
-	for(;;)
-		{
-		if( st.dicPos == st.dicBufSize )
-			{
-			// the ring is full: flush it, then rewind dicPos. The decoder
-			// wraps back references itself, so the bytes stay valid.
-			zipwrite( st.dic, (int)st.dicBufSize );
-			nout += (DWORD)st.dicBufSize;
-			st.dicPos = 0;
-			if( nout >= usz )
-				break;
-			}
-		if( nout + (DWORD)st.dicPos >= usz )
-			break;
-
-		if( inlen == 0 && left > 0 )
-			{
-			DWORD want = (left > (DWORD)XACR_BUFSIZE) ? (DWORD)XACR_BUFSIZE : left;
-			got = zipread( inbuf, (int)want );
-			if( got > 0 )
-				{ inlen = (DWORD)got; left -= (DWORD)got; }
-		}
-
-		// never let the decoder run past the recorded uncompressed size:
-		// streams without an end marker would just keep going.
-		limit = st.dicPos + (SizeT)(usz - nout - (DWORD)st.dicPos);
-		if( limit > st.dicBufSize )
-			limit = st.dicBufSize;
-
-		dicPosPrev = st.dicPos;
-		slen = inlen;
-		r = LzmaDec_DecodeToDic( &st, limit, inbuf, &slen, LZMA_FINISH_ANY, &stat );
-		if( slen < inlen )
-			{ memmove( inbuf, inbuf + slen, inlen - (DWORD)slen ); inlen -= (DWORD)slen; }
-		else
-			inlen = 0;
-		if( r != SZ_OK )
-			break;
-		if( stat == LZMA_STATUS_FINISHED_WITH_MARK )
-			break;
-		if( inlen == 0 && left == 0 )
-			break;
-		// no input consumed and no output produced -> refuse to spin
-		if( slen == 0 && st.dicPos == dicPosPrev )
-			break;
-		}
-
-	if( st.dicPos > 0 )
-		{ zipwrite( st.dic, (int)st.dicPos ); nout += (DWORD)st.dicPos; }
-	(void)nout;
-	delete [] inbuf;
-	LzmaDec_Free( &st, &g_lzAlloc );
+	io.tool = this;
+	io.left = left;
+	LzmaDecodeStream( props, lzmaZipFill, &io, lzmaZipWrite, &io, usz, true );
 }
 
 ////////////////////////////////////////////////////////////////

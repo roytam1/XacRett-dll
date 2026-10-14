@@ -256,6 +256,20 @@ no binary-only dependencies (AMD64 port preparation).
   to the first 93 member and stop (fixed properly by the planned
   skip-and-continue work). Fixtures in `%TEMP%\zstdfix\`
   (`m93_zstd.zip` 31 B..3000 B + `m93_mixed.zip` probe).
+- Standalone `.lzma` (LZMA Alone) is a full provider (`CLzmaTool`/
+  `COpenLzma`, `ARCHIVETYPE_LZMA` 65): `Check` validates the props
+  byte (no magic exists), `Extract` strips `.lzma` (else appends
+  `unlzma`), listing shows the true output name (NOT GzTool's
+  `.ungzip`-append quirk), sizes from the 8-byte field (0 when
+  unknown), no CRC in the format. The LZMA drive loop lives in
+  shared `LzmaDecode.h/.cpp` (`LzmaDecodeStream` over fill/write
+  callbacks, exact/uncapped modes); `CZipTool::UnLzma` was rewired
+  onto it with full m14-matrix equivalence proof (7/7 incl. the
+  multi-fill `m14_big3m.zip`, which also forced the `inlen=0`
+  reset fix). Fixtures in `%TEMP%\lzmafix\` (EOS-marker + patched
+  known-size; no authentic known-size writer obtainable, and the
+  marker-kept variant exercises the identical code path).
+  Verified 5/5 PASS CRC-exact.
 - UnRAR 7.2.7 (RAR 1.5-5.x; deliberate divergence, official does 2.x/3.x
   only): stable `RAR*` API made it a source drop-in (`Rar3Tool.cpp` glue
   untouched); VC6 port via `vc6compat/` shims (`stdint.h`, SDK headers)

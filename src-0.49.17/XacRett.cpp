@@ -31,6 +31,7 @@ using namespace std;   //こいつを入れないと使えません。
 #include "AceTool.h"
 #include "TarTool.h"
 #include "GzTool.h"
+#include "LzmaTool.h"
 #include "Bz2Tool.h"
 #include "CompressZTool.h"
 #include "BgaTool.h"
@@ -100,6 +101,7 @@ using namespace std;   //こいつを入れないと使えません。
 #include "OpenArchive\OpenTar.h"
 #include "OpenArchive\OpenBz2.h"
 #include "OpenArchive\OpenGz.h"
+#include "OpenArchive\OpenLzma.h"
 #include "OpenArchive\OpenRez.h"
 #include "OpenArchive\OpenJak.h"
 #include "OpenArchive\OpenRar.h"
@@ -512,6 +514,10 @@ void DllSub(void)//ロードする
 
 	t=t->AddTail( new CGzTool );
 	o=o->AddTail( new COpenGz);
+	ArchiveListMap[t]=o;
+
+	t=t->AddTail( new CLzmaTool );
+	o=o->AddTail( new COpenLzma);
 	ArchiveListMap[t]=o;
 
 	t=t->AddTail( new CBz2Tool );
@@ -1136,6 +1142,8 @@ int ArcNameToNum(LPCSTR buffer )
 		return ARCHIVETYPE_FRZ;
 	else if ( lstrcmp(buffer,"Gzip 展開")==0)
 		return ARCHIVETYPE_GZ;
+	else if ( lstrcmp(buffer,"LZMA 展開")==0)
+		return ARCHIVETYPE_LZMA;
 	else if ( lstrcmp(buffer,"BinHex Decode")==0)
 		return ARCHIVETYPE_HQX;
 	else if ( lstrcmp(buffer,"Imp 展開")==0)
