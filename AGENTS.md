@@ -171,8 +171,9 @@ no binary-only dependencies (AMD64 port preparation).
   parses extra field `0x9901` (AE-1/AE-2 + `AE` vendor + strength
   1/2/3 + real method), reads salt + 2-byte verifier, derives via
   PBKDF2 and compares the verifier; `zipread` gains a CTR-decrypt
-  hook so every inner decoder (0/8/12/14 verified, 1-6/9/10 by
-  construction) works unchanged, and the trailing 10-byte auth tag
+  hook so every inner decoder (0/8/12/14/95/98 verified, 1-6 by
+  construction, 10 untested - no DCL+AES writer obtainable) works
+  unchanged, and the trailing 10-byte auth tag
   is verified after decode (mismatch deletes the output and fails
   loudly). Unsupported inner methods are skipped-and-continued.
   `szMode` is `aes128`/`aes192`/`aes256`. Passwords reuse the modal
