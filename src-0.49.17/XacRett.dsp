@@ -448,7 +448,31 @@ SOURCE=.\LzmaDecode.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\XzDecode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\XzDecode.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\LzmaTool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\XzDecode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\XzDecode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\XzTool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\XzTool.h
 # End Source File
 # Begin Source File
 
@@ -954,6 +978,14 @@ SOURCE=.\OpenArchive\OpenGz.cpp
 # Begin Source File
 
 SOURCE=.\OpenArchive\OpenLzma.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenXz.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenXz.h
 # End Source File
 # Begin Source File
 

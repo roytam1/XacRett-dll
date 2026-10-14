@@ -250,12 +250,10 @@ private: //-- Zipì‡ïîèàóùóp -----------------------
 	// bwt (xceedbwt.c)
 	void UnBwt( DWORD usz, DWORD csz, DWORD crc );
 	// xz (method 95: XZ container over Lzma2Dec)
-	void UnXz( DWORD usz, DWORD csz );
-	struct XzIn { BYTE *buf; DWORD cap; DWORD pos; DWORD len; DWORD left; bool err; };
-	bool xzFill( XzIn *io, DWORD n );
-	BYTE xzGet( XzIn *io );
-	bool xzTake( XzIn *io, BYTE *dst, DWORD n );
-	DWORD xzVli( XzIn *io );
+		void UnXz( DWORD usz, DWORD csz );
+	struct XzZipIO { CZipTool *tool; DWORD left; };
+	static int xzZipFill( void *ctx, BYTE *buf, int want );
+	static void xzZipWrite( void *ctx, const BYTE *buf, int len );
 	struct BwtIn { CZipTool *tool; DWORD left; };
 	static int bwtRead( void *op );
 	static int bwtWrite( void *op, const unsigned char *data, size_t n );

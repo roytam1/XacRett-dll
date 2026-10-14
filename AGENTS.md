@@ -270,6 +270,20 @@ no binary-only dependencies (AMD64 port preparation).
   known-size; no authentic known-size writer obtainable, and the
   marker-kept variant exercises the identical code path).
   Verified 5/5 PASS CRC-exact.
+- Standalone `.xz` is a full provider (`CXzTool`/`COpenXz`,
+  `ARCHIVETYPE_XZ` 66): `Check` reads the XZ magic, `Extract`
+  strips `.xz` (else appends `unxz`), listing parses the trailer
+  (footer backward-size + index) for exact sizes without decoding,
+  CRC shown as 0 (none upfront). The XZ container lives in shared
+  `XzDecode.h/.cpp` (`XzDecodeStream` over fill/write callbacks,
+  exact/uncapped modes); `CZipTool::UnXz` was rewired onto it with
+  full m95-matrix equivalence proof (8/8 incl. twoblock). Two traps
+  caught by standalone testing (the ZIP path masks engine-bool
+  failures behind its size check): the index accumulator must stop
+  BEFORE taking the stored CRC itself, and `indexLen` must be
+  captured before the footer take (else +12 skew breaks backward).
+  Fixtures in `%TEMP%\xzalone\` (CRC32/CRC64/None/big) plus the
+  `%TEMP%\xzfix\` ZIP-method set. Verified 5/5 PASS CRC-exact.
 - UnRAR 7.2.7 (RAR 1.5-5.x; deliberate divergence, official does 2.x/3.x
   only): stable `RAR*` API made it a source drop-in (`Rar3Tool.cpp` glue
   untouched); VC6 port via `vc6compat/` shims (`stdint.h`, SDK headers)
