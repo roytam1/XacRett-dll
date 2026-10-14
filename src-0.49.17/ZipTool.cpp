@@ -3,6 +3,9 @@
 #include "ZipTool.h"
 #include "libbzip2/bzlib.h"
 #include "zlib/zlib.h"
+extern "C" {
+#include "pkdcl/pkdcl.h"
+}
 
 //-- CZipTool •”•ª -----------------------
 
@@ -160,6 +163,7 @@ bool CZipTool::Extract( const char* fname,const char* ddir )
 							 0!=(hdr.flg&0x02), 0!=((hdr.flg)&0x04) );
 				break;
 			case EnhDeflated:Inflate( hdr.usz, hdr.csz, true );	break;
+			case DclImploded:UnDcl( hdr.usz, hdr.csz );	break;
 			case BZip2:		 UnBZip2( hdr.usz, hdr.csz );		break;
 			}
 
@@ -349,7 +353,7 @@ bool CZipTool::read_header( ZipLocalHeader* hdr,unsigned char* buf )
 	char* pp;
 	for( pp=hdr->fnm; *pp!=0; pp++ );
 
-	if( hdr->mhd > BZip2 || hdr->mhd==Tokenized  || hdr->mhd==DclImploded )
+	if( hdr->mhd > BZip2 || hdr->mhd==Tokenized )
 		{ if(del)delete [] buf; return false; }
 	if( pp-hdr->fnm != l )
 		{ if(del)delete [] buf; return false; }
@@ -1069,4 +1073,49 @@ void CZipTool::UnBZip2( DWORD usz, DWORD csz )
 
 	// I—¹
 	BZ2_bzDecompressEnd( &bs );
+}
+
+////////////////////////////////////////////////////////////////
+// DCL-implode (pkdcl.c, PKWARE Data Compression Library, ZIP method 10)
+////////////////////////////////////////////////////////////////
+
+unsigned short CZipTool::dclRead( unsigned char *buf, unsigned short *size, void *how )
+{
+	DclIO *io = (DclIO*)how;
+	DWORD want = (DWORD)*size;
+	if( want > io->left )
+		want = io->left;
+	if( want == 0 )
+		{ *size = 0; return 0; }
+	int got = io->tool->zipread( buf, (int)want );
+	if( got <= 0 )
+		{ *size = 0; return 0; }
+	io->left -= (DWORD)got;
+	*size = (unsigned short)got;
+	return *size;
+}
+
+void CZipTool::dclWrite( unsigned char *buf, unsigned short *size, void *how )
+{
+	DclIO *io = (DclIO*)how;
+	io->tool->zipwrite( buf, (int)*size );
+}
+
+void CZipTool::UnDcl( DWORD usz, DWORD csz )
+{
+	DclIO io;
+	io.tool = this;
+	io.left = csz;
+	if( usz == 0 )
+		{
+		// an empty DCL member is exactly 4 bytes; the legacy entry point
+		// rejects a first fill of 4 bytes, so use the extended one.
+		pkdcl_explode_ex( dclRead, dclWrite, &io );
+		}
+	else
+		{
+		unsigned char *work = new unsigned char[PKDCL_EXPLODE_WORK_SIZE];
+		pkdcl_explode( dclRead, dclWrite, work, &io );
+		delete [] work;
+		}
 }

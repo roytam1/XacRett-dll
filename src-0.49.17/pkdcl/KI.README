@@ -1,0 +1,56 @@
+PKDCLX 1.1.2 - vendored for ZIP method 10 (DCL Implode)
+=======================================================
+
+Source
+------
+Downloaded from the Xtro-Zip tree (johnsonjh/infozip-av, branch pkav),
+used as a behavioural reference for method 10 while comparing our ZIP
+support against unzip60:
+
+    unzip60/pkdcl.c
+    unzip60/pkdcl.h
+
+License (from the source header):
+    PKDCLX 1.1.2
+    Copyright (c) 2026 Jeffrey H. Johnson <johnsonjh.dev@gmail.com>
+    SPDX-License-Identifier: MIT-0
+
+MIT-0 is compatible with the zlib/libbzip2 licensing already used by the
+bundled decompression libraries, so vendoring is acceptable.
+
+Why this instead of blast.c
+---------------------------
+PKWARE's original `blast.c` decoder was vendored first, but it keeps its
+Huffman decode tables in file-scope statics (`litcnt`, `litsym`, ...),
+which makes it neither re-entrant nor safe to call repeatedly in a
+long-lived DLL process. pkdcl keeps all decoder state in a stack-local
+`struct dec_state`, so repeated and concurrent calls are safe.
+
+pkdcl also ships a real DCL *encoder* (`pkdcl_implode` /
+`pkdcl_implode_ex`), which is what our method-10 test fixtures are
+generated with. The earlier hand-rolled Python DCL encoder produced
+streams that blast.c happily decoded but that were not spec-conformant;
+pkdcl rejected them, proving the fixtures were wrong rather than the
+decoder.
+
+Interface notes
+---------------
+* `pkdcl_read_func` returns the number of BYTES READ, not a boolean.
+  Returning a nonzero "success" value smaller than the count silently
+  truncates the stream.
+* The legacy `pkdcl_explode()` rejects a first fill of <= 4 bytes, so an
+  empty member (which is exactly 4 bytes) must use
+  `pkdcl_explode_ex()` instead. `CZipTool::UnDcl` does this.
+* `PKDCL_EXPLODE_WORK_SIZE` (12574) is the caller-supplied work buffer.
+  `CZipTool::UnDcl` heap-allocates it per member.
+* The ZIP payload for method 10 is the raw DCL stream, including its
+  3-byte prologue (ctype, dictionary-size bits, initial bit buffer).
+  There is no ZIP-level framing around it.
+* `PKDCL_ENABLE_LEGACY_API` is NOT defined, so the `implode`/`explode`/
+  `crc32` legacy symbols stay out of the DLL namespace and cannot
+  collide with zlib's `crc32`.
+
+Only `pkdcl.c` and `pkdcl.h` are vendored. The encoder, the file I/O
+helpers (`xm_read`, `xb_*`, `x_write_all`) and the command-line driver
+inside pkdcl.c are compiled but unreferenced; they are dead-stripped by
+the linker.

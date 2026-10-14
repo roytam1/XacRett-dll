@@ -35,7 +35,7 @@ enum ZipMethod
 	Tokenized,	//  7 reserved
 	Deflated,	//  8
 	EnhDeflated,//  9
-	DclImploded,// 10 ( not supported )
+	DclImploded,// 10
 			// 11 reserved
 	BZip2=12,	// 12
 
@@ -219,6 +219,11 @@ private: //-- Zipì‡ïîèàóùóp -----------------------
 
 	// explode
 	void Explode( DWORD usz, DWORD csz, bool _8k,bool littree );
+	// dcl-implode (pkdcl.c)
+	void UnDcl( DWORD usz, DWORD csz );
+	struct DclIO { CZipTool *tool; DWORD left; };
+	static unsigned short dclRead( unsigned char *buf, unsigned short *size, void *how );
+	static void dclWrite( unsigned char *buf, unsigned short *size, void *how );
 	void LoadTree( sf_tree* tree, int treesize );
 	int  ReadTree( sf_tree* tree );
 	void ReadLengths( sf_tree* tree );

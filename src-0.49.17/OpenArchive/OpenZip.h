@@ -84,8 +84,9 @@ private:
 		Imploded,	// 6
 		Tokenized,	// 7 ( not supported )
 		Deflated,	// 8
-		EnhDeflated,// 9 ( not supported )
-		DclImploded,//10 ( not supported )
+		EnhDeflated,// 9
+		DclImploded,//10
+		BZip2=12,
 
 		Err=178     // this value is used by xacrett (^^;
 	};

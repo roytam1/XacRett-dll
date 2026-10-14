@@ -1604,6 +1604,19 @@ SOURCE=.\libbzip2\randtable.c
 
 # End Source File
 # End Group
+# Begin Group "pkdcl"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\pkdcl\pkdcl.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\pkdcl\pkdcl.h
+# End Source File
+# End Group
 # Begin Group "YZ1"
 
 # PROP Default_Filter ""

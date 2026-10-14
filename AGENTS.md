@@ -110,8 +110,36 @@ no binary-only dependencies (AMD64 port preparation).
   stripped names) instead of silently skipping with rc=0.
   Data descriptors via central-dir size resolve (matched by local
   offset + bit 3, so stale-offset SFX can't inject garbage).
-  Listing still covers methods 0-8 only (stops at first exotic member);
-  no ZIP64 central-dir attrs; no spans.
+  Listing now covers methods 0, 8, 9, 10, 12; 7 and 11 are
+  reserved and still refused. Unsupported-method members are NOT
+  yet skipped-and-continued (listing stops at the first exotic
+  member); no ZIP64 central-dir attrs; no spans.
+- ZIP method 10 (DCL Implode) is implemented via vendored `pkdcl.c`/
+  `pkdcl.h` (`src-0.49.17/pkdcl/`, PKDCLX 1.1.2, MIT-0, taken from
+  the Xtro-Zip `unzip60` reference tree). `CZipTool::UnDcl` feeds
+  `csz` bytes through `dclRead`/`dclWrite` wrappers over
+  `zipread`/`zipwrite`; an empty member (exactly 4 bytes) uses
+  `pkdcl_explode_ex` because the legacy entry point rejects a first
+  fill of <=4 bytes. `szMode` is `dcl`. Three traps, all cost
+  real debugging time: (1) `pkdcl_read_func` returns the BYTE
+  COUNT, not a boolean - returning 1 silently truncates the
+  stream; (2) PKWARE's original `blast.c` was vendored first and
+  discarded - it keeps its Huffman tables in file-scope statics
+  (`litcnt`/`litsym`/...), so it is unsafe for repeated or
+  concurrent calls in a long-lived DLL, whereas pkdcl keeps all
+  decoder state in a stack-local `struct dec_state`; (3) a
+  hand-rolled Python DCL encoder produces streams that `blast`
+  decodes but that are NOT spec-conformant - `pkdcl` rejects
+  them, which proves the FIXTURE was wrong, not the decoder.
+  Always build DCL fixtures with pkdcl's own `pkdcl_implode_ex`
+  (`PKDCL_DICT_AUTO`). The ZIP payload is the raw DCL stream
+  INCLUDING its 3-byte prologue (ctype, dict-size bits, initial
+  bit buffer); there is no ZIP framing. Verified 3/3 PASS
+  (`%TEMP%\zipcmp\fix\m10_dcl.zip`: litonly 31 B, matches 234 B,
+  binary 3000 B, all CRC-exact) plus repeated-call decode in one
+  process (4x, deterministic). `PKDCL_ENABLE_LEGACY_API` stays
+  undefined so the legacy `crc32` symbol cannot collide with
+  zlib's.
 - UnRAR 7.2.7 (RAR 1.5-5.x; deliberate divergence, official does 2.x/3.x
   only): stable `RAR*` API made it a source drop-in (`Rar3Tool.cpp` glue
   untouched); VC6 port via `vc6compat/` shims (`stdint.h`, SDK headers)
