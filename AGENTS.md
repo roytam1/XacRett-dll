@@ -108,8 +108,10 @@ no binary-only dependencies (AMD64 port preparation).
   `CP_ACP` (`kiutil::utf8toAnsi`, no `CP_UTF8` dependency for retro
   Windows); `fopen` failure aborts the extract (except dirs/empty
   stripped names) instead of silently skipping with rc=0.
+  Data descriptors via central-dir size resolve (matched by local
+  offset + bit 3, so stale-offset SFX can't inject garbage).
   Listing still covers methods 0-8 only (stops at first exotic member);
-  descriptors unsupported; no ZIP64 central-dir attrs; no spans.
+  no ZIP64 central-dir attrs; no spans.
 - UnRAR 7.2.7 (RAR 1.5-5.x; deliberate divergence, official does 2.x/3.x
   only): stable `RAR*` API made it a source drop-in (`Rar3Tool.cpp` glue
   untouched); VC6 port via `vc6compat/` shims (`stdint.h`, SDK headers)

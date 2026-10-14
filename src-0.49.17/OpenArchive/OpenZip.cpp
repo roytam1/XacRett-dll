@@ -63,6 +63,16 @@ bool COpenZip::Find_sub(INDIVIDUALINFO *lpSubInfo)
 			lpSubInfo->szAttribute[3] = 'D';*/
 		if ((h.attributes_e) & 0x20)
 			lpSubInfo->szAttribute[0] = 'A';
+		/* Data descriptors: local sizes are zero; take real ones from central
+		   only when the central entry provably belongs to this member
+		   (leading-garbage/SFX with stale offsets must not inject garbage). */
+		if (hdr.csz == 0 && hdr.usz == 0 && (h.csz != 0 || h.usz != 0) &&
+		    (h.flg & 8) && h.offset == (DWORD)(ftell(COpenZip::fp) - (30 + hdr.fnl + hdr.exl))) {
+			hdr.csz = h.csz; hdr.usz = h.usz; hdr.crc = h.crc;
+			lpSubInfo->dwCompressedSize = h.csz;
+			lpSubInfo->dwOriginalSize = h.usz;
+			lpSubInfo->dwCRC = h.crc;
+		}
 	}
 	//next
 	fseek( COpenZip::fp,hdr.csz,SEEK_CUR );

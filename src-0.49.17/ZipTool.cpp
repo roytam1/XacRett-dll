@@ -37,6 +37,55 @@ bool CZipTool::Check( const char* fname, unsigned long fsize )
 	return ans;
 }
 
+/* Central-directory size lookup for data-descriptor members, whose local
+   sizes are zero. Matches by local-header offset. Returns false when
+   unresolvable (spans, ZIP64 central, garbage) so callers refuse cleanly. */
+static bool ZipCentralSizes(FILE *zip, DWORD localpos, DWORD *csz, DWORD *usz, DWORD *crc)
+{
+	long save = ftell(zip);
+	long fsize, tailsz, i, pos;
+	unsigned char *tail;
+	fseek(zip, 0, SEEK_END);
+	fsize = ftell(zip);
+	if (fsize < 22) return false;
+	tailsz = fsize > 66000 ? 66000 : fsize;
+	tail = new unsigned char[tailsz];
+	fseek(zip, fsize - tailsz, SEEK_SET);
+	if ((long)fread(tail, 1, tailsz, zip) != tailsz) { delete [] tail; return false; }
+	long eo = -1;
+	for (i = tailsz - 22; i >= 0; i--) {
+		if (tail[i]=='P' && tail[i+1]=='K' && tail[i+2]==0x05 && tail[i+3]==0x06) { eo = i; break; }
+	}
+	if (eo < 0) { delete [] tail; return false; }
+	DWORD cdoff = (DWORD)(tail[eo+16]|(tail[eo+17]<<8)|(tail[eo+18]<<16)|(tail[eo+19]<<24));
+	WORD thisdisk = (WORD)(tail[eo+4]|(tail[eo+5]<<8));
+	WORD cddisk = (WORD)(tail[eo+6]|(tail[eo+7]<<8));
+	if (cdoff == 0xFFFFFFFF || thisdisk != 0 || cddisk != 0) { delete [] tail; return false; }
+	pos = (long)cdoff;
+	bool found = false;
+	while (pos >= 0 && (unsigned long)pos < (unsigned long)fsize) {
+		unsigned char fixed[46];
+		fseek(zip, pos, SEEK_SET);
+		if (46 != fread(fixed, 1, 46, zip)) break;
+		if (!(fixed[0]=='P' && fixed[1]=='K' && fixed[2]==0x01 && fixed[3]==0x02)) break;
+		DWORD fnl = (DWORD)(fixed[28]|(fixed[29]<<8));
+		DWORD exl = (DWORD)(fixed[30]|(fixed[31]<<8));
+		DWORD fcl = (DWORD)(fixed[32]|(fixed[33]<<8));
+		DWORD loff = (DWORD)(fixed[42]|(fixed[43]<<8)|(fixed[44]<<16)|(fixed[45]<<24));
+		if (loff == localpos) {
+			*csz = (DWORD)(fixed[20]|(fixed[21]<<8)|(fixed[22]<<16)|(fixed[23]<<24));
+			*usz = (DWORD)(fixed[24]|(fixed[25]<<8)|(fixed[26]<<16)|(fixed[27]<<24));
+			*crc = (DWORD)(fixed[16]|(fixed[17]<<8)|(fixed[18]<<16)|(fixed[19]<<24));
+			found = true;
+			break;
+		}
+		pos += 46 + (long)fnl + (long)exl + (long)fcl;
+	}
+	delete [] tail;
+	fseek(zip, save, SEEK_SET);
+	return found;
+}
+
 bool CZipTool::Extract( const char* fname,const char* ddir )
 {
 	char password[128] = {'\0'};
@@ -47,6 +96,14 @@ bool CZipTool::Extract( const char* fname,const char* ddir )
 
 	while( doHeader( &hdr,CTool::common_buf ) )
 	{
+		if ((hdr.flg & 8) && hdr.csz == 0 && hdr.usz == 0) {
+			/* Data descriptor: resolve real sizes from central dir by offset. */
+			unsigned long hdrpos = (unsigned long)ftell(zip) - (30 + hdr.fnl + hdr.exl);
+			DWORD csz, usz, crc;
+			if (!ZipCentralSizes(zip, hdrpos, &csz, &usz, &crc) ||
+			    csz > 0x7FFFFFFF || usz > 0x7FFFFFFF) { fclose(zip); return false; }
+			hdr.csz = csz; hdr.usz = usz; hdr.crc = crc;
+		}
 		unsigned long posnext = ftell( zip ) + hdr.csz;
 
 		if (m_Endflg) return true;//’Ç‰Á By Bonty
