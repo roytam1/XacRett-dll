@@ -1638,6 +1638,48 @@ SOURCE=.\lzma\7zTypes.h
 SOURCE=.\lzma\Precomp.h
 # End Source File
 # End Group
+# Begin Group "wzaes"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\wzaes\wzaes.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\wzaes\wzaes.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\wzaes\izsha1.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\wzaes\izsha1.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\wzaes\iz_arm_caps.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\wzaes\izsha1_ni.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\wzaes\iz_aes_x86.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\wzaes\iz_arm_crypto.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\wzaes\ae3_impl.h
+# End Source File
+# End Group
 # Begin Group "YZ1"
 
 # PROP Default_Filter ""

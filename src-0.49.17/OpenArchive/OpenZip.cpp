@@ -42,6 +42,11 @@ bool COpenZip::Find_sub(INDIVIDUALINFO *lpSubInfo)
 	case DclImploded: lstrcpy(lpSubInfo->szMode,"dcl"); break;
 	case BZip2: lstrcpy(lpSubInfo->szMode,"bzip2"); break;
 	case Lzma: lstrcpy(lpSubInfo->szMode,"lzma"); break;
+	case Aes:
+		if( hdr.aesStrength==192 ) lstrcpy(lpSubInfo->szMode,"aes192");
+		else if( hdr.aesStrength==256 ) lstrcpy(lpSubInfo->szMode,"aes256");
+		else lstrcpy(lpSubInfo->szMode,"aes128");
+		break;
 	default: lstrcpy(lpSubInfo->szMode,"?"); break;
 	}
 	lpSubInfo->dwCRC = hdr.crc;
@@ -110,6 +115,8 @@ bool COpenZip::read_header( ZipLocalHeader* hdr,unsigned char* buf )
 	hdr->usz = ((buf[18])|(buf[19]<<8)|(buf[20]<<16)|(buf[21]<<24));
 	hdr->fnl = ((buf[22])|(buf[23]<<8));
 	hdr->exl = ((buf[24])|(buf[25]<<8));
+	hdr->aesStrength = 0;
+	hdr->aesMethod = 0;
 
 	if( hdr->fnl!=fread(buf,1,hdr->fnl,COpenZip::fp) )
 		{ if(del)delete [] buf; return false; }
@@ -120,7 +127,7 @@ bool COpenZip::read_header( ZipLocalHeader* hdr,unsigned char* buf )
 	char* pp;
 	for( pp=hdr->fnm; *pp!=0; pp++ );
 
-	if( hdr->mhd==Tokenized || hdr->mhd==11 || (hdr->mhd>12 && hdr->mhd!=Lzma) )
+	if( hdr->mhd==Tokenized || hdr->mhd==11 || (hdr->mhd>12 && hdr->mhd!=Lzma && hdr->mhd!=Aes) )
 		{ if(del)delete [] buf; return false; }
 	if( pp-hdr->fnm != l )
 		{ if(del)delete [] buf; return false; }
@@ -159,6 +166,32 @@ bool COpenZip::read_header( ZipLocalHeader* hdr,unsigned char* buf )
 	if (hdr->usz == 0xFFFFFFFF || hdr->csz == 0xFFFFFFFF ||
 	    hdr->usz > 0x7FFFFFFF || hdr->csz > 0x7FFFFFFF)
 		{ if(del)delete [] buf; return false; }
+
+	/* WinZip AES: extra field 0x9901 carries strength + real method. */
+	if( hdr->mhd==Aes && hdr->exl >= 4 )
+	{
+		DWORD off = 0;
+		while( off + 4 <= (DWORD)hdr->exl )
+		{
+			WORD tag = (WORD)(buf[off] | (buf[off+1] << 8));
+			WORD sz = (WORD)(buf[off+2] | (buf[off+3] << 8));
+			if( tag==0x9901 && sz==7 && off+11 <= (DWORD)hdr->exl )
+			{
+				WORD aver = (WORD)(buf[off+4] | (buf[off+5] << 8));
+				if( buf[off+6]=='A' && buf[off+7]=='E' &&
+				    (aver==1 || aver==2) &&
+				    buf[off+8]>=1 && buf[off+8]<=3 )
+				{
+					hdr->aesStrength = (WORD)(64 + 64*buf[off+8]);
+					hdr->aesMethod = (WORD)(buf[off+9] | (buf[off+10] << 8));
+				}
+				break;
+			}
+			off += 4 + (DWORD)sz;
+		}
+		if( hdr->aesStrength==0 )
+			{ if(del)delete [] buf; return false; }
+	}
 
 	if(del)
 		delete [] buf;

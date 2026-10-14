@@ -30,6 +30,8 @@ private:
 		DWORD usz; // uncompressed-size
 		 WORD fnl; // filename-len
 		 WORD exl; // extra_field_length
+		 WORD aesStrength; // WinZip AES strength bits (0 = not AES)
+		 WORD aesMethod; // WinZip AES real compression method
 
 		char fnm[MAX_PATH];
 	//	BYTE ext[];
@@ -88,6 +90,7 @@ private:
 		DclImploded,//10
 		BZip2=12,
 		Lzma=14,
+		Aes=99,
 
 		Err=178     // this value is used by xacrett (^^;
 	};

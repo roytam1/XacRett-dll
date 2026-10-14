@@ -2,6 +2,9 @@
 #define AFX_ZIPTOOL_H__4C5F3720_4483_11D4_8D96_88668194683D__INCLUDED_
 
 #include "Tool.h"
+extern "C" {
+#include "wzaes/wzaes.h"
+}
 
 // ローカルヘッダ
 struct ZipLocalHeader
@@ -17,6 +20,8 @@ struct ZipLocalHeader
 	DWORD usz; // uncompressed-size
 	 WORD fnl; // filename-len
 	 WORD exl; // extra_field_length
+	 WORD aesStrength; // WinZip AES strength bits (0 = not AES)
+	 WORD aesMethod; // WinZip AES real compression method
 
 	char fnm[MAX_PATH];
 //	BYTE ext[];
@@ -40,6 +45,7 @@ enum ZipMethod
 	BZip2=12,	// 12
 			// 13 reserved
 	Lzma=14,	// 14
+	Aes=99,	// 99 WinZip AES
 
 	Err=178     // this value is used by xacrett (^^;
 };
@@ -155,15 +161,20 @@ private: //-- Zip内部処理用 -----------------------
 	DWORD wrtcrc;
 
 	bool read_init( const char* pwd=NULL,ZipLocalHeader* hdr=NULL );
+	bool aes_init( const char* pwd, ZipLocalHeader* hdr, DWORD* innerCsz );
 	int zipread( BYTE* dat, int len )
 		{
 			len = fread( dat, 1, len, zip );
 			if( needdec )
 				for( int i=0; i<len; i++ )
 					zdecode( dat[i] );
+			if( needaes )
+				iz_aes_decrypt( &aesctx, dat, len );
 			return len;
 		}
 	bool needdec;
+	iz_wzaes aesctx;
+	bool needaes;
 
 // bit-reader
 	unsigned long bitbuf;

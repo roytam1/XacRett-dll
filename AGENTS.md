@@ -159,6 +159,30 @@ no binary-only dependencies (AMD64 port preparation).
   64 KB-dictionary wrap case, an 8 MB-dict case, and a no-prefix
   member, all CRC-exact). `Lzma2Dec.c/.h` are vendored but unused
   so far (reserved for XZ-95).
+- ZIP method 99 (WinZip AES) is implemented via vendored `wzaes.c`/
+  `izsha1.c` (`src-0.49.17/wzaes/`, wzaes public domain + SHA-1 MIT-0,
+  from the Xtro-Zip `unzip60` reference tree). `CZipTool::aes_init`
+  parses extra field `0x9901` (AE-1/AE-2 + `AE` vendor + strength
+  1/2/3 + real method), reads salt + 2-byte verifier, derives via
+  PBKDF2 and compares the verifier; `zipread` gains a CTR-decrypt
+  hook so every inner decoder (0/8/12/14 verified, 1-6/9/10 by
+  construction) works unchanged, and the trailing 10-byte auth tag
+  is verified after decode (mismatch deletes the output and fails
+  loudly). Unsupported inner methods are skipped-and-continued.
+  `szMode` is `aes128`/`aes192`/`aes256`. Passwords reuse the modal
+  dialog (headless runs hang - verify with a temp seed/stub, both
+  reverted before commit). VC6 port traps, all real: `iz_arm_caps.h`
+  was missing from the vendor set (copy from upstream, inert on
+  x86); `izsha1_ni.h` is absent upstream (local stub, NI path never
+  enabled); VC6's `windows.h` pulls an EMPTY `wincrypt.h` and
+  poisons `__WINCRYPT_H__`, so `NOCRYPT` + explicit include with
+  `_WIN32_WINNT=0x0400` default (`wzaes.c` only, never global
+  flags); `CRYPT_SILENT` postdates VC6 headers (local define).
+  CryptoAPI stays GetProcAddress-based: `dumpbin /imports` shows no
+  new dependency (KERNEL32/USER32/LZ32/ADVAPI32 only). Verified 9/9
+  PASS against authentic 7-Zip fixtures (128/192/256 x stored/
+  deflate/bzip2/lzma inners, CRC-exact) plus verifier-reject,
+  rewind-and-retry, and bad-auth-tag negative paths.
 - UnRAR 7.2.7 (RAR 1.5-5.x; deliberate divergence, official does 2.x/3.x
   only): stable `RAR*` API made it a source drop-in (`Rar3Tool.cpp` glue
   untouched); VC6 port via `vc6compat/` shims (`stdint.h`, SDK headers)

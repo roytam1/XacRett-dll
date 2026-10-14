@@ -30,7 +30,7 @@ bool CZipTool::Check( const char* fname, unsigned long fsize )
 		if( hdr[i+1] != 'K'  )continue;
 		if( hdr[i+2] != 0x03 )continue;
 		if( hdr[i+3] != 0x04 )continue;
-		if( hdr[i+8]+(hdr[i+9]<<8) > BZip2 && hdr[i+8]+(hdr[i+9]<<8)!=Lzma )continue;
+		if( hdr[i+8]+(hdr[i+9]<<8) > BZip2 && hdr[i+8]+(hdr[i+9]<<8)!=Lzma && hdr[i+8]+(hdr[i+9]<<8)!=Aes )continue;
 		if( hdr[i+26]==0 && hdr[i+27]==0 )continue;
 		break;
 	}
@@ -134,7 +134,32 @@ bool CZipTool::Extract( const char* fname,const char* ddir )
 		if( out=fopen(name,"wb") )
 		{
 			write_init();   // 出力CRCをクリア
-			if( hdr.flg&1 ) // 暗号化されてるのでパスワードをセット
+			DWORD aesInner = 0;
+			bool isAes = (hdr.mhd==Aes);
+			if( isAes ) // WinZip AES: password + CTR layer, then the inner method
+			{
+				if( *password=='\0' || !aes_init(password,&hdr,&aesInner) )
+				{
+					int i;
+					for( i=0; i!=3; i++ )
+					{
+						strncpy( password, GetPassword(), sizeof(password)-1 );
+						if( aes_init( password, &hdr, &aesInner ) )
+							break;
+					}
+					if( i==3 )
+					{
+						fclose( out );
+						DeleteFile( name );
+						break;
+					}
+				}
+				// refuse unsupported inner methods cleanly: skip, keep going
+				if( hdr.aesMethod==Tokenized || hdr.aesMethod==Aes ||
+				    (hdr.aesMethod>BZip2 && hdr.aesMethod!=Lzma) )
+					{ fclose( out ); DeleteFile( name ); needaes = false; fseek( zip, posnext, SEEK_SET ); continue; }
+			}
+			else 			if( hdr.flg&1 ) // 暗号化されてるのでパスワードをセット
 			{
 				if( *password=='\0' || !read_init(password,&hdr) )
 				{
@@ -157,27 +182,39 @@ bool CZipTool::Extract( const char* fname,const char* ddir )
 				read_init();
 
 			// 展開！
-			switch( hdr.mhd )
+			WORD decMhd = isAes ? hdr.aesMethod : hdr.mhd;
+			DWORD decCsz = isAes ? aesInner : hdr.csz;
+			switch( decMhd )
 			{
-			case Stored:	 Unstore( hdr.usz, hdr.csz );	break;
-			case Deflated:	 Inflate( hdr.usz, hdr.csz, false );	break;
-			case Shrunk:	Unshrink( hdr.usz, hdr.csz );	break;
-			case Reduced1:	Unreduce( hdr.usz, hdr.csz, 1 );	break;
-			case Reduced2:	Unreduce( hdr.usz, hdr.csz, 2 );	break;
-			case Reduced3:	Unreduce( hdr.usz, hdr.csz, 3 );	break;
-			case Reduced4:	Unreduce( hdr.usz, hdr.csz, 4 );	break;
+			case Stored:	 Unstore( hdr.usz, decCsz );	break;
+			case Deflated:	 Inflate( hdr.usz, decCsz, false );	break;
+			case Shrunk:	Unshrink( hdr.usz, decCsz );	break;
+			case Reduced1:	Unreduce( hdr.usz, decCsz, 1 );	break;
+			case Reduced2:	Unreduce( hdr.usz, decCsz, 2 );	break;
+			case Reduced3:	Unreduce( hdr.usz, decCsz, 3 );	break;
+			case Reduced4:	Unreduce( hdr.usz, decCsz, 4 );	break;
 			case Imploded:
-				Explode( hdr.usz, hdr.csz,
+				Explode( hdr.usz, decCsz,
 							 0!=(hdr.flg&0x02), 0!=((hdr.flg)&0x04) );
 				break;
-			case EnhDeflated:Inflate( hdr.usz, hdr.csz, true );	break;
-			case DclImploded:UnDcl( hdr.usz, hdr.csz );	break;
-			case Lzma:UnLzma( hdr.usz, hdr.csz );	break;
-			case BZip2:		 UnBZip2( hdr.usz, hdr.csz );		break;
+			case EnhDeflated:Inflate( hdr.usz, decCsz, true );	break;
+			case DclImploded:UnDcl( hdr.usz, decCsz );	break;
+			case Lzma:UnLzma( hdr.usz, decCsz );	break;
+			case BZip2:		 UnBZip2( hdr.usz, decCsz );		break;
 			}
 
 			// 事後処理
 			fclose( out );
+			if( isAes ) // verify the WinZip auth tag, then drop the CTR state
+			{
+				BYTE tag[10], expect[10];
+				bool aok = (10==fread(tag,1,10,zip));
+				iz_aes_auth( &aesctx, expect );
+				iz_aes_wipe( &aesctx, sizeof(aesctx) );
+				needaes = false;
+				if( !aok || 0!=memcmp(tag,expect,10) )
+					{ DeleteFile( name ); fclose( zip ); return false; }
+			}
 
 			kiutil::timeSet( name, (WORD)hdr.dat,(WORD)hdr.tim );
 		}
@@ -295,10 +332,12 @@ bool CZipTool::read_init( const char* pwd, ZipLocalHeader* hdr )
 	if( pwd == NULL )
 	{
 		needdec = false;
+		needaes = false;
 		return true;
 	}
 
 	needdec = true;
+	needaes = false;
 
 	// このパスワードで初期化
 	keys[0] = 305419896L;
@@ -352,6 +391,8 @@ bool CZipTool::read_header( ZipLocalHeader* hdr,unsigned char* buf )
 	hdr->usz = ((buf[18])|(buf[19]<<8)|(buf[20]<<16)|(buf[21]<<24));
 	hdr->fnl = ((buf[22])|(buf[23]<<8));
 	hdr->exl = ((buf[24])|(buf[25]<<8));
+	hdr->aesStrength = 0;
+	hdr->aesMethod = 0;
 
 	if( hdr->fnl!=fread(buf,1,hdr->fnl,zip) )
 		{ if(del)delete [] buf; return false; }
@@ -362,7 +403,7 @@ bool CZipTool::read_header( ZipLocalHeader* hdr,unsigned char* buf )
 	char* pp;
 	for( pp=hdr->fnm; *pp!=0; pp++ );
 
-	if( (hdr->mhd > BZip2 && hdr->mhd!=Lzma) || hdr->mhd==Tokenized )
+	if( (hdr->mhd > BZip2 && hdr->mhd!=Lzma && hdr->mhd!=Aes) || hdr->mhd==Tokenized )
 		{ if(del)delete [] buf; return false; }
 	if( pp-hdr->fnm != l )
 		{ if(del)delete [] buf; return false; }
@@ -401,6 +442,32 @@ bool CZipTool::read_header( ZipLocalHeader* hdr,unsigned char* buf )
 	if (hdr->usz == 0xFFFFFFFF || hdr->csz == 0xFFFFFFFF ||
 	    hdr->usz > 0x7FFFFFFF || hdr->csz > 0x7FFFFFFF)
 		{ if(del)delete [] buf; return false; }
+
+	/* WinZip AES: extra field 0x9901 carries strength + real method. */
+	if( hdr->mhd==Aes && hdr->exl >= 4 )
+	{
+		DWORD off = 0;
+		while( off + 4 <= (DWORD)hdr->exl )
+		{
+			WORD tag = (WORD)(buf[off] | (buf[off+1] << 8));
+			WORD sz = (WORD)(buf[off+2] | (buf[off+3] << 8));
+			if( tag==0x9901 && sz==7 && off+11 <= (DWORD)hdr->exl )
+			{
+				WORD aver = (WORD)(buf[off+4] | (buf[off+5] << 8));
+				if( buf[off+6]=='A' && buf[off+7]=='E' &&
+				    (aver==1 || aver==2) &&
+				    buf[off+8]>=1 && buf[off+8]<=3 )
+				{
+					hdr->aesStrength = (WORD)(64 + 64*buf[off+8]);
+					hdr->aesMethod = (WORD)(buf[off+9] | (buf[off+10] << 8));
+				}
+				break;
+			}
+			off += 4 + (DWORD)sz;
+		}
+		if( hdr->aesStrength==0 )
+			{ if(del)delete [] buf; return false; }
+	}
 
 	if(del)
 		delete [] buf;
@@ -1239,4 +1306,35 @@ void CZipTool::UnLzma( DWORD usz, DWORD csz )
 	(void)nout;
 	delete [] inbuf;
 	LzmaDec_Free( &st, &g_lzAlloc );
+}
+
+////////////////////////////////////////////////////////////////
+// WinZip AES (wzaes.c, ZIP method 99)
+////////////////////////////////////////////////////////////////
+
+bool CZipTool::aes_init( const char* pwd, ZipLocalHeader* hdr, DWORD* innerCsz )
+{
+	BYTE salt[16];
+	BYTE verify[2], expect[2];
+	DWORD saltLen;
+	long x = ftell( zip );
+	bool ok = false;
+	needaes = false;
+	needdec = false;
+	if( pwd!=NULL && *pwd!='\0' && hdr->aesStrength!=0 )
+		{
+		if( hdr->aesStrength==128 ) saltLen = 8;
+		else if( hdr->aesStrength==192 ) saltLen = 12;
+		else if( hdr->aesStrength==256 ) saltLen = 16;
+		else saltLen = 0;
+		if( saltLen!=0 && hdr->csz >= saltLen+2+10 &&
+		    saltLen==fread(salt,1,saltLen,zip) &&
+		    2==fread(verify,1,2,zip) &&
+		    iz_aes_init(&aesctx,pwd,salt,hdr->aesStrength,expect) &&
+		    verify[0]==expect[0] && verify[1]==expect[1] )
+			{ needaes = true; *innerCsz = hdr->csz - saltLen - 2 - 10; ok = true; }
+		}
+	if( !ok )
+		fseek( zip, x, SEEK_SET );
+	return ok;
 }

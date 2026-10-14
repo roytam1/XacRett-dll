@@ -1,0 +1,46 @@
+wzaes/ - WinZip AES (AE-1/AE-2) primitives for ZIP method 99.
+
+  wzaes.c/.h: public-domain dedication (from the Xtro-ZIP unzip60
+    fork). AES-CTR (counter starts at 1), PBKDF2-HMAC-SHA1 with
+    1000 rounds, 10-byte truncated HMAC-SHA1 over ciphertext.
+    `iz_aes_decrypt` MACs the ciphertext THEN xors, so the zipread
+    hook needs no separate mac_update call. `iz_aes_init` outputs
+    the expected 2-byte verifier for comparison (it does not
+    compare itself). Return values are int 0/1, not classic
+    PKWARE booleans - check them explicitly.
+  izsha1.c/.h: MIT-0, Johnsonjh (SHA-1 for PBKDF2/HMAC).
+  iz_aes_x86.h, iz_arm_crypto.h, iz_arm_caps.h: supporting headers
+    from the same fork. All acceleration paths are compile-time
+    gated (GCC/Clang x86_64 or AArch64 only); under VC6/x86 the
+    portable C path is always used.
+  izsha1_ni.h: local stub - ABSENT from the upstream tree, but
+    izsha1.c includes it unconditionally. Only declares the x86
+    SHA-NI entry points under IZ_SHA1_NI_ENABLED, which VC6 never
+    defines, so the portable C SHA-1 is always used.
+  ae3_impl.h: AE-3 (AES-256-GCM) internals, compiled but unused;
+    AE-3 is not a ZIP method and is not wired up.
+
+VC6 port fixes (in wzaes.c, documented inline, behaviour-neutral):
+  - `#include "izsha1.h"` added (was implicit-decl C4013 warnings).
+  - `NOCRYPT` before `<windows.h>`: VC6's windows.h pulls in an
+    EMPTY wincrypt.h (its contents need _WIN32_WINNT>=0x0400, which
+    nothing defines) and poisons the __WINCRYPT_H__ guard, so the
+    later explicit include saw nothing. Modern MSVC predefines
+    _WIN32_WINNT, which is why upstream never saw this.
+  - `_WIN32_WINNT` defaulted to 0x0400 (NT4, our load floor) after
+    windows.h (keeps its winsock selection unchanged) so wincrypt.h
+    has content. Only HCRYPTPROV/PROV_*/CRYPT_* constants are used,
+    all inside iz_aes_entropy, which our decode-only DLL never
+    calls; CryptoAPI stays GetProcAddress-based, so NO new static
+    import is added (verified via dumpbin: KERNEL32/USER32/LZ32/
+    ADVAPI32 only, unchanged).
+  - `CRYPT_SILENT` (0x40) defined when missing; postdates VC6's
+    wincrypt.h, same dead-code path as above.
+
+Compiled in: wzaes.c + izsha1.c only. Both build clean under VC6
+with zero warnings.
+
+Passwords come through the existing modal dialog flow (same headless
+caveat as traditional PKWARE crypto). Headless verification used
+temporary password-seed/GetPassword-stub patches, both reverted
+before commit (verified via git diff showing no Tool.cpp change).
