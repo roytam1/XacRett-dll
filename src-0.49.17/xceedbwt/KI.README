@@ -1,0 +1,38 @@
+xceedbwt/ - Xceed BWT decoder for ZIP method 18.
+
+  xceedbwt.c/.h: MIT-0, Johnsonjh (from the Xtro-ZIP unzip60 fork).
+    Callback pull/push API (`read_byte` 0..255/-1, `write_data`,
+    optional CRC callback). `iz_xceedbwt_decode` (no separate CRC
+    callback) still validates size + CRC internally via its own
+    fallback, so the glue passes NULL and lets it check. Framing:
+    ASCII size digit '1'..'9' (= digit * 100000 max block), 0x31
+    block markers with bzip2-style payloads (no per-block magic or
+    CRCs), 0x17 end marker + zero padding, then exact-consumption
+    (one more read must return -1), size and CRC must match.
+    `CZipTool::UnBwt` bounds reads by `csz` and passes ZIP size/CRC
+    straight through; `szMode` is `bwt`.
+
+Compiled in: xceedbwt.c only. Builds clean under VC6 (only
+  <stddef.h> needed; no type collisions with 7zTypes/ppmd, so the
+  glue lives in ZipTool.cpp directly, unlike PPMd).
+
+Fixture trap (real, cost real debugging time): the Huffman length
+  stream terminates EVERY symbol with a 0 bit, INCLUDING the first
+  symbol of each group (exactly like bzip2's sendMTFValues). The
+  hand-rolled Python encoder first omitted the k=0 terminator; the
+  vendored decoder rejected every stream (length drift in group 1)
+  while a same-bug independent reimplementation agreed with the
+  encoder - which proves the FIXTURE was wrong, not the decoder
+  (same lesson as DCL: never trust a hand encoder that only its
+  own decoder accepts). Encoder core was also validated piecewise
+  (BWT vs naive + LF-inversion, RLE1 vectors, Huffman round-trip +
+  Kraft checks, length cap 20 with a proven-terminating repair).
+  7-Zip 26.04 does NOT decode method 18, so no third-party cross-
+  check exists; confidence rests on the strict decoder (markers,
+  padding, exact consumption, CRC, size all enforced) plus
+  byte-exact output on 6 diverse members. Verified 6/6 PASS
+  CRC-exact (0 B .. 120 KB, incl. multi-block, RLE-heavy, empty).
+
+AES-inner-BWT is refused at the inner gate: the decoder forces an
+  internal CRC-vs-header check, but AE-2 headers carry no CRC (the
+  auth tag is the anchor instead). Plain BWT is fully supported.

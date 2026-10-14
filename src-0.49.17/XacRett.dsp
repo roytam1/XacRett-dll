@@ -1706,6 +1706,19 @@ SOURCE=.\ppmd8\ppmd8.h
 SOURCE=.\ppmd8\ppmd.h
 # End Source File
 # End Group
+# Begin Group "xceedbwt"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\xceedbwt\xceedbwt.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\xceedbwt\xceedbwt.h
+# End Source File
+# End Group
 # Begin Group "YZ1"
 
 # PROP Default_Filter ""

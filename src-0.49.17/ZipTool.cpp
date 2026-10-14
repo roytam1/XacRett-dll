@@ -6,6 +6,7 @@
 extern "C" {
 #include "pkdcl/pkdcl.h"
 #include "lzma/LzmaDec.h"
+#include "xceedbwt/xceedbwt.h"
 }
 
 // ---- ISzAlloc for LzmaDec (malloc backed; no file I/O, no globals) ----
@@ -30,7 +31,7 @@ bool CZipTool::Check( const char* fname, unsigned long fsize )
 		if( hdr[i+1] != 'K'  )continue;
 		if( hdr[i+2] != 0x03 )continue;
 		if( hdr[i+3] != 0x04 )continue;
-		if( hdr[i+8]+(hdr[i+9]<<8) > BZip2 && hdr[i+8]+(hdr[i+9]<<8)!=Lzma && hdr[i+8]+(hdr[i+9]<<8)!=Aes && hdr[i+8]+(hdr[i+9]<<8)!=Ppmd )continue;
+		if( hdr[i+8]+(hdr[i+9]<<8) > BZip2 && hdr[i+8]+(hdr[i+9]<<8)!=Lzma && hdr[i+8]+(hdr[i+9]<<8)!=Aes && hdr[i+8]+(hdr[i+9]<<8)!=Ppmd && hdr[i+8]+(hdr[i+9]<<8)!=Bwt )continue;
 		if( hdr[i+26]==0 && hdr[i+27]==0 )continue;
 		break;
 	}
@@ -155,7 +156,7 @@ bool CZipTool::Extract( const char* fname,const char* ddir )
 					}
 				}
 				// refuse unsupported inner methods cleanly: skip, keep going
-				if( hdr.aesMethod==Tokenized || hdr.aesMethod==Aes ||
+				if( hdr.aesMethod==Tokenized || hdr.aesMethod==Aes || hdr.aesMethod==Bwt ||
 				    (hdr.aesMethod>BZip2 && hdr.aesMethod!=Lzma) )
 					{ fclose( out ); DeleteFile( name ); needaes = false; fseek( zip, posnext, SEEK_SET ); continue; }
 			}
@@ -202,6 +203,7 @@ bool CZipTool::Extract( const char* fname,const char* ddir )
 			case Lzma:UnLzma( hdr.usz, decCsz );	break;
 			case BZip2:		 UnBZip2( hdr.usz, decCsz );		break;
 			case Ppmd:UnPpmd( hdr.usz, decCsz );	break;
+			case Bwt:UnBwt( hdr.usz, decCsz, hdr.crc );	break;
 			}
 
 			// Ž–Œãˆ—
@@ -404,7 +406,7 @@ bool CZipTool::read_header( ZipLocalHeader* hdr,unsigned char* buf )
 	char* pp;
 	for( pp=hdr->fnm; *pp!=0; pp++ );
 
-	if( (hdr->mhd > BZip2 && hdr->mhd!=Lzma && hdr->mhd!=Aes && hdr->mhd!=Ppmd) || hdr->mhd==Tokenized )
+	if( (hdr->mhd > BZip2 && hdr->mhd!=Lzma && hdr->mhd!=Aes && hdr->mhd!=Ppmd && hdr->mhd!=Bwt) || hdr->mhd==Tokenized )
 		{ if(del)delete [] buf; return false; }
 	if( pp-hdr->fnm != l )
 		{ if(del)delete [] buf; return false; }
@@ -1338,4 +1340,35 @@ bool CZipTool::aes_init( const char* pwd, ZipLocalHeader* hdr, DWORD* innerCsz )
 	if( !ok )
 		fseek( zip, x, SEEK_SET );
 	return ok;
+}
+
+////////////////////////////////////////////////////////////////
+// Xceed BWT (xceedbwt.c, ZIP method 18)
+////////////////////////////////////////////////////////////////
+
+int CZipTool::bwtRead( void *op )
+{
+	BwtIn *io = (BwtIn*)op;
+	BYTE b;
+	if( io->left==0 )
+		return -1;
+	if( 1 != io->tool->zipread( &b, 1 ) )
+		return -1;
+	io->left--;
+	return b;
+}
+
+int CZipTool::bwtWrite( void *op, const unsigned char *data, size_t n )
+{
+	BwtIn *io = (BwtIn*)op;
+	io->tool->zipwrite( (BYTE*)data, (int)n );
+	return 0;
+}
+
+void CZipTool::UnBwt( DWORD usz, DWORD csz, DWORD crc )
+{
+	BwtIn io;
+	io.tool = this;
+	io.left = csz;
+	iz_xceedbwt_decode( bwtRead, bwtWrite, &io, 0UL, (unsigned long)usz, (unsigned long)crc );
 }

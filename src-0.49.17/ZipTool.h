@@ -45,6 +45,7 @@ enum ZipMethod
 	BZip2=12,	// 12
 			// 13 reserved
 	Lzma=14,	// 14
+	Bwt=18,	// 18 Xceed BWT
 	Ppmd=98,	// 98 PPMd
 	Aes=99,	// 99 WinZip AES
 
@@ -242,6 +243,11 @@ private: //-- Zipì‡ïîèàóùóp -----------------------
 	void UnLzma( DWORD usz, DWORD csz );
 	// ppmd (ppmd8.c, own TU ZipPpmd.cpp: ppmd.h collides with 7zTypes.h)
 	void UnPpmd( DWORD usz, DWORD csz );
+	// bwt (xceedbwt.c)
+	void UnBwt( DWORD usz, DWORD csz, DWORD crc );
+	struct BwtIn { CZipTool *tool; DWORD left; };
+	static int bwtRead( void *op );
+	static int bwtWrite( void *op, const unsigned char *data, size_t n );
 	// forward-declared to avoid pulling ppmd.h (see above) into every TU
 	static unsigned char ppmdRead( const struct IByteIn_ *p );
 	void LoadTree( sf_tree* tree, int treesize );

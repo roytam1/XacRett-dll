@@ -199,6 +199,20 @@ no binary-only dependencies (AMD64 port preparation).
   around zip30's `ppmd8enc.c` for CUT_OFF/FREEZE members (never
   vendored; FREEZE needs SetLegacyFreeze). Verified 8/8 PASS
   CRC-exact (234 B .. 300 KB) plus a corrupt-stream negative.
+- ZIP method 18 (Xceed BWT) is implemented via vendored `xceedbwt.c`
+  (`src-0.49.17/xceedbwt/`, MIT-0, from the Xtro-Zip `unzip60`
+  reference tree). Callback API (`iz_xceedbwt_decode` validates size
+  + CRC internally, so no CRC callback is passed); `CZipTool::UnBwt`
+  bounds reads by `csz` and forwards ZIP size/CRC. `szMode` is
+  `bwt`. Only `<stddef.h>` is needed, so the glue lives in
+  `ZipTool.cpp` directly (no TU split needed). Fixture trap: the
+  Huffman length stream terminates EVERY symbol incl. k=0 (bzip2
+  sendMTFValues convention) - the hand encoder first omitted it
+  and the strict decoder rejected everything, which proves the
+  FIXTURE was wrong (same DCL lesson). Verified 6/6 PASS
+  CRC-exact (0 B .. 120 KB, multi-block/RLE-heavy/empty).
+  AES-inner-BWT is refused (decoder forces a CRC-vs-header check
+  but AE-2 stores no CRC); plain BWT is fully supported.
 - UnRAR 7.2.7 (RAR 1.5-5.x; deliberate divergence, official does 2.x/3.x
   only): stable `RAR*` API made it a source drop-in (`Rar3Tool.cpp` glue
   untouched); VC6 port via `vc6compat/` shims (`stdint.h`, SDK headers)
