@@ -87,6 +87,7 @@ private:
 		EnhDeflated,// 9
 		DclImploded,//10
 		BZip2=12,
+		Lzma=14,
 
 		Err=178     // this value is used by xacrett (^^;
 	};

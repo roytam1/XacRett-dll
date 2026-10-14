@@ -41,6 +41,7 @@ bool COpenZip::Find_sub(INDIVIDUALINFO *lpSubInfo)
 	case EnhDeflated: lstrcpy(lpSubInfo->szMode,"def64"); break;
 	case DclImploded: lstrcpy(lpSubInfo->szMode,"dcl"); break;
 	case BZip2: lstrcpy(lpSubInfo->szMode,"bzip2"); break;
+	case Lzma: lstrcpy(lpSubInfo->szMode,"lzma"); break;
 	default: lstrcpy(lpSubInfo->szMode,"?"); break;
 	}
 	lpSubInfo->dwCRC = hdr.crc;
@@ -119,7 +120,7 @@ bool COpenZip::read_header( ZipLocalHeader* hdr,unsigned char* buf )
 	char* pp;
 	for( pp=hdr->fnm; *pp!=0; pp++ );
 
-	if( hdr->mhd==Tokenized || hdr->mhd==11 || hdr->mhd>12 )
+	if( hdr->mhd==Tokenized || hdr->mhd==11 || (hdr->mhd>12 && hdr->mhd!=Lzma) )
 		{ if(del)delete [] buf; return false; }
 	if( pp-hdr->fnm != l )
 		{ if(del)delete [] buf; return false; }

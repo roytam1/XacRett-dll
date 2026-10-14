@@ -38,6 +38,8 @@ enum ZipMethod
 	DclImploded,// 10
 			// 11 reserved
 	BZip2=12,	// 12
+			// 13 reserved
+	Lzma=14,	// 14
 
 	Err=178     // this value is used by xacrett (^^;
 };
@@ -224,6 +226,8 @@ private: //-- Zipì‡ïîèàóùóp -----------------------
 	struct DclIO { CZipTool *tool; DWORD left; };
 	static unsigned short dclRead( unsigned char *buf, unsigned short *size, void *how );
 	static void dclWrite( unsigned char *buf, unsigned short *size, void *how );
+	// lzma (LzmaDec.c)
+	void UnLzma( DWORD usz, DWORD csz );
 	void LoadTree( sf_tree* tree, int treesize );
 	int  ReadTree( sf_tree* tree );
 	void ReadLengths( sf_tree* tree );

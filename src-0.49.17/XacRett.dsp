@@ -1617,6 +1617,27 @@ SOURCE=.\pkdcl\pkdcl.c
 SOURCE=.\pkdcl\pkdcl.h
 # End Source File
 # End Group
+# Begin Group "lzma"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\lzma\LzmaDec.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\lzma\LzmaDec.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\lzma\7zTypes.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\lzma\Precomp.h
+# End Source File
+# End Group
 # Begin Group "YZ1"
 
 # PROP Default_Filter ""

@@ -5,7 +5,15 @@
 #include "zlib/zlib.h"
 extern "C" {
 #include "pkdcl/pkdcl.h"
+#include "lzma/LzmaDec.h"
 }
+
+// ---- ISzAlloc for LzmaDec (malloc backed; no file I/O, no globals) ----
+static void *lzAlloc( ISzAllocPtr p, size_t size )
+	{ (void)p; return malloc(size); }
+static void lzFree( ISzAllocPtr p, void *addr )
+	{ (void)p; free(addr); }
+static ISzAlloc g_lzAlloc = { lzAlloc, lzFree };
 
 //-- CZipTool •”•ª -----------------------
 
@@ -22,7 +30,7 @@ bool CZipTool::Check( const char* fname, unsigned long fsize )
 		if( hdr[i+1] != 'K'  )continue;
 		if( hdr[i+2] != 0x03 )continue;
 		if( hdr[i+3] != 0x04 )continue;
-		if( hdr[i+8]+(hdr[i+9]<<8) > 12 )continue;
+		if( hdr[i+8]+(hdr[i+9]<<8) > BZip2 && hdr[i+8]+(hdr[i+9]<<8)!=Lzma )continue;
 		if( hdr[i+26]==0 && hdr[i+27]==0 )continue;
 		break;
 	}
@@ -164,6 +172,7 @@ bool CZipTool::Extract( const char* fname,const char* ddir )
 				break;
 			case EnhDeflated:Inflate( hdr.usz, hdr.csz, true );	break;
 			case DclImploded:UnDcl( hdr.usz, hdr.csz );	break;
+			case Lzma:UnLzma( hdr.usz, hdr.csz );	break;
 			case BZip2:		 UnBZip2( hdr.usz, hdr.csz );		break;
 			}
 
@@ -353,7 +362,7 @@ bool CZipTool::read_header( ZipLocalHeader* hdr,unsigned char* buf )
 	char* pp;
 	for( pp=hdr->fnm; *pp!=0; pp++ );
 
-	if( hdr->mhd > BZip2 || hdr->mhd==Tokenized )
+	if( (hdr->mhd > BZip2 && hdr->mhd!=Lzma) || hdr->mhd==Tokenized )
 		{ if(del)delete [] buf; return false; }
 	if( pp-hdr->fnm != l )
 		{ if(del)delete [] buf; return false; }
@@ -1118,4 +1127,116 @@ void CZipTool::UnDcl( DWORD usz, DWORD csz )
 		pkdcl_explode( dclRead, dclWrite, work, &io );
 		delete [] work;
 		}
+}
+////////////////////////////////////////////////////////////////
+// LZMA (LzmaDec.c, ZIP method 14)
+////////////////////////////////////////////////////////////////
+
+void CZipTool::UnLzma( DWORD usz, DWORD csz )
+{
+	CLzmaDec st;
+	CLzmaProps pp;
+	ELzmaStatus stat;
+	BYTE props[LZMA_PROPS_SIZE];
+	BYTE hdr[4];
+	BYTE *inbuf = NULL;
+	DWORD left = csz;
+	DWORD inlen = 0;
+	DWORD nout = 0;
+	DWORD psize;
+	SizeT limit, slen, dicPosPrev;
+	int got;
+	SRes r;
+
+	if( usz == 0 )
+		return;
+	if( csz < 5 )
+		return;
+
+	// framing: [v0 v1 props_size(LE16) props][stream]
+	// some writers omit the 4 byte prefix, so fall back to a bare
+	// 5 byte property blob when the size field does not read as 5.
+	if( zipread( hdr, 4 ) <= 0 )
+		return;
+	left -= 4;
+	psize = (DWORD)hdr[2] | ((DWORD)hdr[3]<<8);
+	if( psize == LZMA_PROPS_SIZE )
+		{
+		if( zipread( props, LZMA_PROPS_SIZE ) <= 0 )
+			return;
+		left -= LZMA_PROPS_SIZE;
+		}
+	else
+		{
+		memcpy( props, hdr, 4 );
+		if( zipread( props+4, 1 ) <= 0 )
+			return;
+		left -= 1;
+		}
+
+	// refuse absurd dictionaries before we allocate for them
+	if( LzmaProps_Decode( &pp, props, LZMA_PROPS_SIZE ) != SZ_OK )
+		return;
+	if( pp.dicSize < 0x1000 )
+		pp.dicSize = 0x1000;
+	if( pp.dicSize > 0x4000000 )
+		return;
+
+	LzmaDec_Init( &st );
+	r = LzmaDec_Allocate( &st, props, LZMA_PROPS_SIZE, &g_lzAlloc );
+	if( r != SZ_OK )
+		return;
+
+	inbuf = new BYTE[XACR_BUFSIZE];
+	stat = LZMA_STATUS_NOT_SPECIFIED;
+	for(;;)
+		{
+		if( st.dicPos == st.dicBufSize )
+			{
+			// the ring is full: flush it, then rewind dicPos. The decoder
+			// wraps back references itself, so the bytes stay valid.
+			zipwrite( st.dic, (int)st.dicBufSize );
+			nout += (DWORD)st.dicBufSize;
+			st.dicPos = 0;
+			if( nout >= usz )
+				break;
+			}
+		if( nout + (DWORD)st.dicPos >= usz )
+			break;
+
+		if( inlen == 0 && left > 0 )
+			{
+			DWORD want = (left > (DWORD)XACR_BUFSIZE) ? (DWORD)XACR_BUFSIZE : left;
+			got = zipread( inbuf, (int)want );
+			if( got > 0 )
+				{ inlen = (DWORD)got; left -= (DWORD)got; }
+		}
+
+		// never let the decoder run past the recorded uncompressed size:
+		// streams without an end marker would just keep going.
+		limit = st.dicPos + (SizeT)(usz - nout - (DWORD)st.dicPos);
+		if( limit > st.dicBufSize )
+			limit = st.dicBufSize;
+
+		dicPosPrev = st.dicPos;
+		slen = inlen;
+		r = LzmaDec_DecodeToDic( &st, limit, inbuf, &slen, LZMA_FINISH_ANY, &stat );
+		if( slen < inlen )
+			{ memmove( inbuf, inbuf + slen, inlen - (DWORD)slen ); inlen -= (DWORD)slen; }
+		if( r != SZ_OK )
+			break;
+		if( stat == LZMA_STATUS_FINISHED_WITH_MARK )
+			break;
+		if( inlen == 0 && left == 0 )
+			break;
+		// no input consumed and no output produced -> refuse to spin
+		if( slen == 0 && st.dicPos == dicPosPrev )
+			break;
+		}
+
+	if( st.dicPos > 0 )
+		{ zipwrite( st.dic, (int)st.dicPos ); nout += (DWORD)st.dicPos; }
+	(void)nout;
+	delete [] inbuf;
+	LzmaDec_Free( &st, &g_lzAlloc );
 }

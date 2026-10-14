@@ -1,0 +1,44 @@
+7-Zip LZMA SDK decoder subset - vendored for ZIP method 14 (LZMA)
+================================================================
+
+Source
+------
+Taken from the 7-Zip LZMA SDK (2023+ layout, ZIP7_INC guards),
+public domain (Igor Pavlov):
+
+    LzmaDec.c / LzmaDec.h   the LZMA1 range decoder (2023 API)
+    7zTypes.h               basic 7-Zip types (self-contained on _WIN32)
+    Lzma2Dec.c / Lzma2Dec.h LZMA2 decoder, kept for the future XZ-95 work
+    Alloc.c / Alloc.h       SDK allocation helpers, NOT compiled in;
+                            we supply a tiny malloc-backed ISzAlloc in
+                            ZipTool.cpp instead (no file I/O, no globals)
+    Precomp.h               minimal VC6 shim (the SDK's own Precomp.h is
+                            not vendored); pulls in <windows.h> for
+                            HRESULT_FROM_WIN32 plus <stdlib.h>/<string.h>
+
+Compiled in: LzmaDec.c only (plus headers). LzmaDec.c builds clean
+under VC6 /W3 /O2 with just this shim.
+
+Why this API revision matters
+-----------------------------
+This is the post-2023 LzmaDec interface: the decoder owns its
+dictionary (`CLzmaDec::dic`, sized from the 5-byte props) and the
+caller only resets `dicPos` to 0 when it reaches `dicBufSize` after
+flushing. The decoder wraps back-references itself, so a manual ring
+flush is exact. There are no file-scope statics anywhere in
+LzmaDec.c, so repeated and concurrent decodes in one DLL process
+are safe (this is what disqualified blast.c for method 10).
+
+ZIP method-14 framing (Xtro unzip60 / PKZIPC layout)
+-----------------------------------------------------
+Payload = ver0 ver1 props_size(LE16) props[props_size] <raw LZMA1>.
+General-purpose bit 1 set means the stream carries an EOS marker
+(LZMA1); clear means known-size raw (LZMA1EXT). `CZipTool::UnLzma`
+accepts both, and also tolerates writers that omit the 4-byte
+prefix (bare 5-byte props). Output is capped at the recorded `usz`
+so marker-less streams cannot run on; dictionaries are clamped to
+4 KB..64 MB and refused beyond that before allocation.
+
+Fixtures are generated with Python's `lzma` FORMAT_ALONE encoder
+(props = first 5 bytes, stream = after the 13-byte header) wrapped
+in the 4-byte prefix; one member deliberately omits the prefix.

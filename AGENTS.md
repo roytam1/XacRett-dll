@@ -110,10 +110,10 @@ no binary-only dependencies (AMD64 port preparation).
   stripped names) instead of silently skipping with rc=0.
   Data descriptors via central-dir size resolve (matched by local
   offset + bit 3, so stale-offset SFX can't inject garbage).
-  Listing now covers methods 0, 8, 9, 10, 12; 7 and 11 are
-  reserved and still refused. Unsupported-method members are NOT
-  yet skipped-and-continued (listing stops at the first exotic
-  member); no ZIP64 central-dir attrs; no spans.
+  Listing now covers methods 0, 8, 9, 10, 12, 14; 7, 11 and 13
+  are reserved and still refused. Unsupported-method members are
+  NOT yet skipped-and-continued (listing stops at the first
+  exotic member); no ZIP64 central-dir attrs; no spans.
 - ZIP method 10 (DCL Implode) is implemented via vendored `pkdcl.c`/
   `pkdcl.h` (`src-0.49.17/pkdcl/`, PKDCLX 1.1.2, MIT-0, taken from
   the Xtro-Zip `unzip60` reference tree). `CZipTool::UnDcl` feeds
@@ -140,6 +140,25 @@ no binary-only dependencies (AMD64 port preparation).
   process (4x, deterministic). `PKDCL_ENABLE_LEGACY_API` stays
   undefined so the legacy `crc32` symbol cannot collide with
   zlib's.
+- ZIP method 14 (LZMA) is implemented via the vendored 7-Zip
+  `LzmaDec.c`/`LzmaDec.h` decoder subset (`src-0.49.17/lzma/`,
+  public domain) plus a minimal VC6 `Precomp.h` shim. Only
+  `LzmaDec.c` is compiled in; `Alloc.c` is skipped in favour of
+  a tiny malloc-backed `ISzAlloc` in `ZipTool.cpp`. `CZipTool::
+  UnLzma` accepts the Xtro/PKZIPC framing (`ver0 ver1 props_size
+  props stream`, GP bit 1 = EOS marker present) and tolerates a
+  bare 5-byte-props prefix. Output is capped at `usz`, dicts are
+  clamped to 4KB..64MB pre-allocation, and a no-progress guard
+  keeps corrupt streams from spinning. `szMode` is `lzma`.
+  Three gates must agree for a new method: `CZipTool::Check`'s
+  header scan (`> 12` refuses 14 unless exempted), the `ZipTool::
+  read_header` gate, and the `OpenZip::read_header` gate - the
+  scan was missed on the first pass and the whole archive failed
+  to open (`OpenArchive failed`). Verified 6/6 PASS
+  (`%TEMP%\zipcmp\fix\m14_lzma.zip`: 31 B .. 300 KB, incl. a
+  64 KB-dictionary wrap case, an 8 MB-dict case, and a no-prefix
+  member, all CRC-exact). `Lzma2Dec.c/.h` are vendored but unused
+  so far (reserved for XZ-95).
 - UnRAR 7.2.7 (RAR 1.5-5.x; deliberate divergence, official does 2.x/3.x
   only): stable `RAR*` API made it a source drop-in (`Rar3Tool.cpp` glue
   untouched); VC6 port via `vc6compat/` shims (`stdint.h`, SDK headers)
