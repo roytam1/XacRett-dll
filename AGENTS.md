@@ -284,6 +284,19 @@ no binary-only dependencies (AMD64 port preparation).
   captured before the footer take (else +12 skew breaks backward).
   Fixtures in `%TEMP%\xzalone\` (CRC32/CRC64/None/big) plus the
   `%TEMP%\xzfix\` ZIP-method set. Verified 5/5 PASS CRC-exact.
+- `.tar.lzma` (incl. `.tlz`) is `CTlzmaTarTool`/`COpenTlzma`
+  (`ARCHIVETYPE_TLZMA` 67) subclassing the tar providers: decode
+  the whole stream to a fixed-name temp file, then run base tar
+  over it (inherited Check/Extract/List just work, full validation
+  reused). Temp is self-healing (removed on open/close; at most one
+  stale file, deleted on next open). Traps: base `TarOpen` calls
+  virtual `TarClose` first, which would delete the just-decoded
+  temp - guarded by a live flag; `CTarTool(const char*)` never
+  initialised `fp` (all tar subclasses shared it; `fclose` on
+  garbage on first open in a reused heap - fixed with `fp=NULL`).
+  Fixtures in `%TEMP%\tarfix\` (Python tarfile + lzma, incl. a
+  subdir; `-j` flattening matches `.tgz` parity). Verified 3/3
+  PASS plus `.tlz` alias and plain-`.lzma`-stays-standalone.
 - UnRAR 7.2.7 (RAR 1.5-5.x; deliberate divergence, official does 2.x/3.x
   only): stable `RAR*` API made it a source drop-in (`Rar3Tool.cpp` glue
   untouched); VC6 port via `vc6compat/` shims (`stdint.h`, SDK headers)

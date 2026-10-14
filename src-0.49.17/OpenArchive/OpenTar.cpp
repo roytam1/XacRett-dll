@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "OpenTar.h"
+#include "..\LzmaTool.h"
 
 static DWORD tar_s2i(char* d,int l)
 {
@@ -284,6 +285,31 @@ void COpenTaZ::TarClose()
 }
 
 /*********Tar+Pack‚ÌRead*****************/
+
+bool COpenTlzma::TarOpen(LPCSTR fname)
+{
+	char tmp[MAX_PATH];
+	DWORD n;
+	if( tmpPath[0] ) { DeleteFile(tmpPath); tmpPath[0]=0; }
+	tmpLive = false;
+	n = GetTempPath(MAX_PATH, tmp);
+	if( n==0 || n+20>=MAX_PATH ) return false;
+	lstrcat(tmp, "XacRettTlzma.tmp");
+	if( !LzmaDecodeFile(fname, tmp) ) { DeleteFile(tmp); return false; }
+	lstrcpy(tmpPath, tmp);
+	if( !COpenTar::TarOpen(tmpPath) ) { DeleteFile(tmpPath); tmpPath[0]=0; return false; }
+	tmpLive = true;
+	return true;
+}
+size_t COpenTlzma::TarRead(void* red,size_t size)
+{
+	return COpenTar::TarRead(red, size);
+}
+void COpenTlzma::TarClose()
+{
+	COpenTar::TarClose();
+	if( tmpLive ) { DeleteFile(tmpPath); tmpPath[0]=0; tmpLive = false; }
+}
 
 bool COpenTaz::TarOpen(LPCSTR fname)
 {

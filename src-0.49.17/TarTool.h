@@ -21,7 +21,7 @@ class CTarTool : public CTool
 {
 public:
 	CTarTool() : CTool( "Tar “WŠJ" ){fp=NULL;}
-	CTarTool(const char* r)	: CTool(r) {}
+	CTarTool(const char* r)	: CTool(r) {fp=NULL;}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"tar");}
@@ -100,6 +100,26 @@ protected:
 	void   TarClose();
 private:
 	ZFILE* zfp;
+};
+
+class CTlzmaTarTool : public CTarTool
+{
+// .tar.lzma via whole-file LZMA-Alone decode to a temp file,
+// then plain tar over it (inherited Check/Extract just work).
+// Temp uses a fixed per-type name and is self-healing (removed
+// on open/close); a cancel between open and close can leave one
+// stale file behind at most, deleted on the next open.
+public:
+	CTlzmaTarTool() : CTarTool("Tar+LZMA “WŠJ") {tmpPath[0]=0; tmpLive=false;};
+	bool IsType( const char* ext )
+		{return 0==stricmp(ext,"lzma") || 0==stricmp(ext,"tlz");}
+protected:
+	bool   TarOpen(const char* fname);
+	size_t TarRead(void* red,size_t size);
+	void   TarClose();
+private:
+	char tmpPath[MAX_PATH];
+	bool tmpLive;
 };
 
 class CTazTool : public CTarTool
