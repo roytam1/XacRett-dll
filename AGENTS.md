@@ -409,7 +409,7 @@ no binary-only dependencies (AMD64 port preparation).
   NUL name + Huffman tree/bits, raw output, no NCR layer — validated by
   decoding `SHAR.CQ` to 12115 bytes of C source in Python first).
   `cpmshar.lbr`: 3/3 members list and extract byte-exact. Crunched
-  (`76 FE/FD`) members are v2.x adaptive LZW (9-12 bit MSB-first codes,
+  (`76 FE`) members are v2.x adaptive LZW (9-12 bit MSB-first codes,
   EOF 256 / RESET 257 / filler 258-259 / dict from 260, RLE90 layer,
   table-full victim replacement — NOT the fixed-12-bit hash scheme of
   ARC m5): header is magic + NUL-terminated name + ref/sig/err/spare
@@ -418,7 +418,33 @@ no binary-only dependencies (AMD64 port preparation).
   (6 crunched + 2 stored) list and extract byte-exact, verified against
   80un's `uncrunch` (`TEMP\ref80un\crunch.py`, GPL, reference use only —
   never vendor; our `LbrTool.cpp` port is clean-room). V1 crunch
-  (sig < 0x20) is rejected, not decoded. CP/M dates convert to DOS dates (pre-1980 → 0);
+  (sig < 0x20) is rejected, not decoded. CrLZH (`76 FD`,
+  ext middle `Y`) members are LHArc-lh1-lineage LZSS + adaptive
+  Huffman (2K window, spaces init, stop symbol 256, NO RLE layer,
+  LE16 byte-sum checksum after the codes when errdetect == 0;
+  `used` >= 0x21 refused, >= 0x20 selects the v2 11-bit position
+  code else v1 12-bit, both via d_code/d_len tables, MSB-first).
+  `76 FD` used to be misrouted to the crunch path (always failed
+  loudly); it is now exclusive to CrLZH, `76 FE` to crunch.
+  `crlzh20.lbr` (workarea root, untracked): 30/30 members
+  (26 v2 CrLZH + 4 stored) list and extract byte-exact vs the
+  80un oracle; v1 path proven by 21/21 on TEMP `crlzh11.lbr`
+  plus a 3/3 v2-crunch synthetic-LBR regression (authentic 80un
+  samples re-wrapped with valid directory CRCs) and a correct
+  v1-crunch refusal. Traps, all real: zstd-style LE confusion
+  does not apply here (magic is a byte string, not a number);
+  the checksum sits at the first byte boundary after the final
+  code (NOT at member end - 1A pad follows; a ceil-based skip
+  overshoots by one when codes end byte-aligned, caught by the
+  47/47 LE16 probe); the reference zero-pads reads at EOF, ours
+  fails loudly on overrun instead (identical on valid inputs).
+  Whole-compressed libraries (`.lqr`/`.lzr`/`.lyr`) are NOT
+  supported (explicit decision): `Check` needs the raw directory
+  control entry at offset 0, so they refuse up front. They were
+  rare even in-period (members, not archives, were compressed),
+  and no authentic fixture exists in squsq/80un/format wikis;
+  without one the temp-delegation path + SQ whole-file checksum
+  semantics cannot be proven, so this stays a documented gap. CP/M dates convert to DOS dates (pre-1980 → 0);
   `uOSType` 15 matches LZH `C`.
 - Adding a new provider requires: `XxxTool.h/.cpp` + `OpenArchive/OpenXxx.h
   /.cpp`, `SOURCE=` blocks in `XacRett.dsp` (pure ASCII, Edit-safe;

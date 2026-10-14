@@ -131,7 +131,7 @@ bool COpenLbr::FindSub(INDIVIDUALINFO *lpSubInfo)
 		if((long)hdr.index*LBR_SECTOR+(long)datasize>COpenLbr::m_fileSize)
 			return false;
 		// member kind: 2nd extension char flags squeeze ('q') or
-		// crunch ('z'), confirmed by the member magic
+		// crunch ('z') or CrLZH ('y'), confirmed by the member magic
 		lstrcpy(lpSubInfo->szMode,"stored");
 		lpSubInfo->dwCompressedSize = datasize;
 		lpSubInfo->dwOriginalSize = datasize;
@@ -145,9 +145,15 @@ bool COpenLbr::FindSub(INDIVIDUALINFO *lpSubInfo)
 				lpSubInfo->dwOriginalSize = 0;// known only after decode
 			}
 			else if((hdr.ext[1]=='z' || hdr.ext[1]=='Z')
-				&& magic[0]==0x76 && (magic[1]==0xFE || magic[1]==0xFD))
+				&& magic[0]==0x76 && magic[1]==0xFE)
 			{
 				lstrcpy(lpSubInfo->szMode,"crunch");
+				lpSubInfo->dwOriginalSize = 0;// known only after decode
+			}
+			else if((hdr.ext[1]=='y' || hdr.ext[1]=='Y')
+				&& magic[0]==0x76 && magic[1]==0xFD)
+			{
+				lstrcpy(lpSubInfo->szMode,"crlzh");
 				lpSubInfo->dwOriginalSize = 0;// known only after decode
 			}
 		}

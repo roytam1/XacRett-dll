@@ -43,7 +43,7 @@ Command-style extraction:
 Identification:
 
 - `int XacRettGetArchiveType(LPCSTR path)` — returns an `ARCHIVETYPE_*`
-  number (`XacRett.h`, currently `0`–`64`), or `0` (`UNKNOWN`).
+  number (`XacRett.h`, currently `0`–`70`), or `0` (`UNKNOWN`).
 - `BOOL XacRettCheckArchive(LPCSTR path, int mode)` — nonzero if the
   file is a supported archive.
 - `BOOL XacRettQueryFunctionList(int func)` — reports which `ISARC_*`
@@ -57,7 +57,7 @@ Handle-style listing:
   `int XacRettFindNext(HARC, INDIVIDUALINFO*)` — `0` per member,
   nonzero at end. The info struct is zeroed by the callee each call;
   `szMode[8]` carries a readable compression-method name (`lh5`,
-  `deflate`, `stored`, `m3`, `crunch`, `MSZIP`, `ultra`, …).
+  `deflate`, `stored`, `m3`, `crunch`, `MSZIP`, `ultra`, `zstd`, `crlzh`, …).
 - `int XacRettCloseArchive(HARC)`.
 
 Housekeeping:
@@ -65,17 +65,19 @@ Housekeeping:
 - `WORD XacRettGetVersion()` / `XacRettGetSubVersion()` — `49` / `17`.
 - `BOOL XacRettGetRunning()` — nonzero while an operation runs.
 
-## Supported formats (65 types)
+## Supported formats (71 types)
 
 Multi-file archives: ACE (store/LZ77/blocked+filters), ARC (m1–m9),
 ARJ, AR, RAR, CAB (MSZIP/Quantum/LZX), LZH/LZS/PMA (all methods),
-ZIP (store…deflate), ZOO, GCA, SQX, YZ1, AIN (M1–M4), LBR (stored/
-squeezed/crunched), TAR + Tbz/Tgz/TaZ/Taz, CPIO (+gz/Z/bz2), ISO, DMG,
+ZIP (0/8/9/10/12/14/18/93/95/98/99, incl. WinZip AES), ZOO, GCA, SQX,
+YZ1, AIN (M1–M4), LBR (stored/squeezed/crunched/CrLZH),
+TAR + Tbz/Tgz/TaZ/Taz/Tlzma/Txz/Tzst, CPIO (+gz/Z/bz2), ISO, DMG,
 ALZ, JAK, IS (InstallShield), IMP, ISH, REZ, ZAC, ASD, QPAK, CPT,
 DZ, BGA, ARG, BEL, JAM, YNC, ASK, LZX, and more —
 see `ARCHIVETYPE_*` in `src-0.49.17/XacRett.h` for the full list.
 
-Single-stream codecs: GZ (deflate), BZ2, Z/LZW (compress), JCALG1,
+Single-stream codecs: GZ (deflate), BZ2, LZMA, XZ, ZSTD (+ `.tar.*`
+companions), Z/LZW (compress), JCALG1,
 aPLib, SZDD (MSCompress), PACKZ, Freeze, Jam, BLZ, SPL (splitter),
 plus text encodings (BinHex, Base64, uuencode, yEnc, Boo, AtoB) and
 plain containers (MacBinary, shar, Fish, Hqx, Mime).
@@ -100,9 +102,12 @@ to the `.dsp`. Result: `XacRett.dll`, i386, `FileVersion 0.49.17`,
 - 18/18 synthesized ARC fixtures extract byte-exact (methods 1–9).
 - LZH/ARC/CAB/SQX/ZIP listings and extractions verified against
   reference corpora (lhasa, hyc/arc, vendor SDK samples).
-- 659/659 MSVC LIB members, 3/3 + 8/8 CP/M LBR members (stored,
-  squeezed, v2-crunch), 9/9 AIN corpus members, 9/9 authentic WinACE
-  archives — all byte-exact.
+- 659/659 MSVC LIB members, 30/30 `crlzh20.lbr` members (26 CrLZH +
+  4 stored), 21/21 v1-CrLZH (`crlzh11.lbr`), 3/3 v2-crunch regression,
+  9/9 AIN corpus members, 9/9 authentic WinACE archives — all byte-exact.
+- 8/8 ZIP method-93 members, 7/7 standalone `.zst` (+ multi-frame +
+  no-content-size), 3/3 `.tar.zst` (incl. `.tzst` alias), 27/27
+  cross-method ZIP regression (0/8/10/12/14/18/98) — all CRC-exact.
 - See `AGENTS.md` for build/encoding constraints, per-format findings,
   reference handling (clean-room ports, reference-use-only sources),
   and the pre-commit checklist.
@@ -111,8 +116,9 @@ to the `.dsp`. Result: `XacRett.dll`, i386, `FileVersion 0.49.17`,
 
 - `XacRett.lst` (disassembly), `XacRett.c` (decompiler output),
   official `XacRett.dll` 0.49.17 — comparison targets, not sources.
-- Vendored decode sources live in-tree (`unrar-3.6.1`, `yz32lib`,
-  `ZData-recon`, `lhasa`, `unsqx`, `fdi`, `jcalg1lib`, `ZData`);
+- Vendored decode sources live in-tree (`unrar-7.2.7`, `yz32lib`,
+  `ZData-recon`, `lhasa`, `unsqx`, `fdi`, `jcalg1lib`, `ZData`,
+  `pkdcl`, `lzma`, `wzaes`, `ppmd8`, `xceedbwt`, `zstd`);
   clean-room ports (`LbrTool`, `AinCodec`/`AinTool`, `AceBlock`,
   `complib` glue) were written from reference documents and validated
   against third-party corpora, never copied.
