@@ -45,6 +45,7 @@ enum ZipMethod
 	BZip2=12,	// 12
 			// 13 reserved
 	Lzma=14,	// 14
+	Ppmd=98,	// 98 PPMd
 	Aes=99,	// 99 WinZip AES
 
 	Err=178     // this value is used by xacrett (^^;
@@ -239,6 +240,10 @@ private: //-- Zipì‡ïîèàóùóp -----------------------
 	static void dclWrite( unsigned char *buf, unsigned short *size, void *how );
 	// lzma (LzmaDec.c)
 	void UnLzma( DWORD usz, DWORD csz );
+	// ppmd (ppmd8.c, own TU ZipPpmd.cpp: ppmd.h collides with 7zTypes.h)
+	void UnPpmd( DWORD usz, DWORD csz );
+	// forward-declared to avoid pulling ppmd.h (see above) into every TU
+	static unsigned char ppmdRead( const struct IByteIn_ *p );
 	void LoadTree( sf_tree* tree, int treesize );
 	int  ReadTree( sf_tree* tree );
 	void ReadLengths( sf_tree* tree );

@@ -30,7 +30,7 @@ bool CZipTool::Check( const char* fname, unsigned long fsize )
 		if( hdr[i+1] != 'K'  )continue;
 		if( hdr[i+2] != 0x03 )continue;
 		if( hdr[i+3] != 0x04 )continue;
-		if( hdr[i+8]+(hdr[i+9]<<8) > BZip2 && hdr[i+8]+(hdr[i+9]<<8)!=Lzma && hdr[i+8]+(hdr[i+9]<<8)!=Aes )continue;
+		if( hdr[i+8]+(hdr[i+9]<<8) > BZip2 && hdr[i+8]+(hdr[i+9]<<8)!=Lzma && hdr[i+8]+(hdr[i+9]<<8)!=Aes && hdr[i+8]+(hdr[i+9]<<8)!=Ppmd )continue;
 		if( hdr[i+26]==0 && hdr[i+27]==0 )continue;
 		break;
 	}
@@ -201,6 +201,7 @@ bool CZipTool::Extract( const char* fname,const char* ddir )
 			case DclImploded:UnDcl( hdr.usz, decCsz );	break;
 			case Lzma:UnLzma( hdr.usz, decCsz );	break;
 			case BZip2:		 UnBZip2( hdr.usz, decCsz );		break;
+			case Ppmd:UnPpmd( hdr.usz, decCsz );	break;
 			}
 
 			// Ž–Œãˆ—
@@ -403,7 +404,7 @@ bool CZipTool::read_header( ZipLocalHeader* hdr,unsigned char* buf )
 	char* pp;
 	for( pp=hdr->fnm; *pp!=0; pp++ );
 
-	if( (hdr->mhd > BZip2 && hdr->mhd!=Lzma && hdr->mhd!=Aes) || hdr->mhd==Tokenized )
+	if( (hdr->mhd > BZip2 && hdr->mhd!=Lzma && hdr->mhd!=Aes && hdr->mhd!=Ppmd) || hdr->mhd==Tokenized )
 		{ if(del)delete [] buf; return false; }
 	if( pp-hdr->fnm != l )
 		{ if(del)delete [] buf; return false; }

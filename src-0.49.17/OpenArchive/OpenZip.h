@@ -90,6 +90,7 @@ private:
 		DclImploded,//10
 		BZip2=12,
 		Lzma=14,
+		Ppmd=98,
 		Aes=99,
 
 		Err=178     // this value is used by xacrett (^^;

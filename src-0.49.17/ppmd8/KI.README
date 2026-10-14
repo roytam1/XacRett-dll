@@ -1,0 +1,37 @@
+ppmd8/ - PPMd Variant I revision 1 range decoder for ZIP method 98.
+
+  ppmd8.c/.h: ANSI C89 Info-ZIP adaptation, derived from public-domain
+    7-Zip (from the Xtro-ZIP unzip60 fork). The PPMd model.
+  ppmd8dec.c: the range-decoder half (Init_RangeDec/DecodeSymbol),
+    same origin. Was missing from the first vendor pass; without it
+    nothing links.
+  ppmd.h: base types (Byte/UInt32/ISzAlloc/IByteIn, self-contained).
+    Was also missing at first (ppmd8.h includes it).
+
+Compiled in: ppmd8.c + ppmd8dec.c. Both build clean under VC6.
+
+Structural note: ppmd.h redefines ISzAlloc/UInt32/etc. that 7zTypes.h
+already provides to ZipTool.cpp (via LzmaDec.h), so the decoder glue
+lives in its OWN translation unit (ZipPpmd.cpp), which includes only
+ZipTool.h + ppmd8.h and never sees 7zTypes. The header declares just
+`UnPpmd(DWORD,DWORD)` plus a forward-declared `ppmdRead` callback
+(`static unsigned char ppmdRead(const struct IByteIn_ *p)`) to avoid
+pulling ppmd.h into every TU. The C++ static member is stored in the
+C function pointer (same __cdecl convention; the DCL integration
+already proved this pattern).
+
+ZIP method-98 framing: a 2-byte LE props word starts the payload
+(`order=(w&15)+1`, `mem=((w>>4)&255)+1` MB, `restore=w>>12`), then
+the range-coded stream ending in an END symbol. `UnPpmd` validates
+order 2..16, clamps memory to 1..64 MB pre-allocation (refuses
+above), decodes exactly `usz` symbols into `common_buf` chunks, then
+requires the END symbol + finished-OK + exact input consumption. A
+corrupt tail with a full-size file truncates one byte short so the
+Extract() size check fails loudly instead of passing silently.
+
+Fixtures: authentic 7-Zip archives (orders 4/6/8, mem 1/8 MB, all
+RESTART) plus a TEMP-only encoder driver (mkppmdenc.c, links zip30's
+ppmd8enc.c against the model; reference use only, NEVER vendored)
+for CUT_OFF and FREEZE members, which 7-Zip never emits. FREEZE
+streams need SetLegacyFreeze (rev.1 bitstream behaviour); verified
+by fixture, not just by construction.

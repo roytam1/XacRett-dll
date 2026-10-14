@@ -440,6 +440,10 @@ SOURCE=.\ZipTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\ZipPpmd.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\ZooTool.cpp
 # End Source File
 # End Group
@@ -1678,6 +1682,28 @@ SOURCE=.\wzaes\iz_arm_crypto.h
 # Begin Source File
 
 SOURCE=.\wzaes\ae3_impl.h
+# End Source File
+# End Group
+# Begin Group "ppmd8"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\ppmd8\ppmd8.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\ppmd8\ppmd8dec.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\ppmd8\ppmd8.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\ppmd8\ppmd.h
 # End Source File
 # End Group
 # Begin Group "YZ1"

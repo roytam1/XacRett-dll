@@ -47,6 +47,7 @@ bool COpenZip::Find_sub(INDIVIDUALINFO *lpSubInfo)
 		else if( hdr.aesStrength==256 ) lstrcpy(lpSubInfo->szMode,"aes256");
 		else lstrcpy(lpSubInfo->szMode,"aes128");
 		break;
+	case Ppmd: lstrcpy(lpSubInfo->szMode,"ppmd"); break;
 	default: lstrcpy(lpSubInfo->szMode,"?"); break;
 	}
 	lpSubInfo->dwCRC = hdr.crc;
@@ -127,7 +128,7 @@ bool COpenZip::read_header( ZipLocalHeader* hdr,unsigned char* buf )
 	char* pp;
 	for( pp=hdr->fnm; *pp!=0; pp++ );
 
-	if( hdr->mhd==Tokenized || hdr->mhd==11 || (hdr->mhd>12 && hdr->mhd!=Lzma && hdr->mhd!=Aes) )
+	if( hdr->mhd==Tokenized || hdr->mhd==11 || (hdr->mhd>12 && hdr->mhd!=Lzma && hdr->mhd!=Aes && hdr->mhd!=Ppmd) )
 		{ if(del)delete [] buf; return false; }
 	if( pp-hdr->fnm != l )
 		{ if(del)delete [] buf; return false; }

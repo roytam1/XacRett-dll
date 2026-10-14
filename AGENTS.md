@@ -183,6 +183,22 @@ no binary-only dependencies (AMD64 port preparation).
   PASS against authentic 7-Zip fixtures (128/192/256 x stored/
   deflate/bzip2/lzma inners, CRC-exact) plus verifier-reject,
   rewind-and-retry, and bad-auth-tag negative paths.
+- ZIP method 98 (PPMd) is implemented via vendored `ppmd8.c`/
+  `ppmd8dec.c` (`src-0.49.17/ppmd8/`, public-domain 7-Zip lineage
+  via Xtro-Zip `unzip60`). `ppmd.h` + `ppmd8dec.c` were missing
+  from the first vendor pass (nothing links without them). Glue
+  lives in its own `ZipPpmd.cpp` because `ppmd.h` redefines
+  `ISzAlloc`/`UInt32` that `7zTypes.h` already gives `ZipTool.cpp`;
+  the header keeps only `UnPpmd(DWORD,DWORD)` plus a forward-
+  declared `ppmdRead` callback. Framing is a 2-byte LE props word
+  (order/mem/restore) + range stream ending in END; mem is
+  clamped to 1..64 MB pre-allocation, output is exactly `usz`
+  symbols, and a corrupt tail truncates short so the size check
+  fails loudly. `szMode` is `ppmd`. Fixtures: authentic 7-Zip
+  (orders 4/6/8, RESTART only) plus a TEMP-only encoder driver
+  around zip30's `ppmd8enc.c` for CUT_OFF/FREEZE members (never
+  vendored; FREEZE needs SetLegacyFreeze). Verified 8/8 PASS
+  CRC-exact (234 B .. 300 KB) plus a corrupt-stream negative.
 - UnRAR 7.2.7 (RAR 1.5-5.x; deliberate divergence, official does 2.x/3.x
   only): stable `RAR*` API made it a source drop-in (`Rar3Tool.cpp` glue
   untouched); VC6 port via `vc6compat/` shims (`stdint.h`, SDK headers)
