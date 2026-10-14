@@ -113,8 +113,13 @@ no binary-only dependencies (AMD64 port preparation).
   Listing now covers methods 0, 8, 9, 10, 12, 14, 18, 95, 98, 99;
   everything else is refused (7/11/13 are reserved; 93 needs a
   full zstd decoder, see below). Unsupported-method members are
-  NOT yet skipped-and-continued (listing stops at the first
-  exotic member); no ZIP64 central-dir attrs; no spans.
+  skipped-and-continued via the `doHeader` resync scan (both
+  listing and extraction): verified (good,bad,good),
+  (bad,good), descriptor-hole and 5 MB-hole sandwiches - members
+  after a hole list and extract byte-exact, holes never appear in
+  listings (matches official behavior), all-exotic archives fail
+  `Check` honestly with no crash. No ZIP64 central-dir attrs;
+  no spans.
 - ZIP method 10 (DCL Implode) is implemented via vendored `pkdcl.c`/
   `pkdcl.h` (`src-0.49.17/pkdcl/`, PKDCLX 1.1.2, MIT-0, taken from
   the Xtro-Zip `unzip60` reference tree). `CZipTool::UnDcl` feeds
