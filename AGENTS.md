@@ -102,6 +102,14 @@ no binary-only dependencies (AMD64 port preparation).
   (method 6 implode, incl. binaries), `pkz090.zip` 10/10 CRC-OK
   (method 1 shrink x5 + method 4 reduce x5). Reduce factors 1-3 and
   higher members untested; fixtures untracked in workarea root.
+  ZIP fixes (vs Xtro-ZIP unzip60 comparison): small-file ZIP64 via
+  0x0001 extra parse in both `read_header` copies (refuse >2GB-1 instead
+  of hanging); bit-11 UTF-8 names convert via hand-rolled decoder +
+  `CP_ACP` (`kiutil::utf8toAnsi`, no `CP_UTF8` dependency for retro
+  Windows); `fopen` failure aborts the extract (except dirs/empty
+  stripped names) instead of silently skipping with rc=0.
+  Listing still covers methods 0-8 only (stops at first exotic member);
+  descriptors unsupported; no ZIP64 central-dir attrs; no spans.
 - UnRAR 7.2.7 (RAR 1.5-5.x; deliberate divergence, official does 2.x/3.x
   only): stable `RAR*` API made it a source drop-in (`Rar3Tool.cpp` glue
   untouched); VC6 port via `vc6compat/` shims (`stdint.h`, SDK headers)

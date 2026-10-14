@@ -24,6 +24,11 @@ bool COpenZip::Find_sub(INDIVIDUALINFO *lpSubInfo)
 		return false;
 
 	lstrcpy(lpSubInfo->szFileName,hdr.fnm);
+	if (hdr.flg & 0x0800) { /* match extraction: show the converted name */
+		char tmp[FNAME_MAX32 + 1];
+		if (kiutil::utf8toAnsi(tmp, sizeof(tmp), lpSubInfo->szFileName))
+			lstrcpy(lpSubInfo->szFileName, tmp);
+	}
 	switch(hdr.mhd){
 	case Stored: lstrcpy(lpSubInfo->szMode,"stored"); break;
 	case Shrunk: lstrcpy(lpSubInfo->szMode,"shrunk"); break;
@@ -106,6 +111,39 @@ bool COpenZip::read_header( ZipLocalHeader* hdr,unsigned char* buf )
 	if( pp-hdr->fnm != l )
 		{ if(del)delete [] buf; return false; }
 	if( hdr->exl != fread(buf,1,hdr->exl,COpenZip::fp) )
+		{ if(del)delete [] buf; return false; }
+
+	/* ZIP64: resolve 0xFFFFFFFF sizes from extra field 0x0001.
+	   Only members fitting signed-long positioning are accepted;
+	   anything else is refused (never hang on unbounded streams). */
+	if ((hdr->usz == 0xFFFFFFFF || hdr->csz == 0xFFFFFFFF) && hdr->exl >= 4) {
+		DWORD off = 0;
+		while (off + 4 <= (DWORD)hdr->exl) {
+			WORD tag = (WORD)(buf[off] | (buf[off+1] << 8));
+			WORD sz = (WORD)(buf[off+2] | (buf[off+3] << 8));
+			if (tag == 1 && off + 4 + (DWORD)sz <= (DWORD)hdr->exl) {
+				DWORD epos = off + 4, end = off + 4 + (DWORD)sz;
+				if (hdr->usz == 0xFFFFFFFF) {
+					if (epos + 8 > end) { if(del)delete [] buf; return false; }
+					DWORD lo = (DWORD)(buf[epos]|(buf[epos+1]<<8)|(buf[epos+2]<<16)|(buf[epos+3]<<24));
+					DWORD hi = (DWORD)(buf[epos+4]|(buf[epos+5]<<8)|(buf[epos+6]<<16)|(buf[epos+7]<<24));
+					if (hi != 0 || lo > 0x7FFFFFFF) { if(del)delete [] buf; return false; }
+					hdr->usz = lo; epos += 8;
+				}
+				if (hdr->csz == 0xFFFFFFFF) {
+					if (epos + 8 > end) { if(del)delete [] buf; return false; }
+					DWORD lo = (DWORD)(buf[epos]|(buf[epos+1]<<8)|(buf[epos+2]<<16)|(buf[epos+3]<<24));
+					DWORD hi = (DWORD)(buf[epos+4]|(buf[epos+5]<<8)|(buf[epos+6]<<16)|(buf[epos+7]<<24));
+					if (hi != 0 || lo > 0x7FFFFFFF) { if(del)delete [] buf; return false; }
+					hdr->csz = lo; epos += 8;
+				}
+				break;
+			}
+			off += 4 + (DWORD)sz;
+		}
+	}
+	if (hdr->usz == 0xFFFFFFFF || hdr->csz == 0xFFFFFFFF ||
+	    hdr->usz > 0x7FFFFFFF || hdr->csz > 0x7FFFFFFF)
 		{ if(del)delete [] buf; return false; }
 
 	if(del)

@@ -269,6 +269,51 @@ DWORD kiutil::getfilesize(LPCSTR file,DWORD* hight)
 	return FileSizeLow;
 }
 #define next_char(ptn) IsDBCSLeadByte(*ptn)?ptn+2:ptn+1
+#ifndef _WCHAR_T_DEFINED /* VC6 has no native wchar_t */
+typedef unsigned short wchar_t;
+#define _WCHAR_T_DEFINED
+#endif
+// UTF-8 to ANSI without CP_UTF8 (missing on some retro Windows).
+// Strict decode; returns true with dst NUL-terminated, false (dst untouched) otherwise.
+bool kiutil::utf8toAnsi(char *dst, int dstsize, const char *src)
+{
+	unsigned short wbuf[MAX_PATH];
+	int si = 0, wi = 0;
+	while (src[si] != '\0') {
+		unsigned char c = (unsigned char)src[si];
+		unsigned long cp;
+		int len;
+		if (c < 0x80) { cp = c; len = 1; }
+		else if ((c & 0xE0) == 0xC0) { cp = c & 0x1F; len = 2; }
+		else if ((c & 0xF0) == 0xE0) { cp = c & 0x0F; len = 3; }
+		else if ((c & 0xF8) == 0xF0) { cp = c & 0x07; len = 4; }
+		else return false;
+		for (int i = 1; i < len; i++) {
+			unsigned char cc = (unsigned char)src[si + i];
+			if (cc == '\0' || (cc & 0xC0) != 0x80) return false;
+			cp = (cp << 6) | (cc & 0x3F);
+		}
+		if ((len == 2 && cp < 0x80) || (len == 3 && cp < 0x800) || (len == 4 && cp < 0x10000))
+			return false;
+		if (cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF))
+			return false;
+		if (cp < 0x10000) {
+			if (wi + 1 >= MAX_PATH) return false;
+			wbuf[wi++] = (unsigned short)cp;
+		} else {
+			if (wi + 2 >= MAX_PATH) return false;
+			cp -= 0x10000;
+			wbuf[wi++] = (unsigned short)(0xD800 | (cp >> 10));
+			wbuf[wi++] = (unsigned short)(0xDC00 | (cp & 0x3FF));
+		}
+		si += len;
+	}
+	wbuf[wi] = 0;
+	if (WideCharToMultiByte(CP_ACP, 0, (LPCWSTR)wbuf, -1, dst, dstsize, NULL, NULL) <= 0)
+		return false;
+	return true;
+}
+
 int kiutil::StrMatch( const char *ptn, const char *str )
 {
 	switch( *ptn )

@@ -31,6 +31,8 @@ public:
 
 	// â‘ÎƒpƒX‚ğ—^‚¦‚é‚Æ [•¡”ŠK‘wmakeDir]
 	static void pathMakeAbs_no_dtv_check( char* path );
+	// UTF-8 to ANSI without CP_UTF8 (missing on some retro Windows)
+	static bool utf8toAnsi(char *dst, int dstsize, const char *src);
 	// y‚ÉÅŒã‚Ì\, d‚ÉÅŒã‚Ì. ‚ÌˆÊ’u‚ğ“ü‚ê‚é
 	static void pathSplit( const char* path, int* y, int* d );
 	// Šg’£q

@@ -57,6 +57,11 @@ bool CZipTool::Extract( const char* fname,const char* ddir )
 			continue;
 		}
 
+		if (hdr.flg & 0x0800) { /* bit-11 UTF-8 names go through ACP conversion */
+			char tmp[MAX_PATH];
+			if (kiutil::utf8toAnsi(tmp, sizeof(tmp), hdr.fnm))
+				lstrcpy(hdr.fnm, tmp);
+		}
 		char *name = kiutil::pathMake( hdr.fnm );
 		if( out=fopen(name,"wb") )
 		{
@@ -105,6 +110,24 @@ bool CZipTool::Extract( const char* fname,const char* ddir )
 			fclose( out );
 
 			kiutil::timeSet( name, (WORD)hdr.dat,(WORD)hdr.tim );
+		}
+		else
+		{
+			/* Refuse loudly instead of silently skipping, except for
+			   directory entries which have no file content. An empty
+			   name (dir stripped by -j) with no data is skipped. */
+			if (lstrlen(name) == 0) {
+				if (hdr.csz == 0) { fseek(zip, posnext, SEEK_SET); continue; }
+				fclose(zip); return false;
+			}
+			size_t nl = lstrlen(name);
+			bool isdir = (nl > 0 && (name[nl-1] == '/' || name[nl-1] == '\\'));
+			if (!isdir) {
+				DWORD at = GetFileAttributes(name);
+				isdir = (at != 0xFFFFFFFF && (at & FILE_ATTRIBUTE_DIRECTORY));
+			}
+			if (!isdir)
+				{ fclose(zip); return false; }
 		}
 		if(kiutil::getfilesize(name)<hdr.usz)
 		{
@@ -274,6 +297,39 @@ bool CZipTool::read_header( ZipLocalHeader* hdr,unsigned char* buf )
 	if( pp-hdr->fnm != l )
 		{ if(del)delete [] buf; return false; }
 	if( hdr->exl != fread(buf,1,hdr->exl,zip) )
+		{ if(del)delete [] buf; return false; }
+
+	/* ZIP64: resolve 0xFFFFFFFF sizes from extra field 0x0001.
+	   Only members fitting signed-long positioning are accepted;
+	   anything else is refused (never hang on unbounded streams). */
+	if ((hdr->usz == 0xFFFFFFFF || hdr->csz == 0xFFFFFFFF) && hdr->exl >= 4) {
+		DWORD off = 0;
+		while (off + 4 <= (DWORD)hdr->exl) {
+			WORD tag = (WORD)(buf[off] | (buf[off+1] << 8));
+			WORD sz = (WORD)(buf[off+2] | (buf[off+3] << 8));
+			if (tag == 1 && off + 4 + (DWORD)sz <= (DWORD)hdr->exl) {
+				DWORD epos = off + 4, end = off + 4 + (DWORD)sz;
+				if (hdr->usz == 0xFFFFFFFF) {
+					if (epos + 8 > end) { if(del)delete [] buf; return false; }
+					DWORD lo = (DWORD)(buf[epos]|(buf[epos+1]<<8)|(buf[epos+2]<<16)|(buf[epos+3]<<24));
+					DWORD hi = (DWORD)(buf[epos+4]|(buf[epos+5]<<8)|(buf[epos+6]<<16)|(buf[epos+7]<<24));
+					if (hi != 0 || lo > 0x7FFFFFFF) { if(del)delete [] buf; return false; }
+					hdr->usz = lo; epos += 8;
+				}
+				if (hdr->csz == 0xFFFFFFFF) {
+					if (epos + 8 > end) { if(del)delete [] buf; return false; }
+					DWORD lo = (DWORD)(buf[epos]|(buf[epos+1]<<8)|(buf[epos+2]<<16)|(buf[epos+3]<<24));
+					DWORD hi = (DWORD)(buf[epos+4]|(buf[epos+5]<<8)|(buf[epos+6]<<16)|(buf[epos+7]<<24));
+					if (hi != 0 || lo > 0x7FFFFFFF) { if(del)delete [] buf; return false; }
+					hdr->csz = lo; epos += 8;
+				}
+				break;
+			}
+			off += 4 + (DWORD)sz;
+		}
+	}
+	if (hdr->usz == 0xFFFFFFFF || hdr->csz == 0xFFFFFFFF ||
+	    hdr->usz > 0x7FFFFFFF || hdr->csz > 0x7FFFFFFF)
 		{ if(del)delete [] buf; return false; }
 
 	if(del)
