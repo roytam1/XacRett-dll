@@ -1852,6 +1852,106 @@ SOURCE=.\zstd\decompress\zstd_decompress_block.h
 SOURCE=.\zstd\zstd_errors.h
 # End Source File
 # End Group
+# Begin Group "sevenz"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\sevenz\7zTypes.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\7zWindows.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\Aes.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\Aes.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\Bcj2.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\Bcj2.h
+# End Source File
+# Begin Source File
+SOURCE=.\sevenz\Bra.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\Bra.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\Bra86.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\Compiler.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\CpuArch.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\CpuArch.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\Delta.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\Delta.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\Precomp.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\Ppmd.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\Ppmd7.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\Ppmd7.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\Ppmd7Dec.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\RotateDefs.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\Sha256.c
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\Sha256.h
+# End Source File
+# End Group
 # Begin Group "YZ1"
 
 # PROP Default_Filter ""

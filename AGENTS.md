@@ -468,6 +468,30 @@ no binary-only dependencies (AMD64 port preparation).
   license — reference use only, never vendor; our port is clean-room).
   Samples live in TEMP (`aintest\packed_corpus_*` + `corpus_*`), not the
   repo.
+- 7z support (IN PROGRESS, step 1 of 2 done): the 7-Zip SDK decoder
+  CORES are vendored at `src-0.49.17/sevenz/` (public domain, Pavlov,
+  20 files: Aes/Sha256, Bcj2, Bra+Bra86, Delta, Ppmd7, CpuArch + the
+  portability headers). `.7z` support is NOT yet usable: the
+  container parser (header/folders/files-info) is still to be written
+  clean-room over these cores. Two REAL upstream-gate bugs had to be
+  patched for VC6 - both are the same trap: upstream enables the
+  SHA-NI path on `_MSC_VER >= 1200` and the AES-NI path on a bare
+  `#elif defined(_MSC_VER)`, but **VC6 reports _MSC_VER == 1200**, so
+  it matches and then references assembly-only `*_HW` symbols
+  (LNK2001). Narrowed both to `> 1200` (pure-C paths). Verified on
+  VC6: SHA-256 = 3 NIST vectors exact; AES-256-CBC = NIST SP800-38A
+  F.2.5 exact both directions + F.1.5 ECB; Delta = matches a from-spec
+  model for delta 1..16; Bra x86 encode/decode inverse. Traps recorded
+  in `sevenz/KI.README`: `Sha256Prepare()` must run once first; the
+  AES key schedule lives at `Aes()+4` and the buffer must be
+  `AES_NUM_IVMRK_WORDS + 3` words (under-sizing = hard AV, not a wrong
+  answer); decrypt needs `Aes_SetKey_Dec`, not Enc; `Bra.c` has NO
+  x86 converter (it is in `Bra86.c`) and only the stateful
+  `z7_BranchConvSt_X86_*` pair exists; Delta is NOT self-inverse per
+  call pair. Fixtures for the container work are already built in
+  `%TEMP%\7zfix\` (17 archives from the real 7-Zip 26.04 CLI: lzma2,
+  lzma, copy, bzip2, deflate, delta, ppmd, bcj, bcj2, aes, hdr on/off,
+  non-solid, bigdict, mx0/mx9, multi-solid).
 - Known gaps (untouched): JCALG1 is clean-room and unverified; SQX
   method-6 EX emits zero bytes; GCA non-`GCAX` paths are stubbed;
   `OpenDummy`/`OpenCompactC` have no live listing path.

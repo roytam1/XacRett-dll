@@ -1,0 +1,72 @@
+sevenz/ - 7-Zip SDK decoder cores for ZIP-style 7z support.
+==========================================================
+
+Source
+------
+7-Zip SDK (ip7z/7zip, `main` branch), PUBLIC DOMAIN (Igor Pavlov),
+fetched as raw files and copied verbatim. `LICENSE` is the SDK's
+DOC/7zC.txt (LZMA SDK public-domain statement).
+
+Only the *codec cores* are vendored - NOT the container:
+`7zArcIn.c`, `7zDec.c`, `7zIn.c`, `7zItem.c` are deliberately NOT
+taken (they drag in the SDK allocator/stream machinery); the .7z
+container is parsed by our own clean-room `SevenZDecode.cpp` over
+these cores, same pattern as `XzDecode`/`LzmaDecode`.
+
+Compiled in (see XacRett.dsp "sevenz" group):
+  Aes.c Aes.h Sha256.c Sha256.h   AES-256-CBC + SHA-256
+  Bcj2.c Bcj2.h                   BCJ2 decoder
+  Bra.c Bra.h Bra86.c             branch converters (Bra.c has no X86;
+                                  X86 lives in Bra86.c)
+  CpuArch.c CpuArch.h             CPU feature detection
+  Delta.c Delta.h                 Delta (coder 03)
+  Ppmd7.c Ppmd7.h Ppmd7Dec.c
+  Ppmd.h                          PPMdH (coder 04)
+Headers only: 7zTypes.h 7zWindows.h Compiler.h Precomp.h
+              RotateDefs.h
+
+Not compiled: 7zArcIn.c 7zDec.c 7zIn.c 7zItem.c 7zAlloc.c
+              Bcj2Enc.c BraIA64.c Bra86 asm variants, AesOpt.c
+              Sha256Opt.c CpuArch asm, and the whole CPP/ tree.
+
+VC6 port shims (2 files, both REAL upstream-gate bugs)
+-----------------------------------------------------
+Upstream enables hardware paths on a bare `_MSC_VER` test:
+
+  Sha256.c:  `#if ... defined(_MSC_VER) && (_MSC_VER >= 1200)`
+  Aes.c:     `#elif defined(_MSC_VER)`
+
+**VC6 reports _MSC_VER == 1200**, so BOTH tests wrongly match, and
+the code then references assembly-only symbols
+(`Sha256_UpdateBlocks_HW`, `AesCbc_{Encode,Decode}_HW`,
+`AesCtr_Code_HW`, `AesCbc_Decode_HW_256`, `AesCtr_Code_HW_256`,
+`CPU_IsSupported_{SHA,SSSE3,AES,VAES_AVX2}`) that only exist in
+.asm / hardware-only builds -> LNK2001 at link. We narrowed both to
+`_MSC_VER > 1200`, which keeps the pure-C paths. Correct for a
+1998-era target: no SHA-NI / AES-NI instructions exist.
+
+A second, sharper trap of the same family: `Sha256_Init` stores NULL
+into `p->v.vars.func_UpdateBlocks` in the `#else` (no-HW) branch, so
+a caller MUST NOT be told to call `Sha256Prepare()`-driven dispatch
+expecting a non-null pointer - the direct-call path
+(`SHA256_UPDATE_BLOCKS(p)` macro) is what actually runs.
+
+Verification (VC6, in-tree harness `mk7ztest.bat`)
+--------------------------------------------------
+o SHA-256: 3 NIST vectors exact - "abc", empty, 'a'x1000.
+o AES-256-CBC: NIST SP800-38A F.2.5 exact, both directions;
+  NIST F.1.5 (ECB, 1 block) exact.
+o Delta: output matches a from-spec reference model for delta 1..16.
+  NOTE Delta is NOT self-inverse across a single call pair - the
+  decoder must start from the same zero state the encoder started
+  from (the encoder's FINAL state is the trailing `delta` bytes and
+  is NOT the decoder's initial state).
+o Bra x86 (ConvSt_X86_Enc/Dec): encode->decode restores input.
+
+Required call order / buffer layout (cost real debugging time)
+------------------------------------------------------------
+o `Sha256Prepare()` once before any `Sha256_Init`.
+o AES: key schedule goes at `Aes()+4`, IV at `Aes()+0`; buffer is
+  `UInt32 [AES_NUM_IVMRK_WORDS + 3]`, all 16-byte aligned.
+  Decrypt needs `Aes_SetKey_Dec`, encrypt `Aes_SetKey_Enc`.
+  (`AesCbc_Init` fills ONLY the IV - it does not touch the schedule.)
