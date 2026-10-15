@@ -123,7 +123,8 @@ bool kiutil::longNameOK()
 		return false;
 	}
 
-	HANDLE h = CreateFileA( "XacRettLongNameProbe.tmp", GENERIC_WRITE,
+	const char* probe = "XacRettLongNameProbe.tmp";
+	HANDLE h = CreateFileA( probe, GENERIC_WRITE,
 	                        FILE_SHARE_READ|FILE_SHARE_WRITE, NULL,
 	                        CREATE_ALWAYS,
 	                        FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_TEMPORARY,
@@ -131,9 +132,19 @@ bool kiutil::longNameOK()
 	if( h!=INVALID_HANDLE_VALUE )
 	{
 		CloseHandle( h );
-		DeleteFileA( "XacRettLongNameProbe.tmp" );
-		m_lfn = 1;
-		return true;
+		/* Opening the same name back matters: a 16 bit file system
+		   driver can accept the create and then keep the file under
+		   some mangled name, which would make a create-only probe
+		   answer "long names work" when they do not. */
+		HANDLE h2 = CreateFileA( probe, GENERIC_READ,
+		                          FILE_SHARE_READ|FILE_SHARE_WRITE, NULL,
+		                          OPEN_EXISTING,
+		                          FILE_ATTRIBUTE_NORMAL, NULL );
+		if( h2!=INVALID_HANDLE_VALUE )
+			CloseHandle( h2 );
+		DeleteFileA( probe );
+		m_lfn = ( h2!=INVALID_HANDLE_VALUE ) ? 1 : 0;
+		return m_lfn!=0;
 	}
 
 	// Only a refusal of the name itself means "no long names here"; a

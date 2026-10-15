@@ -640,6 +640,11 @@ no binary-only dependencies (AMD64 port preparation).
     by a base-vs-new DLL diff on the whole regression set.
     `XACRETT_8DOT3=1` forces the mangling on and is how the fallback is
     tested on a machine that does have long names.
+  - **the probe re-opens the file it just created.** Create-only is not
+    enough: a 16 bit file system driver can accept the create and then
+    keep the file under some mangled name, which would make the probe
+    answer "long names work" when they do not. `OPEN_EXISTING` on the
+    same name is the check that cannot lie that way.
   - `ACCESS_DENIED`/`SHARING_VIOLATION`/`WRITE_PROTECT`/`DISK_FULL` from
     the probe mean "cannot tell", not "no long names" - otherwise a
     read-only output dir would silently start renaming.
@@ -693,7 +698,14 @@ no binary-only dependencies (AMD64 port preparation).
     inverted - getting that wrong makes unrar list the archive but
     extract nothing from it, which is how it was found). Both give
     8/8 rc=0 with byte-identical content under `XACRETT_8DOT3=1`
-    (`LONGNA~1.txt`, `dir wi~1/deeper/deep f~1.bin`). Regressions:
+    (`LONGNA~1.txt`, `dir wi~1/deeper/deep f~1.bin`). 7z was checked the
+    same way and needs no special case (SevenZTool goes through
+    pathMake like everything else): py7zr-written fixtures with long
+    names, nested long dirs, empty files, solid folders, 8/3 boundary
+    names, plus all 25 authentic fixtures under `XACRETT_8DOT3=1` -
+    30 trees / 166 files, zero names outside 8.3 in every forced run
+    (and the 13 long names all appear in the *unforced* control runs,
+    which is the point). Regressions:
     ARC 18/18 MATCH, 7z 25 fixtures OK (118/157 members, the documented
     baseline), ZIP matrix and the 33-case sweep identical to a DLL built
     from the pre-change tree (the 6 zstd-sandwich failures in
