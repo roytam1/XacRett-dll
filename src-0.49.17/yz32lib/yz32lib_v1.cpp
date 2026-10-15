@@ -775,9 +775,9 @@ yzDecodeHeader::yzDecodeHeader(yzDecHead& in_yz_dec_head)
 {
 }
 
-vector<yzFileStat> yzDecodeHeader::filestat_Get()
+std::vector<yzFileStat> yzDecodeHeader::filestat_Get()
 {
-	vector<yzFileStat> v;
+	std::vector<yzFileStat> v;
 	long i;
 	for (i = 0; i < m_yz_dec_head.m_file_count; i++) {
 		v.push_back(yzFileStat(m_yz_dec_head.m_file_name_tbl[i],
@@ -787,9 +787,9 @@ vector<yzFileStat> yzDecodeHeader::filestat_Get()
 	return v;
 }
 
-vector<yzFileStat> yzDecodeHeader::filestat_Get() const
+std::vector<yzFileStat> yzDecodeHeader::filestat_Get() const
 {
-	vector<yzFileStat> v;
+	std::vector<yzFileStat> v;
 	long i;
 	for (i = 0; i < m_yz_dec_head.m_file_count; i++) {
 		v.push_back(yzFileStat(m_yz_dec_head.m_file_name_tbl[i],

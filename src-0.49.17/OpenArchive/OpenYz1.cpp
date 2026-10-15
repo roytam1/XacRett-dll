@@ -7,7 +7,24 @@ bool COpenYz1::FindFirst(INDIVIDUALINFO *lpSubInfo)
 	InEv	in(COpenYz1::szArcFileName);
 	yzFileDecode dec(in, &ev, "" );
 
+	/* The listing constructor only remembers the archive path - it does
+	   NOT open the file or read the header, so dec_file_count is still 0.
+	   yzFileDecode only fills dec_file_count in YzFile_DecodeHeader, which is
+	   what CYz1Tool::Extract ends up running via DecodeFile; without it here
+	   the archive lists as empty (the official binary lists the members). */
+	if( 0 > dec.YzFile_DecodeHeader( COpenYz1::szArcFileName ) )
+		{
+		COpenYz1::File_Count = 0;
+		COpenYz1::lpInfo = NULL;
+		return false;
+		}
+
 	COpenYz1::File_Count = dec.dec_file_count;
+	if( COpenYz1::File_Count <= 0 )
+		{
+		COpenYz1::lpInfo = NULL;
+		return false;
+		}
 	COpenYz1::lpInfo = new INDIVIDUALINFO[COpenYz1::File_Count];
 
 	//memcpy(COpenYz1::common_buf, dec.p_yz_dec_head,944+dec.dec_head_size);

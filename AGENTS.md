@@ -19,6 +19,9 @@ no binary-only dependencies (AMD64 port preparation).
   is PowerShell 5.1: no `call`, no `&&`, no `rg`/`python3` aliases.
   Python 3.13 lives at `C:\Program Files\Python313\python.exe`
   (invoke by absolute path).
+- MSVC 4.x (CL 10.10.6038) also installed, at
+  `C:\MSDEV4\BIN\VCVARS32.BAT`. A VC4 build is NOT wired up, but it is
+  measured, not guessed - see "MSVC4 compatibility" below.
 - Workarea root (also the git repo): `\\Roy-xp\c\devel\XacRett-dll`.
 - Git: pass `-c user.name=roytam1 -c user.email=roytam@gmail.com` on every
   command. Never touch git config. Never push unless asked. Commit per
@@ -544,6 +547,19 @@ no binary-only dependencies (AMD64 port preparation).
   py7zr's `calculate_key` bit for bit; m93_aes.7z/"secret" and
   aes4.7z/"testpw" extract byte-exact and a wrong password fails loudly
   one stage later.
+- YZ1 (`.yz1`, `ARCHIVETYPE_YZ1` 45, `Yz1Tool` + `COpenYz1` over
+  `yz32lib`) listing was silently broken: the listing constructor
+  `yzFileDecode(InEv&, yzFileEv*, const char*)` only REMEMBERS the archive
+  path - it never opens the file or reads the header - so
+  `dec_file_count` stayed 0 and every `.yz1` listed as empty while the
+  official binary listed its members. Extraction always worked, because
+  `CYz1Tool::Extract` calls `DecodeFile(0)`; the listing path is now
+  `YzFile_DecodeHeader(COpenYz1::szArcFileName)` (the call that is what
+  actually fills `dec_file_count`). `alice.yz1` now lists 1 member at
+  152089 bytes and extracts byte-identical to the official binary.
+  Trap worth keeping: `dec.DecodeFile(0)` is NOT a substitute here -
+  it is the v1 entry point and leaves `dec_file_count` at 0, and
+  `m_arc_name` is private anyway.
 - Known gaps: GCA non-`GCAX` paths are stubbed; `OpenDummy`/`OpenCompactC` have no live listing path.
 - JCALG1 (`.jc1`, `ARCHIVETYPE_JC1` 59, `Jc1Tool` + the clean-room
   `jcalg1lib/jcalg1.cpp` decompressor) is now correct. Two bugs had been
@@ -613,6 +629,54 @@ no binary-only dependencies (AMD64 port preparation).
   for mixed-solid archives is skipped (no sample; stored→blocked is
   registered).
 
+## MSVC4 compatibility (measured, partially working)
+
+Question answered by experiment: **can this tree build under MSVC 4.x?**
+Yes, with a small compatibility layer - but it is not wired into a
+build script yet. Current state, measured one file per `cl`:
+**190 of 233 of our own `.cpp` files compile clean.**
+
+Landed: `src-0.49.17/vc4compat/vc4compat.h` and
+`src-0.49.17/vc4compat/string`, both `#if _MSC_VER < 1200`-guarded, so
+the VC6 build is untouched (verified: full build + 25/25 7z matrix +
+ZIP-AES/XZ/JCALG1 spot checks after every change). They are only
+reached via `/FI` on the VC4 path.
+
+The four things VC4 lacks, and what each needed:
+- **`bool`/`true`/`false`** are reserved-but-unimplemented (`error
+  C2501`); 332 of our own sources use `bool`. Order is delicate:
+  `windows.h`/`ole2.h`/`objidl.h` FIRST (they use the real `bool` in
+  `VARIANT_BOOL`), then the macro, then STL - because STLport's own
+  headers use `bool` and cannot be parsed without it. And
+  `#define bool int` is wrong: it parses but collides with STLport's
+  `operator[]` (`error C2666: 3 overloads have similar conversions`);
+  `unsigned char` matches VC6's 1-byte `bool` and does not.
+- **`<string>`**: the `STL/` in the workarea root is STLport v2 and
+  ships `<vector>`/`<list>`/`<map>`/`<set>`/`<algorithm>` but **no
+  `<string>`**, and VC4 has no STL. `vc4compat/string` supplies the
+  subset we use. Without it, 9 of the first 12 files tried fail.
+  Note it may only declare ONE `erase` overload - VC4's overload
+  resolution makes a defaulted one plus a `void erase(size_t)`
+  ambiguous.
+- **`ULONG_PTR`/`PULONG_PTR`/`LONG_PTR`/`PLONG_PTR`** postdate VC4's
+  SDK; typedefd in the shim.
+- **`__declspec(align(16))`** is `error C2485 unrecognized extended
+  attribute` - one site left, `SevenZCore.cpp` AES state buffer.
+
+`STL/` also turns out to be **unconfigured**: `stl_config.h` has no
+MSVC++ section at all (it is the SGI default), and `README.VC++`
+warns about VC++ 4.0 namespace problems. It works for most files but
+is the reason 5 files still cannot name `std::vector`.
+
+Remaining own-source failures (13), each with an identified cause:
+`using std::vector;` being ill-formed (fixed - a using-declaration may
+not name a class template; VC6 tolerates it, VC4 does not), one
+`shlwapi.h` include VC4 has no header for (we do not use SHLWAPI at
+all), member functions in local classes, VC4 `char`/`int` parse
+strictness, and two overload-resolution clashes. The other 26
+failures are in vendored `unrar`, which already carries a VC6 shim
+set that would need extending; one of them (`arccmt.cpp`) hangs the
+VC4 compiler outright.
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).

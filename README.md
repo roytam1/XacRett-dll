@@ -125,6 +125,12 @@ to the `.dsp`. Result: `XacRett.dll`, i386, `FileVersion 0.49.17`,
   4K-1M, including a file produced by the reference JCALG1 r5.32
   library; our output is identical to the official binary and to
   the reference `jcalg1_test.exe`.
+- YZ1 listing fixed (it silently listed zero members while the
+  official binary listed them); `alice.yz1` now matches the
+  official listing and extracts byte-identical.
+- Optional MSVC 4.x build path measured: 190/233 of our own
+  sources compile clean with a small `vc4compat/` layer (VC6 is
+  untouched). See `AGENTS.md`.
 - See `AGENTS.md` for build/encoding constraints, per-format findings,
   reference handling (clean-room ports, reference-use-only sources),
   and the pre-commit checklist.

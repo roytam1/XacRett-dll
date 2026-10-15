@@ -51,7 +51,14 @@
 #include <string>
 #include <vector>
 using std::string;
+/* `using std::vector;` is ill-formed: a using-declaration may not name
+   a class template.  VC6 tolerates it; VC4 rejects it outright
+   (error C2955: vector : class template name expecting parameter
+   list), so keep it only where the compiler accepts it and spell out
+   std::vector everywhere below. */
+#if !defined(_MSC_VER) || (_MSC_VER >= 1200)
 using std::vector;
+#endif
 
 #ifndef YZ1DLLEXP
 	#ifdef YZ1_EXPORTS
@@ -156,9 +163,9 @@ public:
 	yzDecodeHeader(yzDecHead& in_yz_dec_head);
 
 public:
-	vector< yzFileStat >  filestat_Get();
+	std::vector< yzFileStat >  filestat_Get();
 	// gauge_DecodeInit() receives a `const yzDecodeHeader&`.
-	vector< yzFileStat >  filestat_Get() const;
+	std::vector< yzFileStat >  filestat_Get() const;
 };
 
 //-------------------------------------------------------------------
