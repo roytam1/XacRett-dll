@@ -5,7 +5,6 @@
 #   nmake -f Makefile.vc4                 (objects + resources)
 #   nmake -f Makefile.vc4 OUTDIR=C:\vc4out (redirect outputs)
 #   nmake -f Makefile.vc4 clean
-#   nmake -f Makefile.vc4 link            (needs unrar\UnRAR.lib; open)
 #
 # The VC6 build (XacRett.dsp via build.bat/link.bat) is untouched.
 # This file only drives the VC4 compatibility path: the in-tree
@@ -256,7 +255,7 @@ OBJS = \
     $(OBJDIR)\lhasa_pm1_decoder.obj \
     $(OBJDIR)\lhasa_pm2_decoder.obj
 
-all : dirs $(OBJS) $(OBJDIR)\XacRett.res
+all : dirs $(OBJS) $(OBJDIR)\XacRett.res $(UNRARLIB) $(OUTDIR)\XacRett.dll
 
 dirs :
 	if not exist "$(OUTDIR)" mkdir "$(OUTDIR)"
@@ -1150,8 +1149,10 @@ $(UNRARLIB) : dirs $(UNRAR_OBJS)
 
 # Link: no shlwapi.lib (VC4 ships none; our SHLWAPI use is
 # GetProcAddress-only), so the result stays 95/NT4-loadable by design.
-link : dirs $(OBJS) $(OBJDIR)\XacRett.res $(UNRARLIB)
+$(OUTDIR)\XacRett.dll : dirs $(OBJS) $(OBJDIR)\XacRett.res $(UNRARLIB)
 	@echo.>$(LINK_RSP)
 	@for %%f in ($(OBJDIR)\*.obj) do @echo %%f>>$(LINK_RSP)
 	link /nologo /dll /machine:I386 /incremental:no /out:"$(OUTDIR)\XacRett.dll" /def:"XacRett.def" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib lz32.lib $(UNRARLIB) @$(LINK_RSP) "$(OBJDIR)\XacRett.res"
+# `link` is the explicit spelling of the same thing.
+link : $(OUTDIR)\XacRett.dll
 

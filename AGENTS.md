@@ -653,10 +653,11 @@ Or build it declaratively (checked in): `src-0.49.17/Makefile.vc4`
 is a plain NMAKE makefile generated from the same `XacRett.dsp`
 SOURCE lines (generator: TEMP `genmakevc4.py`; re-run it when sources
 are added or removed). After `VCVARS32.BAT` (MSDEV4):
-  `nmake -f Makefile.vc4` (objects + resources to `%TEMP%\vc4build`)
+  `nmake -f Makefile.vc4` (default OUTDIR `%TEMP%\vc4build`)
   `nmake -f Makefile.vc4 OUTDIR=C:\vc4out` (redirect outputs)
-  `nmake -f Makefile.vc4 unrar` (UnRAR units + `$(OUTDIR)\UnRAR.lib`)
-  `nmake -f Makefile.vc4 link` (220 + 49 objects, then the DLL)
+  ONE command does EVERYTHING: 220 + 49 objects, `UnRAR.lib`,
+  `XacRett.dll`.  `unrar` (lib only) and `link` (alias of the DLL
+  target) remain as explicit spellings.
 Proven: full 220-unit + 49-unit + .res build, zero errors, then a
 successful DLL link; an incremental re-run recompiles nothing and just
 relinks. `$(UNRARLIB)` deliberately builds into `$(OUTDIR)` - the
