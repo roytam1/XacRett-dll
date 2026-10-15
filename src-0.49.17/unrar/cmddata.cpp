@@ -1189,7 +1189,7 @@ void CommandData::AddArcName(const std::wstring &Name)
 
 bool CommandData::GetArcName(wchar *Name,int MaxSize)
 {
-  return ArcNames.GetString(Name,MaxSize);
+  return ArcNames.GetString(Name,(size_t)MaxSize);
 }
 
 

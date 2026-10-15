@@ -646,7 +646,7 @@ bool Unpack::ReadTables(BitInput &Inp,UnpackBlockHeader &Header,UnpackBlockTable
   MakeDecodeTables(BitLength,&Tables.BD,BC);
 
   byte Table[HUFF_TABLE_SIZEX];
-  const uint TableSize=ExtraDist ? HUFF_TABLE_SIZEX:HUFF_TABLE_SIZEB;
+  const uint TableSize=ExtraDist ? (uint)HUFF_TABLE_SIZEX:(uint)HUFF_TABLE_SIZEB;
   for (uint I=0;I<TableSize;)
   {
     if (!Inp.ExternalBuffer && Inp.InAddr>ReadTop-5)
@@ -709,7 +709,7 @@ bool Unpack::ReadTables(BitInput &Inp,UnpackBlockHeader &Header,UnpackBlockTable
   if (!Inp.ExternalBuffer && Inp.InAddr>ReadTop)
     return false;
   MakeDecodeTables(&Table[0],&Tables.LD,NC);
-  uint DCodes=ExtraDist ? DCX : DCB;
+  uint DCodes=ExtraDist ? (uint)DCX : (uint)DCB;
   MakeDecodeTables(&Table[NC],&Tables.DD,DCodes);
   MakeDecodeTables(&Table[NC+DCodes],&Tables.LDD,LDC);
   MakeDecodeTables(&Table[NC+DCodes+LDC],&Tables.RD,RC);

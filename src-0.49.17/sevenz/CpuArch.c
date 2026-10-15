@@ -155,6 +155,12 @@ UInt32 Z7_FASTCALL z7_x86_cpuid_GetMaxFunc(void)
 {
   return 0;
 }
+void Z7_FASTCALL z7_x86_cpuid_subFunc(UInt32 p[4], UInt32 func, UInt32 subFunc)
+{
+  UNUSED_VAR(func)
+  UNUSED_VAR(subFunc)
+  p[0] = p[1] = p[2] = p[3] = 0;
+}
 
 #else // _MSC_VER
 
@@ -648,8 +654,18 @@ static UInt64 x86_xgetbv_0(UInt32 num)
 BoolInt CPU_IsSupported_AVX(void)
 {
   #ifdef _WIN32
+#if defined(_MSC_VER) && (_MSC_VER < 1200)
+  /* VC4 links no IsProcessorFeaturePresent import (post-95 SDK);
+     resolve at runtime.  No report means no XSAVE, hence no AVX. */
+  { typedef BOOL (WINAPI *RAR_PF_FN)(DWORD);
+    HMODULE hKrnl=GetModuleHandleA("kernel32.dll");
+    RAR_PF_FN pPf=hKrnl==NULL ? NULL : (RAR_PF_FN)GetProcAddress(hKrnl,"IsProcessorFeaturePresent");
+    if (pPf==NULL || !pPf(MY_PF_XSAVE_ENABLED))
+      return False; }
+#else
   if (!IsProcessorFeaturePresent(MY_PF_XSAVE_ENABLED))
     return False;
+#endif
   /* PF_AVX_INSTRUCTIONS_AVAILABLE probably is supported starting from
      some latest Win10 revisions. But we need AVX in older Windows also.
      So we don't use the following check: */

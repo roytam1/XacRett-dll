@@ -715,7 +715,9 @@ yzDecHead::~yzDecHead()
 	if (m_file_mtime_tbl) delete [] m_file_mtime_tbl;
 }
 
-void yzDestroyDecHead(yzDecHead* head) { delete head; }
+/* YZV1::-qualified: on VC4 a global-scope definition would bind
+   ::yzDestroyDecHead while callers name nsYZ32v1:: (LNK2001). */
+void YZV1::yzDestroyDecHead(void* head) { delete (yzDecHead*)head; }
 
 int yzDecHead::FileWrite(const char* in_dir_name, const int& in_n,
                          const unsigned char* in_data)
@@ -822,7 +824,7 @@ int yzFileEncode::EncodeFile(const char* /*in_file_name*/)
 //--------------------------------------------------------------------
 // yzFileDecode
 //--------------------------------------------------------------------
-yzFileDecode::yzFileDecode(yzFileEv* ev, const char* outdir)
+yzFileDecodeV1::yzFileDecodeV1(yzFileEv* ev, const char* outdir)
 	: yzfiledecode_output_dir_name(0), yzfiledecode_p_yz_dec_head(0),
 	  yzm(ev), m_image(0), m_image_len(0), m_image_count(0)
 {
@@ -834,7 +836,7 @@ yzFileDecode::yzFileDecode(yzFileEv* ev, const char* outdir)
 	yzfiledecode_output_dir_name = m_outdir;
 }
 
-yzFileDecode::~yzFileDecode()
+yzFileDecodeV1::~yzFileDecodeV1()
 {
 	if (yzfiledecode_p_yz_dec_head) {
 		delete yzfiledecode_p_yz_dec_head;
@@ -845,7 +847,7 @@ yzFileDecode::~yzFileDecode()
 	m_image_count = 0;
 }
 
-int yzFileDecode::YzFile_DecodeHeader(const char* in_file_name)
+int yzFileDecodeV1::YzFile_DecodeHeader(const char* in_file_name)
 {
 	unsigned char* file = 0;
 	const unsigned char* arc = 0;
@@ -870,7 +872,7 @@ int yzFileDecode::YzFile_DecodeHeader(const char* in_file_name)
 	return 0;
 }
 
-int yzFileDecode::Print(const char* fileName)
+int yzFileDecodeV1::Print(const char* fileName)
 {
 	char line[MAX_PATH + 128];
 	char sz[24];
@@ -892,7 +894,7 @@ int yzFileDecode::Print(const char* fileName)
 	return -1;
 }
 
-int yzFileDecode::DecodeFile(const char* fname, const int& /*mode*/)
+int yzFileDecodeV1::DecodeFile(const char* fname, const int& /*mode*/)
 {
 	unsigned char* file = 0;
 	const unsigned char* arc = 0;

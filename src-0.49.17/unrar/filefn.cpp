@@ -153,10 +153,35 @@ int64 GetFreeDisk(const std::wstring &Name)
 
   ULARGE_INTEGER uiTotalSize,uiTotalFree,uiUserFree;
   uiUserFree.u.LowPart=uiUserFree.u.HighPart=0;
+#if defined(_MSC_VER) && (_MSC_VER < 1200)
+  /* VC4 links no GetDiskFreeSpaceEx import (pre-OSR2 SDK): resolve
+     it at runtime; on systems old enough to lack it the volumes fit
+     GetDiskFreeSpaceA's DWORDs, so that fallback is exact there.
+     Either failure reads 0, like every other failure path here. */
+  {
+    typedef BOOL (WINAPI *RAR_GDFSE_FN)(LPCWSTR,PULARGE_INTEGER,PULARGE_INTEGER,PULARGE_INTEGER);
+    HMODULE hKrnl=GetModuleHandleA("kernel32.dll");
+    RAR_GDFSE_FN pEx=hKrnl==NULL ? NULL : (RAR_GDFSE_FN)GetProcAddress(hKrnl,"GetDiskFreeSpaceExA");
+    if (pEx!=NULL)
+    {
+      if (pEx(Root.empty() ? NULL:Root.c_str(),&uiUserFree,&uiTotalSize,&uiTotalFree) &&
+          uiUserFree.u.HighPart<=uiTotalFree.u.HighPart)
+        return INT32TO64(uiUserFree.u.HighPart,uiUserFree.u.LowPart);
+      return 0;
+    }
+    std::string RootA;
+    WideToChar(Root,RootA);
+    DWORD SPCluster,BytesPerSec,FreeCl,TotalCl;
+    if (GetDiskFreeSpaceA(RootA.empty() ? NULL:RootA.c_str(),&SPCluster,&BytesPerSec,&FreeCl,&TotalCl))
+      return (int64)((uint64)SPCluster*BytesPerSec*FreeCl);
+    return 0;
+  }
+#else
   if (GetDiskFreeSpaceEx(Root.empty() ? NULL:Root.c_str(),&uiUserFree,&uiTotalSize,&uiTotalFree) &&
       uiUserFree.u.HighPart<=uiTotalFree.u.HighPart)
     return INT32TO64(uiUserFree.u.HighPart,uiUserFree.u.LowPart);
   return 0;
+#endif
 #elif defined(_UNIX)
   std::wstring Root;
   GetPathWithSep(Name,Root);

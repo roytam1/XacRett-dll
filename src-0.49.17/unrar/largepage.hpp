@@ -40,6 +40,9 @@ class LargePageAlloc
       return false;
     }
 
+#if !defined(_MSC_VER) || (_MSC_VER >= 1200)
+    /* VC4 cannot parse member templates at all; both are
+       caller-free, so dropping the declarations is safe. */
     template <class T> T* new_l(size_t Size,bool Clear=false)
     {
       T *Allocated=(T*)new_large(Size*sizeof(T));
@@ -53,6 +56,7 @@ class LargePageAlloc
       if (!delete_large(Addr))
         delete[] Addr;
     }
+#endif /* VC4: no member templates */
 };
 
 

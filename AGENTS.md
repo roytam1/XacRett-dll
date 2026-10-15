@@ -20,9 +20,10 @@ no binary-only dependencies (AMD64 port preparation).
   Python 3.13 lives at `C:\Program Files\Python313\python.exe`
   (invoke by absolute path).
 - MSVC 4.x (CL 10.10.6038) also installed, at
-  `C:\MSDEV4\BIN\VCVARS32.BAT`. All `XacRett.dsp` units are VC4
-  compile-clean (measured, not guessed - see "MSVC4 compatibility"
-  below); no VC4 build script or link yet.
+  `C:\MSDEV4\BIN\VCVARS32.BAT`. All `XacRett.dsp` units AND the
+  49-unit vendored UnRAR lib are VC4 compile-clean, and the VC4 DLL
+  links and extracts correctly (measured, not guessed - see
+  "MSVC4 compatibility" below).
 - Workarea root (also the git repo): `\\Roy-xp\c\devel\XacRett-dll`.
 - Git: pass `-c user.name=roytam1 -c user.email=roytam@gmail.com` on every
   command. Never touch git config. Never push unless asked. Commit per
@@ -630,16 +631,18 @@ no binary-only dependencies (AMD64 port preparation).
   for mixed-solid archives is skipped (no sample; stored→blocked is
   registered).
 
-## MSVC4 compatibility (all XacRett.dsp units compile clean)
+## MSVC4 compatibility (full build + link + extract, all green)
 
 Question answered by experiment: **can this tree build under MSVC 4.x?**
-Compile-clean: yes. **All 220 compile units in `XacRett.dsp` (148 .cpp
-+ 72 .c) compile clean under CL 10.10.6038**, with zero change to VC6
+Compile-clean: yes, and it **links and runs**. **All 220 compile units
+in `XacRett.dsp` (148 .cpp + 72 .c) plus all 49 units of the vendored
+UnRAR lib compile clean under CL 10.10.6038**, with zero change to VC6
 behavior (full build + relink + 25/25 7z matrix + ZIP-AES/XZ/JCALG1/YZ1
-spot checks after every fix). Not yet done: the separate
-`unrar/UnRAR.dsp` static lib under VC4 (earlier rough pass: many
-failures, and `arccmt.cpp` hangs the VC4 compiler outright), and any
-VC4 link.
+spot checks after every fix). `nmake -f Makefile.vc4 link` produces a
+working `XacRett.dll` (1030144 bytes) from scratch.
+NOTE: `arccmt.cpp` hangs the VC4 compiler outright and is NOT in the 49;
+nor are `rar.cpp`/`int64.cpp`/`recvol.cpp`/`rs.cpp`/`savepos.cpp`/
+`ulinks.cpp`, which the checked-in VC6 `unrar\UnRAR.lib` also omits.
 
 Re-measure (TEMP harness, nothing in the repo; one file per `cl` with
 a 120 s timeout each, `<dir>_<file>.obj` naming, flags mirroring
@@ -652,9 +655,19 @@ SOURCE lines (generator: TEMP `genmakevc4.py`; re-run it when sources
 are added or removed). After `VCVARS32.BAT` (MSDEV4):
   `nmake -f Makefile.vc4` (objects + resources to `%TEMP%\vc4build`)
   `nmake -f Makefile.vc4 OUTDIR=C:\vc4out` (redirect outputs)
-  `nmake -f Makefile.vc4 link` (needs `unrar\UnRAR.lib`; open).
-Proven: full 220-unit + .res build, zero errors, incremental no-op
-clean. `STL/` (STLport 2.033, Nov 1997, SGI-STL-2.03 lineage,
+  `nmake -f Makefile.vc4 unrar` (UnRAR units + `$(OUTDIR)\UnRAR.lib`)
+  `nmake -f Makefile.vc4 link` (220 + 49 objects, then the DLL)
+Proven: full 220-unit + 49-unit + .res build, zero errors, then a
+successful DLL link; an incremental re-run recompiles nothing and just
+relinks. `$(UNRARLIB)` deliberately builds into `$(OUTDIR)` - the
+checked-in `unrar\UnRAR.lib` is VC6-generated and must NOT be reused.
+Both `lib` and `link` glob their objects into a response file: 49 (or
+220) literal paths overflow the VC4 command-line limit (U1095).
+NMAKE traps hit while adding this: no line continuation inside a macro
+or recipe (put each on ONE line), `if not exist` must be tab-prefixed,
+macro definitions must appear BEFORE the first rule that uses them
+(1.61 evaluates in file order), and `link`/`unrar` must depend on
+`dirs` or the obj dirs do not exist yet. `STL/` (STLport 2.033, Nov 1997, SGI-STL-2.03 lineage,
 permissive license) is committed at the workarea root so the VC4
 path is self-contained; it stays unconfigured and untouched.
 
@@ -717,10 +730,50 @@ Portable source fixes this forced (each verified VC6-clean):
 `STL/` stays unconfigured and untouched: `stl_config.h` has no MSVC++
 section (SGI default) and `README.VC++` warns about VC++ 4.0
 namespaces. Every workaround above lives in our own headers/sources.
-Still open: the unrar static lib under VC4, then a VC4 link (its
-import table can never match official: VC4 has no SHLWAPI.LIB, but
-our SHLWAPI use is already GetProcAddress-based, so a VC4 link stays
-95/NT4-loadable by design).
+UnRAR VC4 port notes (all measured, none guessed):
+- the 49-unit set is what `Makefile.vc4` builds; it differs from the
+  43 lines in `UnRAR.dsp` (adds blake2s/hash/headers/largepage/motw/
+  qopen/rs16/secpassword/sha256/smallfn/threadpool/ui, drops
+  rar/int64/recvol/rs/savepos/ulinks).
+- `/D UNICODE /D _UNICODE` are MANDATORY on the command line: `os.hpp`
+  includes windows.h before its own defines.
+- `os.hpp`: VC4 lacks several post-95 SDK headers, so those includes
+  are guarded; `crypt.cpp` resolves CryptoAPI via GetProcAddress;
+  `filefn.cpp`/`pathfn.cpp` do the same for
+  `GetDiskFreeSpaceExW`/`SHGetPathFromIDListW`.
+- `vc4compat/new` (forwards extensionless `<new>` to VC4 `new.h`),
+  `vc4compat/stdexcept`, and `vc4compat/wstring` (generated from
+  `string`, `wchar_t` flavour) were all required by UnRAR.
+- **`vc4compat/string` and `wstring`: an empty string leaves `p_`
+  NULL, and `operator[]`/`at`/`erase` must all tolerate that.** UnRAR
+  does `Cmd->Command[0]` on a default-constructed `std::wstring`; the
+  unguarded version is a NULL dereference that showed up as
+  `CmdExtract::ExtractArchiveInit` + 14 = `mov ax,word ptr [eax]`.
+  VC4 port traps: a ternary yielding a pointer cannot bind to a
+  reference return (C2446/C2616), and VC4 will not bind a non-lvalue
+  to `T&` (C2616) - use an explicit
+  `if (p_) return p_[i]; return nul();` with a function-local static
+  null char.
+- **yz32lib: v1 and v2 both declare a class called `yzFileDecode`, and
+  VC4 mangles enclosing namespaces inconsistently** - the v1 out-of-
+  line definitions in `nsYZ32v1` still decorated as GLOBAL, colliding
+  with the v2 copies (4x LNK2005). Fixed by renaming the v1 class to
+  `yzFileDecodeV1` (3 files: `yz32lib_v1.h/.cpp`, `yz32lib.cpp`), which
+  gives the two link identities that differ even namespace-stripped.
+  The v1 destroy helper `yzDestroyDecHead` additionally took
+  `yzDecHead*`, whose back-reference numbering differed per TU, so it
+  never resolved (LNK2001); it now takes `void*` and its definition is
+  `YZV1::`-qualified (VC4 also mis-scopes a global-scope free-function
+  definition against a namespaced declaration).
+- Verified end to end against the VC6 DLL on the same fixtures:
+  RAR 1.5/2.0/2.9/4/5 all byte-identical (5/5), the 7z matrix
+  118/157 members byte-exact, and a 33-case cross-format sweep
+  (YZ1, ZIP m08/09/10/12/14/18/93/98/99, XZ, AES, PPMd, PKZ080,
+  pkz090, CrLZH, 7z-zstd) 33/33 pass with 8/8 corrupt-archive negatives
+  agreeing and none crashing or hanging.
+Its import table can never match official: VC4 has no SHLWAPI.LIB, but
+our SHLWAPI use is already GetProcAddress-based, so the VC4 build stays
+95/NT4-loadable by design.
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).

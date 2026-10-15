@@ -60,6 +60,50 @@ typedef long LONG_PTR;
 typedef LONG_PTR* PLONG_PTR;
 #endif
 
+/* SIZE_T postdates the VC4 SDK (largepage.hpp member).  NOTE: do NOT
+   guard this with _SIZE_T_DEFINED - the SDK headers pre-define that
+   macro for size_t, which silently skips the typedef. */
+#ifndef VC4_SIZE_T_DEFINED
+typedef unsigned long SIZE_T;
+#define VC4_SIZE_T_DEFINED
+#endif
+
+/* EXECUTION_STATE + friends postdate VC4 (system.cpp resolves
+   SetThreadExecutionState by GetProcAddress already). */
+#ifndef INT_PTR
+typedef int INT_PTR;
+#endif
+#ifndef UINT_PTR
+typedef unsigned int UINT_PTR;
+#endif
+
+/* Post-1996 SDK constants (reparse points, shell folders). Stable
+   ABI values, each guarded so real headers win when present. */
+#ifndef FILE_ATTRIBUTE_REPARSE_POINT
+#define FILE_ATTRIBUTE_REPARSE_POINT 0x400
+#endif
+#ifndef FILE_FLAG_OPEN_REPARSE_POINT
+#define FILE_FLAG_OPEN_REPARSE_POINT 0x00200000
+#endif
+#ifndef IO_REPARSE_TAG_MOUNT_POINT
+#define IO_REPARSE_TAG_MOUNT_POINT 0xA0000003
+#endif
+#ifndef IO_REPARSE_TAG_SYMLINK
+#define IO_REPARSE_TAG_SYMLINK 0xA000000C
+#endif
+#ifndef FSCTL_SET_REPARSE_POINT
+#define FSCTL_SET_REPARSE_POINT 0x900A4
+#endif
+#ifndef CSIDL_APPDATA
+#define CSIDL_APPDATA 0x001a
+#endif
+
+#ifndef VC4_EXECUTION_STATE
+typedef DWORD EXECUTION_STATE;
+#define ES_SYSTEM_REQUIRED 0x00000001
+#define VC4_EXECUTION_STATE
+#endif
+
 /* This STLport + VC4 combination meets `__forceinline` in the
  * vendored zstd/sevenz C sources, which VC4 does not know as a
  * keyword (C2054).  Define it away: linkage and calls are
@@ -88,6 +132,9 @@ typedef LONG_PTR* PLONG_PTR;
 #include <utility>
 #include <algorithm>
 #include <string>
+#include <wstring> /* real <string> provides both; unrar uses wstring */
+#include <new>
+#include <stdexcept>
 #endif /* __cplusplus */
 
 #endif /* _MSC_VER < 1200 */

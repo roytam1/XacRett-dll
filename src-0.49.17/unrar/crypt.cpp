@@ -122,12 +122,33 @@ void GetRnd(byte *RndBuf,size_t BufSize)
 {
   bool Success=false;
 #if defined(_WIN_ALL)
+#if defined(_MSC_VER) && (_MSC_VER < 1200)
+  /* VC4 links no CryptoAPI import library (pre-CAPI SDK); resolve
+     the three entry points at runtime like secpassword.cpp does
+     for the newer ones.  No provider falls through to the
+     TimeRandomize fallback below, same as any failure. */
+  typedef BOOL (WINAPI *RAR_ACQUIRE_FN)(HCRYPTPROV*,LPCSTR,LPCSTR,DWORD,DWORD);
+  typedef BOOL (WINAPI *RAR_RANDOM_FN)(HCRYPTPROV,DWORD,BYTE*);
+  typedef BOOL (WINAPI *RAR_RELEASE_FN)(HCRYPTPROV,DWORD);
+  HMODULE hAdv=GetModuleHandleA("advapi32.dll");
+  RAR_ACQUIRE_FN pAcquire=hAdv==NULL ? NULL : (RAR_ACQUIRE_FN)GetProcAddress(hAdv,"CryptAcquireContextA");
+  RAR_RANDOM_FN pRandom=hAdv==NULL ? NULL : (RAR_RANDOM_FN)GetProcAddress(hAdv,"CryptGenRandom");
+  RAR_RELEASE_FN pRelease=hAdv==NULL ? NULL : (RAR_RELEASE_FN)GetProcAddress(hAdv,"CryptReleaseContext");
+  HCRYPTPROV hProvider = 0;
+  if (pAcquire!=NULL && pRandom!=NULL && pRelease!=NULL &&
+      pAcquire(&hProvider, 0, 0, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT | CRYPT_SILENT))
+  {
+    Success=pRandom(hProvider, (DWORD)BufSize, RndBuf) != FALSE;
+    pRelease(hProvider, 0);
+  }
+#else
   HCRYPTPROV hProvider = 0;
   if (CryptAcquireContext(&hProvider, 0, 0, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT | CRYPT_SILENT))
   {
     Success=CryptGenRandom(hProvider, (DWORD)BufSize, RndBuf) != FALSE;
     CryptReleaseContext(hProvider, 0);
   }
+#endif
 #elif defined(_UNIX)
   FILE *rndf = fopen("/dev/urandom", "r");
   if (rndf!=NULL)

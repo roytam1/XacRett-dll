@@ -128,9 +128,10 @@ to the `.dsp`. Result: `XacRett.dll`, i386, `FileVersion 0.49.17`,
 - YZ1 listing fixed (it silently listed zero members while the
   official binary listed them); `alice.yz1` now matches the
   official listing and extracts byte-identical.
-- MSVC 4.x compatibility: all 220 `XacRett.dsp` compile units pass
-  under CL 10.10 via a small `vc4compat/` layer (VC6 untouched;
-  unrar lib + VC4 link still open). See `AGENTS.md`.
+- MSVC 4.x compatibility: all 220 `XacRett.dsp` compile units AND
+  all 49 vendored UnRAR units pass under CL 10.10 via a small
+  `vc4compat/` layer, and `nmake -f Makefile.vc4 link` builds a
+  working DLL (VC6 untouched). See `AGENTS.md`.
 - See `AGENTS.md` for build/encoding constraints, per-format findings,
   reference handling (clean-room ports, reference-use-only sources),
   and the pre-commit checklist.

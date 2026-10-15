@@ -14,7 +14,7 @@
  * It implements only the subset the tree uses.  Two VC4-specific notes:
  *  - no in-class static members with initialisers (VC4 rejects them:
  *    "error C2433: 'bool' : 'inline' not permitted on data declarations"),
- *    so npos is a macro;
+ *    so npos is an enum (see below);
  *  - `erase` must have exactly ONE overload, or VC4's very strict
  *    overload resolution makes the defaults ambiguous ("error C2668:
  *    'erase' : ambiguous call to overloaded function").
@@ -29,8 +29,13 @@ namespace std {
 class string {
 public:
 	typedef char        value_type;
+	typedef size_t      size_type;
 	typedef char*       iterator;
 	typedef const char* const_iterator;
+	/* npos as an enum: VC4 rejects in-class `static const size_t`
+	   initialisers (C2433).  Spells `string::npos` like the real
+	   thing; -1 converts to SIZE_MAX in every comparison. */
+	enum { npos = -1 };
 
 	string() : p_(0), n_(0), cap_(0) {}
 
@@ -39,8 +44,8 @@ public:
 	string(size_t n, char c) : p_(0), n_(0), cap_(0) { assign(n, c); }
 	string(const string& o) : p_(0), n_(0), cap_(0) { assign(o.p_, o.n_); }
 
-	string& operator=(const string& o) {
-		if (this != &o) assign(o.p_, o.n_);
+	string& operator=(const string& o) {
+		if (this != &o) assign(o.p_, o.n_);
 		return *this;
 	}
 	string& operator=(const char* s) { assign(s, s ? strlen(s) : 0); return *this; }
@@ -62,10 +67,15 @@ public:
 	char*       data()       { return p_ ? p_ : (char*)""; }
 	const char* data() const { return c_str(); }
 
-	char&       operator[](size_t i)       { return p_[i]; }
-	const char& operator[](size_t i) const { return p_[i]; }
-	char&       at(size_t i)               { return p_[i]; }
-	const char& at(size_t i) const         { return p_[i]; }
+	/* Empty strings keep p_ unset; s[0] on one is legal per
+	   the standard (yields a null char), so never deref NULL. */
+	static char& nul()        { static char z = 0; return z; }
+	static const char& cnul()  { static const char z = 0; return z; }
+
+	char&       operator[](size_t i)       { if (p_) return p_[i]; return nul(); }
+	const char& operator[](size_t i) const { if (p_) return p_[i]; return cnul(); }
+	char&       at(size_t i)               { if (p_) return p_[i]; return nul(); }
+	const char& at(size_t i) const         { if (p_) return p_[i]; return cnul(); }
 	char&       front()                    { return p_[0]; }
 	char&       back()                     { return p_[n_ - 1]; }
 
@@ -74,31 +84,31 @@ public:
 	char*       begin()       { return p_; }
 	char*       end()         { return p_ + n_; }
 
-	void assign(const char* s, size_t len) {
-		reserve(len + 1);
-		if (len) memcpy(p_, s, len);
-		p_[len] = 0;
+	void assign(const char* s, size_t len) {
+		reserve(len + 1);
+		if (len) memcpy(p_, s, len);
+		p_[len] = 0;
 		n_ = len;
 	}
-	void assign(size_t n, char c) {
-		reserve(n + 1);
-		memset(p_, c, n);
-		p_[n] = 0;
+	void assign(size_t n, char c) {
+		reserve(n + 1);
+		memset(p_, c, n);
+		p_[n] = 0;
 		n_ = n;
 	}
 	void assign(const char* s) { assign(s, strlen(s)); }
 
-	void resize(size_t n) {
-		reserve(n + 1);
-		if (n > n_) memset(p_ + n_, 0, n - n_);
-		n_ = n;
+	void resize(size_t n) {
+		reserve(n + 1);
+		if (n > n_) memset(p_ + n_, 0, n - n_);
+		n_ = n;
 		p_[n_] = 0;
 	}
-	void reserve(size_t c) {
-		if (c <= cap_) return;
-		char* q = (char*)realloc(p_, c);
-		if (!q) return;
-		p_ = q;
+	void reserve(size_t c) {
+		if (c <= cap_) return;
+		char* q = (char*)realloc(p_, c);
+		if (!q) return;
+		p_ = q;
 		cap_ = c;
 	}
 	void clear() { n_ = 0; if (p_) p_[0] = 0; }
@@ -106,125 +116,151 @@ public:
 	void push_back(char c) { reserve(n_ + 2); p_[n_++] = c; p_[n_] = 0; }
 	void pop_back() { if (n_) { --n_; p_[n_] = 0; } }
 
-	string& append(const char* s, size_t len) {
-		reserve(n_ + len + 1);
-		if (len) memcpy(p_ + n_, s, len);
-		n_ += len;
-		p_[n_] = 0;
+	string& append(const char* s, size_t len) {
+		reserve(n_ + len + 1);
+		if (len) memcpy(p_ + n_, s, len);
+		n_ += len;
+		p_[n_] = 0;
 		return *this;
 	}
 	string& append(const char* s)   { return append(s, strlen(s)); }
 	string& append(const string& s) { return append(s.p_, s.n_); }
-	string& append(size_t n, char c) {
-		reserve(n_ + n + 1);
-		memset(p_ + n_, c, n);
-		n_ += n;
-		p_[n_] = 0;
+	string& append(size_t n, char c) {
+		reserve(n_ + n + 1);
+		memset(p_ + n_, c, n);
+		n_ += n;
+		p_[n_] = 0;
 		return *this;
 	}
 	string& operator+=(const string& s) { return append(s.p_, s.n_); }
 	string& operator+=(const char* s)    { return append(s); }
 	string& operator+=(char c)           { push_back(c); return *this; }
 
-	string& insert(size_t pos, const char* s) {
-		size_t len = strlen(s);
-		reserve(n_ + len + 1);
-		memmove(p_ + pos + len, p_ + pos, n_ - pos);
-		memcpy(p_ + pos, s, len);
-		n_ += len;
-		p_[n_] = 0;
+	string& insert(size_t pos, const char* s) {
+		size_t len = strlen(s);
+		reserve(n_ + len + 1);
+		memmove(p_ + pos + len, p_ + pos, n_ - pos);
+		memcpy(p_ + pos, s, len);
+		n_ += len;
+		p_[n_] = 0;
 		return *this;
 	}
-	string& insert(size_t pos, char c) {
-		char t[2]; t[0] = c; t[1] = 0;
+	string& insert(size_t pos, char c) {
+		char t[2]; t[0] = c; t[1] = 0;
+		return insert(pos, t);
+	}
+	string& insert(size_t pos, size_t n, char c) {
+		string t(n, c);
 		return insert(pos, t);
 	}
 	string& insert(size_t pos, const string& s) { return insert(pos, s.c_str()); }
 
-	string& erase(size_t pos = 0, size_t len = VC4_STRING_NPOS) {
-		if (pos > n_) return *this;
-		size_t r = n_ - pos;
-		if (len < r) r = len;
-		memmove(p_ + pos, p_ + pos + r, n_ - pos - r);
-		n_ -= r;
-		p_[n_] = 0;
+	string& erase(iterator first, iterator last) {
+		size_t pos = (size_t)(first - p_);
+		size_t len = (size_t)(last - first);
+		erase(pos, len);
+		return *this;
+	}
+	string& erase(size_t pos = 0, size_t len = VC4_STRING_NPOS) {
+		if (p_ == 0 || n_ == 0) return *this;
+		if (pos > n_) return *this;
+		size_t r = n_ - pos;
+		if (len < r) r = len;
+		memmove(p_ + pos, p_ + pos + r, n_ - pos - r);
+		n_ -= r;
+		p_[n_] = 0;
 		return *this;
 	}
 
-	string& replace(size_t pos, size_t len, const char* s, size_t slen) {
-		size_t tail = n_ - pos;
-		size_t keep = len < tail ? len : tail;
-		reserve(n_ + slen + 1);
-		memmove(p_ + pos + slen, p_ + pos + keep, tail - keep);
-		memcpy(p_ + pos, s, slen);
-		n_ = pos + slen + (tail - keep);
-		p_[n_] = 0;
+	string& replace(size_t pos, size_t len, const char* s, size_t slen) {
+		size_t tail = n_ - pos;
+		size_t keep = len < tail ? len : tail;
+		reserve(n_ + slen + 1);
+		memmove(p_ + pos + slen, p_ + pos + keep, tail - keep);
+		memcpy(p_ + pos, s, slen);
+		n_ = pos + slen + (tail - keep);
+		p_[n_] = 0;
 		return *this;
 	}
-	string& replace(size_t pos, size_t len, const char* s) {
+	string& replace(size_t pos, size_t len, const char* s) {
 		return replace(pos, len, s, strlen(s));
 	}
-	string& replace(size_t pos, size_t len, const string& s) {
+	string& replace(size_t pos, size_t len, const string& s) {
 		return replace(pos, len, s.c_str(), s.size());
 	}
 
-	string substr(size_t pos = 0, size_t len = VC4_STRING_NPOS) const {
-		if (pos > n_) pos = n_;
-		size_t r = n_ - pos;
-		if (len < r) r = len;
+	string substr(size_t pos = 0, size_t len = VC4_STRING_NPOS) const {
+		if (pos > n_) pos = n_;
+		size_t r = n_ - pos;
+		if (len < r) r = len;
 		return string(c_str() + pos, r);
 	}
 
-	size_t find(char c, size_t pos = 0) const {
-		for (size_t i = pos; i < n_; ++i) if (p_[i] == c) return i;
+	size_t find(char c, size_t pos = 0) const {
+		for (size_t i = pos; i < n_; ++i) if (p_[i] == c) return i;
 		return VC4_STRING_NPOS;
 	}
-	size_t find(const char* s, size_t pos = 0) const {
-		size_t l = strlen(s);
-		for (size_t i = pos; i + l <= n_; ++i) if (!memcmp(p_ + i, s, l)) return i;
+	size_t find(const char* s, size_t pos = 0) const {
+		size_t l = strlen(s);
+		for (size_t i = pos; i + l <= n_; ++i) if (!memcmp(p_ + i, s, l)) return i;
 		return VC4_STRING_NPOS;
 	}
 	size_t find(const string& s, size_t pos = 0) const { return find(s.c_str(), pos); }
 
-	size_t rfind(char c, size_t pos = VC4_STRING_NPOS) const {
-		if (!n_) return VC4_STRING_NPOS;
-		size_t i = (pos < n_) ? pos : n_ - 1;
-		for (;;) {
-			if (p_[i] == c) return i;
-			if (i == 0) break;
-			--i;
-		}
+	size_t rfind(char c, size_t pos = VC4_STRING_NPOS) const {
+		if (!n_) return VC4_STRING_NPOS;
+		size_t i = (pos < n_) ? pos : n_ - 1;
+		for (;;) {
+			if (p_[i] == c) return i;
+			if (i == 0) break;
+			--i;
+		}
 		return VC4_STRING_NPOS;
 	}
-	size_t rfind(const char* s) const {
-		size_t l = strlen(s);
-		for (size_t i = n_ + 1; i-- > 0; )
-			if (i + l <= n_ && !memcmp(p_ + i, s, l)) return i;
+	size_t rfind(const string& s, size_t pos) const
+		{ return rfind(s.c_str(), pos); }
+	size_t rfind(const char* s, size_t pos) const {
+		size_t l = strlen(s);
+		if (l == 0) return pos <= n_ ? pos : n_;
+		if (l > n_) return VC4_STRING_NPOS;
+		size_t last = n_ - l;
+		if (pos < last) last = pos;
+		for (size_t i = last + 1; i-- > 0; )
+			if (!memcmp(p_ + i, s, l)) return i;
+		return VC4_STRING_NPOS;
+	}
+	size_t rfind(const char* s) const {
+		size_t l = strlen(s);
+		for (size_t i = n_ + 1; i-- > 0; )
+			if (i + l <= n_ && !memcmp(p_ + i, s, l)) return i;
 		return VC4_STRING_NPOS;
 	}
 
-	size_t find_first_of(const char* set, size_t pos = 0) const {
-		for (size_t i = pos; i < n_; ++i)
-			if (p_[i] && strchr(set, p_[i])) return i;
+	size_t find_first_of(const char* set, size_t pos = 0) const {
+		for (size_t i = pos; i < n_; ++i)
+			if (p_[i] && strchr(set, p_[i])) return i;
 		return VC4_STRING_NPOS;
 	}
-	size_t find_first_not_of(const char* set, size_t pos = 0) const {
-		for (size_t i = pos; i < n_; ++i)
-			if (!strchr(set, p_[i])) return i;
+	size_t find_first_not_of(const char* set, size_t pos = 0) const {
+		for (size_t i = pos; i < n_; ++i)
+			if (!strchr(set, p_[i])) return i;
 		return VC4_STRING_NPOS;
 	}
 
 	int compare(const string& o) const { return strcmp(c_str(), o.c_str()); }
 	int compare(const char* s)    const { return strcmp(c_str(), s); }
-	int compare(size_t pos, size_t len, const char* s) const {
-		string t(c_str() + pos, len);
+	int compare(size_t pos, size_t len, const char* s) const {
+		string t(c_str() + pos, len);
 		return t.compare(s);
 	}
+	int compare(size_t pos, size_t len, const string& s) const {
+		return compare(pos, len, s.c_str());
+	}
 
-	size_t copy(char* d, size_t len, size_t pos = 0) const {
-		size_t r = n_ - pos;
-		if (len < r) r = len;
-		memcpy(d, c_str() + pos, r);
+	size_t copy(char* d, size_t len, size_t pos = 0) const {
+		size_t r = n_ - pos;
+		if (len < r) r = len;
+		memcpy(d, c_str() + pos, r);
 		return r;
 	}
 

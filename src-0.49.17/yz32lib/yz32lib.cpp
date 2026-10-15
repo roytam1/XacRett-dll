@@ -10,7 +10,8 @@
 #include "yz32lib.h"
 // v1 base: the reconstruction in this file is a bridge, exposing the
 // gauge_* API (nsYZ32v2) that XacRett is written against on top of the
-// original flat API. The ::yz* names below refer to this global one.
+// original flat API. The YZV1::yz* names below refer to it (global on
+// VC6, nsYZ32v1:: on VC4 - see yz32lib_v1.h).
 #include "yz32lib_v1.h"
 
 #include <string.h>
@@ -104,7 +105,7 @@ void SetDosTimeFromTimeT(const char* path, time_t t)
 }
 
 //--------------------------------------------------------------------
-class V2Bridge : public ::yzFileEv
+class V2Bridge : public YZV1::yzFileEv
 {
 public:
 	nsYZ32v2::yzFileEv*  user ;
@@ -157,7 +158,7 @@ public:
 };
 
 // Fills a v2 header from a v1 header (v1 tables are public).
-void AdoptHeader(yzDecHead* dst, const ::yzDecHead* src,
+void AdoptHeader(yzDecHead* dst, const YZV1::yzDecHead* src,
                   nsYZ32v2::yzFileEv* ev)
 {
 	long i;
@@ -191,7 +192,7 @@ yzDecHead::yzDecHead(yzFileEv* yzmev, const void* src)
 	: m_file_count(0), m_file_size_tbl(0), m_file_mtime_tbl(0),
 	  m_file_name_max_length(0), m_file_size_max(0), yzm(yzmev)
 {
-	if (src) AdoptHeader(this, (const ::yzDecHead*)src, yzmev);
+	if (src) AdoptHeader(this, (const YZV1::yzDecHead*)src, yzmev);
 }
 
 yzDecHead::yzDecHead(const unsigned char* in_area, const long& in_file_cnt,
@@ -200,14 +201,14 @@ yzDecHead::yzDecHead(const unsigned char* in_area, const long& in_file_cnt,
 	  m_file_name_max_length(0), m_file_size_max(0), yzm(yzmev)
 {
 	V2Bridge bridge;
-	::yzDecHead* v1;
+	YZV1::yzDecHead* v1;
 	bridge.user = yzmev;
-	v1 = new ::yzDecHead(in_area, in_file_cnt, &bridge, in_size, success);
+	v1 = new YZV1::yzDecHead(in_area, in_file_cnt, &bridge, in_size, success);
 	if (!v1) return;
 	AdoptHeader(this, v1, yzmev);
-	/* The delete lives in yzDestroyDecHead (yz32lib_v1.cpp): VC4
-	   emits a single __delDtor identity for ::yzDecHead and
-	   nsYZ32v2::yzDecHead when both are deleted in one TU (C2084).
+	/* The delete lives in yzDestroyDecHead (yz32lib_v1.cpp): on VC4
+	   the v1 classes live in nsYZ32v1, so deleting here would emit a
+	   colliding __delDtor (C2084, proven by TEMP-copy bisection).
 	   Tables already copied. */
 	yzDestroyDecHead(v1);
 }
@@ -362,7 +363,7 @@ yzFileDecode::~yzFileDecode()
 int yzFileDecode::YzFile_DecodeHeader(const char* in_file_name)
 {
 	V2Bridge* b = (V2Bridge*)m_bridge;
-	::yzFileDecode hd((::yzFileEv*)m_bridge, m_dir ? m_dir : "");
+	YZV1::yzFileDecodeV1 hd((YZV1::yzFileEv*)m_bridge, m_dir ? m_dir : "");
 	if (hd.YzFile_DecodeHeader(in_file_name)) return -1;
 	if (yzfiledecode_p_yz_dec_head) {
 		delete yzfiledecode_p_yz_dec_head;
@@ -402,14 +403,14 @@ int yzFileDecode::Print(const char* fileName)
 int yzFileDecode::DecodeFile(const char* fileName, const int& in_decode_mode)
 {
 	V2Bridge* b = (V2Bridge*)m_bridge;
-	::yzFileDecode dec((::yzFileEv*)m_bridge, m_dir ? m_dir : "");
+	YZV1::yzFileDecodeV1 dec((YZV1::yzFileEv*)m_bridge, m_dir ? m_dir : "");
 	b->notified = 0;
 	b->total = 0;
 	b->head = 0;
 
 	// Parse the header first so gauge_DecodeInit/gauge_WriteInfo have data.
 	{
-		::yzFileDecode hd((::yzFileEv*)m_bridge, m_dir ? m_dir : "");
+		YZV1::yzFileDecodeV1 hd((YZV1::yzFileEv*)m_bridge, m_dir ? m_dir : "");
 		if (hd.YzFile_DecodeHeader(fileName)) return -1;
 		if (yzfiledecode_p_yz_dec_head) {
 			delete yzfiledecode_p_yz_dec_head;

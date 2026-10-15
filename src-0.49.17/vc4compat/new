@@ -1,0 +1,13 @@
+#ifndef VC4_NEW_H
+#define VC4_NEW_H
+/* new - extensionless <new> for MSVC 4.x.
+ *
+ * The SDK ships new.h (with plain operator new/delete plus an
+ * inline placement new - redefining the latter reads as C2084)
+ * but no extensionless <new>, which is what unrar's os.hpp
+ * includes (fatal C1083 otherwise).  Reached ONLY on the VC4 path
+ * (via /I vc4compat).  C++-only (like the real one).
+ */
+#include <new.h>
+
+#endif /* VC4_NEW_H */

@@ -282,7 +282,16 @@ bool GetAppDataPath(std::wstring &Path,bool Create)
 bool SHGetPathStrFromIDList(PCIDLIST_ABSOLUTE pidl,std::wstring &Path)
 {
   std::vector<wchar> Buf(MAX_PATH);
+#if defined(_MSC_VER) && (_MSC_VER < 1200)
+  /* VC4 shlobj.h knows only the ANSI spelling; the W entry point
+     has been in shell32 since Win95/NT, so resolve it at runtime. */
+  typedef BOOL (WINAPI *RAR_SHPFIL_FN)(LPCITEMIDLIST,LPWSTR);
+  HMODULE hSh=GetModuleHandleA("shell32.dll");
+  RAR_SHPFIL_FN pFn=hSh==NULL ? NULL : (RAR_SHPFIL_FN)GetProcAddress(hSh,"SHGetPathFromIDListW");
+  bool Success=pFn!=NULL && pFn(pidl,&Buf[0])!=FALSE;
+#else
   bool Success=SHGetPathFromIDList(pidl,&Buf[0])!=FALSE;
+#endif
   Path=&Buf[0];
   return Success;
 }

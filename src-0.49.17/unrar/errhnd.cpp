@@ -312,8 +312,9 @@ void _stdfunction ProcessSignal(int SigType)
   // because Unix signal handler can block execution of our main code.
 #endif
 
-#if defined(_WIN_ALL) && !defined(_MSC_VER)
-  // Never reached, just to avoid a compiler warning
+#if defined(_WIN_ALL) && (!defined(_MSC_VER) || (_MSC_VER < 1200))
+  // Never reached (exit() above), just to avoid a compiler warning
+  // - on VC4 it is an error (C2202), not a warning.
   return TRUE;
 #endif
 }

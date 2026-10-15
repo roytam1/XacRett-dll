@@ -1,0 +1,294 @@
+#ifndef VC4_STD_WSTRING_H
+#define VC4_STD_WSTRING_H
+/* wstring - a minimal std::wstring for Microsoft Visual C++ 4.x.
+ *
+ * OPTIONAL: included only on the VC4 build path (via vc4compat.h's
+ * `#include <wstring>`, or directly).  VC6 and later use their own
+ * <wstring> and never see this file.
+ *
+ * WHY IT EXISTS: the STLport v2 copy in the workarea root ships
+ * <vector>, <list>, <map>, <set>, <algorithm> ... but NO <wstring>, and
+ * VC4 has no STL of its own.  Without this, 9 of the first 12 files
+ * tried fail with "Cannot open include file: 'wstring'".
+ *
+ * It implements only the subset the tree uses.  Two VC4-specific notes:
+ *  - no in-class static members with initialisers (VC4 rejects them:
+ *    "error C2433: 'bool' : 'inline' not permitted on data declarations"),
+ *    so npos is an enum (see below);
+ *  - `erase` must have exactly ONE overload, or VC4's very strict
+ *    overload resolution makes the defaults ambiguous ("error C2668:
+ *    'erase' : ambiguous call to overloaded function").
+ */
+#include <stdlib.h>
+#include <string.h>
+#include <wchar.h>
+
+#define VC4_WSTRING_NPOS ((size_t)-1)
+
+namespace std {
+
+class wstring {
+public:
+	typedef wchar_t     value_type;
+	typedef size_t      size_type;
+	typedef wchar_t*       iterator;
+	typedef const wchar_t* const_iterator;
+	/* npos as an enum: VC4 rejects in-class `static const size_t`
+	   initialisers (C2433).  Spells `wstring::npos` like the real
+	   thing; -1 converts to SIZE_MAX in every comparison. */
+	enum { npos = -1 };
+
+	wstring() : p_(0), n_(0), cap_(0) {}
+
+	wstring(const wchar_t* s) : p_(0), n_(0), cap_(0) { assign(s, s ? wcslen(s) : 0); }
+	wstring(const wchar_t* s, size_t len) : p_(0), n_(0), cap_(0) { assign(s, len); }
+	wstring(size_t n, wchar_t c) : p_(0), n_(0), cap_(0) { assign(n, c); }
+	wstring(const wstring& o) : p_(0), n_(0), cap_(0) { assign(o.p_, o.n_); }
+
+	wstring& operator=(const wstring& o) {
+		if (this != &o) assign(o.p_, o.n_);
+		return *this;
+	}
+	wstring& operator=(const wchar_t* s) { assign(s, s ? wcslen(s) : 0); return *this; }
+	wstring& operator=(wchar_t c) { assign(1, c); return *this; }
+
+	~wstring() { free(p_); }
+
+	size_t size()    const { return n_; }
+	size_t length()  const { return n_; }
+	size_t max_size() const { return (size_t)-2; }
+	bool   empty()   const { return n_ == 0; }
+
+	const wchar_t* c_str() const { return p_ ? p_ : L""; }
+	/* NOTE: no implicit const wchar_t* conversion, on purpose.  Real
+	   std::wstring has none, and on VC4 it makes every s[i] a 3-way
+	   C2666 ambiguity (two member operator[]s plus convert-then-
+	   builtin-[]).  Call sites already spell .c_str(). */
+
+	wchar_t*       data()       { return p_ ? p_ : (wchar_t*)L""; }
+	const wchar_t* data() const { return c_str(); }
+
+	/* Empty strings keep p_ unset; s[0] on one is legal per
+	   the standard (yields a null char), so never deref NULL. */
+	static wchar_t& nul()        { static wchar_t z = 0; return z; }
+	static const wchar_t& cnul()  { static const wchar_t z = 0; return z; }
+
+	wchar_t&       operator[](size_t i)       { if (p_) return p_[i]; return nul(); }
+	const wchar_t& operator[](size_t i) const { if (p_) return p_[i]; return cnul(); }
+	wchar_t&       at(size_t i)               { if (p_) return p_[i]; return nul(); }
+	const wchar_t& at(size_t i) const         { if (p_) return p_[i]; return cnul(); }
+	wchar_t&       front()                    { return p_[0]; }
+	wchar_t&       back()                     { return p_[n_ - 1]; }
+
+	const wchar_t* begin() const { return c_str(); }
+	const wchar_t* end()   const { return c_str() + n_; }
+	wchar_t*       begin()       { return p_; }
+	wchar_t*       end()         { return p_ + n_; }
+
+	void assign(const wchar_t* s, size_t len) {
+		reserve(len + 1);
+		if (len) memcpy(p_, s, len * sizeof(wchar_t));
+		p_[len] = 0;
+		n_ = len;
+	}
+	void assign(size_t n, wchar_t c) {
+		reserve(n + 1);
+		for (size_t k = 0; k < n; ++k) p_[k] = c;
+		p_[n] = 0;
+		n_ = n;
+	}
+	void assign(const wchar_t* s) { assign(s, wcslen(s)); }
+
+	void resize(size_t n) {
+		reserve(n + 1);
+		if (n > n_) memset(p_ + n_, 0, (n - n_) * sizeof(wchar_t));
+		n_ = n;
+		p_[n_] = 0;
+	}
+	void reserve(size_t c) {
+		if (c <= cap_) return;
+		wchar_t* q = (wchar_t*)realloc(p_, c * sizeof(wchar_t));
+		if (!q) return;
+		p_ = q;
+		cap_ = c;
+	}
+	void clear() { n_ = 0; if (p_) p_[0] = 0; }
+
+	void push_back(wchar_t c) { reserve(n_ + 2); p_[n_++] = c; p_[n_] = 0; }
+	void pop_back() { if (n_) { --n_; p_[n_] = 0; } }
+
+	wstring& append(const wchar_t* s, size_t len) {
+		reserve(n_ + len + 1);
+		if (len) memcpy(p_ + n_, s, len * sizeof(wchar_t));
+		n_ += len;
+		p_[n_] = 0;
+		return *this;
+	}
+	wstring& append(const wchar_t* s)   { return append(s, wcslen(s)); }
+	wstring& append(const wstring& s) { return append(s.p_, s.n_); }
+	wstring& append(size_t n, wchar_t c) {
+		reserve(n_ + n + 1);
+		for (size_t k = 0; k < n; ++k) p_[n_ + k] = c;
+		n_ += n;
+		p_[n_] = 0;
+		return *this;
+	}
+	wstring& operator+=(const wstring& s) { return append(s.p_, s.n_); }
+	wstring& operator+=(const wchar_t* s)    { return append(s); }
+	wstring& operator+=(wchar_t c)           { push_back(c); return *this; }
+
+	wstring& insert(size_t pos, const wchar_t* s) {
+		size_t len = wcslen(s);
+		reserve(n_ + len + 1);
+		memmove(p_ + pos + len, p_ + pos, (n_ - pos) * sizeof(wchar_t));
+		memcpy(p_ + pos, s, len * sizeof(wchar_t));
+		n_ += len;
+		p_[n_] = 0;
+		return *this;
+	}
+	wstring& insert(size_t pos, wchar_t c) {
+		wchar_t t[2]; t[0] = c; t[1] = 0;
+		return insert(pos, t);
+	}
+	wstring& insert(size_t pos, size_t n, wchar_t c) {
+		wstring t(n, c);
+		return insert(pos, t);
+	}
+	wstring& insert(size_t pos, const wstring& s) { return insert(pos, s.c_str()); }
+
+	wstring& erase(iterator first, iterator last) {
+		size_t pos = (size_t)(first - p_);
+		size_t len = (size_t)(last - first);
+		erase(pos, len);
+		return *this;
+	}
+	wstring& erase(size_t pos = 0, size_t len = VC4_WSTRING_NPOS) {
+		if (p_ == 0 || n_ == 0) return *this;
+		if (pos > n_) return *this;
+		size_t r = n_ - pos;
+		if (len < r) r = len;
+		memmove(p_ + pos, p_ + pos + r, (n_ - pos - r) * sizeof(wchar_t));
+		n_ -= r;
+		p_[n_] = 0;
+		return *this;
+	}
+
+	wstring& replace(size_t pos, size_t len, const wchar_t* s, size_t slen) {
+		size_t tail = n_ - pos;
+		size_t keep = len < tail ? len : tail;
+		reserve(n_ + slen + 1);
+		memmove(p_ + pos + slen, p_ + pos + keep, (tail - keep) * sizeof(wchar_t));
+		memcpy(p_ + pos, s, slen * sizeof(wchar_t));
+		n_ = pos + slen + (tail - keep);
+		p_[n_] = 0;
+		return *this;
+	}
+	wstring& replace(size_t pos, size_t len, const wchar_t* s) {
+		return replace(pos, len, s, wcslen(s));
+	}
+	wstring& replace(size_t pos, size_t len, const wstring& s) {
+		return replace(pos, len, s.c_str(), s.size());
+	}
+
+	wstring substr(size_t pos = 0, size_t len = VC4_WSTRING_NPOS) const {
+		if (pos > n_) pos = n_;
+		size_t r = n_ - pos;
+		if (len < r) r = len;
+		return wstring(c_str() + pos, r);
+	}
+
+	size_t find(wchar_t c, size_t pos = 0) const {
+		for (size_t i = pos; i < n_; ++i) if (p_[i] == c) return i;
+		return VC4_WSTRING_NPOS;
+	}
+	size_t find(const wchar_t* s, size_t pos = 0) const {
+		size_t l = wcslen(s);
+		for (size_t i = pos; i + l <= n_; ++i) if (!memcmp(p_ + i, s, l * sizeof(wchar_t))) return i;
+		return VC4_WSTRING_NPOS;
+	}
+	size_t find(const wstring& s, size_t pos = 0) const { return find(s.c_str(), pos); }
+
+	size_t rfind(wchar_t c, size_t pos = VC4_WSTRING_NPOS) const {
+		if (!n_) return VC4_WSTRING_NPOS;
+		size_t i = (pos < n_) ? pos : n_ - 1;
+		for (;;) {
+			if (p_[i] == c) return i;
+			if (i == 0) break;
+			--i;
+		}
+		return VC4_WSTRING_NPOS;
+	}
+	size_t rfind(const wstring& s, size_t pos) const
+		{ return rfind(s.c_str(), pos); }
+	size_t rfind(const wchar_t* s, size_t pos) const {
+		size_t l = wcslen(s);
+		if (l == 0) return pos <= n_ ? pos : n_;
+		if (l > n_) return VC4_WSTRING_NPOS;
+		size_t last = n_ - l;
+		if (pos < last) last = pos;
+		for (size_t i = last + 1; i-- > 0; )
+			if (!memcmp(p_ + i, s, l * sizeof(wchar_t))) return i;
+		return VC4_WSTRING_NPOS;
+	}
+	size_t rfind(const wchar_t* s) const {
+		size_t l = wcslen(s);
+		for (size_t i = n_ + 1; i-- > 0; )
+			if (i + l <= n_ && !memcmp(p_ + i, s, l * sizeof(wchar_t))) return i;
+		return VC4_WSTRING_NPOS;
+	}
+
+	size_t find_first_of(const wchar_t* set, size_t pos = 0) const {
+		for (size_t i = pos; i < n_; ++i)
+			if (p_[i] && wcschr(set, p_[i])) return i;
+		return VC4_WSTRING_NPOS;
+	}
+	size_t find_first_not_of(const wchar_t* set, size_t pos = 0) const {
+		for (size_t i = pos; i < n_; ++i)
+			if (!wcschr(set, p_[i])) return i;
+		return VC4_WSTRING_NPOS;
+	}
+
+	int compare(const wstring& o) const { return wcscmp(c_str(), o.c_str()); }
+	int compare(const wchar_t* s)    const { return wcscmp(c_str(), s); }
+	int compare(size_t pos, size_t len, const wchar_t* s) const {
+		wstring t(c_str() + pos, len);
+		return t.compare(s);
+	}
+	int compare(size_t pos, size_t len, const wstring& s) const {
+		return compare(pos, len, s.c_str());
+	}
+
+	size_t copy(wchar_t* d, size_t len, size_t pos = 0) const {
+		size_t r = n_ - pos;
+		if (len < r) r = len;
+		memcpy(d, c_str() + pos, r * sizeof(wchar_t));
+		return r;
+	}
+
+private:
+	wchar_t*  p_;
+	size_t n_;
+	size_t cap_;
+};
+
+inline wstring operator+(const wstring& a, const wstring& b) { wstring r(a); r += b; return r; }
+inline wstring operator+(const wstring& a, const wchar_t* b)    { wstring r(a); r += b; return r; }
+inline wstring operator+(const wchar_t* a, const wstring& b)    { wstring r(a); r += b; return r; }
+inline wstring operator+(const wstring& a, wchar_t c)           { wstring r(a); r += c; return r; }
+
+inline bool operator==(const wstring& a, const wstring& b) { return a.compare(b) == 0; }
+inline bool operator==(const wstring& a, const wchar_t* b)    { return a.compare(b) == 0; }
+inline bool operator==(const wchar_t* a, const wstring& b)    { return b.compare(a) == 0; }
+inline bool operator!=(const wstring& a, const wstring& b) { return a.compare(b) != 0; }
+inline bool operator!=(const wstring& a, const wchar_t* b)    { return a.compare(b) != 0; }
+inline bool operator!=(const wchar_t* a, const wstring& b)    { return b.compare(a) != 0; }
+inline bool operator< (const wstring& a, const wstring& b) { return a.compare(b) <  0; }
+inline bool operator> (const wstring& a, const wstring& b) { return a.compare(b) >  0; }
+inline bool operator<=(const wstring& a, const wstring& b) { return a.compare(b) <= 0; }
+inline bool operator>=(const wstring& a, const wstring& b) { return a.compare(b) >= 0; }
+
+inline void swap(wstring& a, wstring& b) { wstring t(a); a = b; b = t; }
+
+} /* namespace std */
+
+#endif /* VC4_STD_WSTRING_H */

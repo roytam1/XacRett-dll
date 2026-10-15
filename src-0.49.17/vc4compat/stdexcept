@@ -1,0 +1,47 @@
+#ifndef VC4_STDEXCEPT_H
+#define VC4_STDEXCEPT_H
+/* stdexcept - minimal <stdexcept> for MSVC 4.x (STLport v2 ships
+ * none; unrar's os.hpp wants std::length_error, and unrar throws
+ * and catches std::bad_alloc).
+ *
+ * Reached ONLY on the VC4 path (via /I vc4compat).  Messages are
+ * caller-owned pointers (real ones copy); unrar only throws
+ * literals and its length_error catches are defensive.
+ * C++-only (like the real one); included under __cplusplus.
+ */
+
+namespace std {
+
+class exception {
+public:
+  exception() : msg_("unknown exception") {}
+  explicit exception(const char* m) : msg_(m ? m : "") {}
+  virtual ~exception() {}
+  virtual const char* what() const { return msg_; }
+protected:
+  const char* msg_;
+};
+
+class bad_alloc : public exception {
+public:
+  bad_alloc() : exception("bad_alloc") {}
+};
+
+class logic_error : public exception {
+public:
+  explicit logic_error(const char* m) : exception(m) {}
+};
+
+class length_error : public logic_error {
+public:
+  explicit length_error(const char* m) : logic_error(m) {}
+};
+
+class runtime_error : public exception {
+public:
+  explicit runtime_error(const char* m) : exception(m) {}
+};
+
+} /* namespace std */
+
+#endif /* VC4_STDEXCEPT_H */

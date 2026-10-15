@@ -19,6 +19,10 @@
 OUTDIR = $(TEMP)\vc4build
 !ENDIF
 OBJDIR = $(OUTDIR)\obj
+UNRAR_OBJDIR = $(OUTDIR)\unrar
+UNRARLIB = $(OUTDIR)\UnRAR.lib
+UNRAR_RSP = $(OUTDIR)\unrar.rsp
+LINK_RSP = $(OUTDIR)\link.rsp
 
 CC = cl
 RC = rc
@@ -257,6 +261,7 @@ all : dirs $(OBJS) $(OBJDIR)\XacRett.res
 dirs :
 	if not exist "$(OUTDIR)" mkdir "$(OUTDIR)"
 	if not exist "$(OBJDIR)" mkdir "$(OBJDIR)"
+	if not exist "$(UNRAR_OBJDIR)" mkdir "$(UNRAR_OBJDIR)"
 
 $(OBJDIR)\AceBlock.obj : AceBlock.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
@@ -924,10 +929,229 @@ $(OBJDIR)\XacRett.res : XacRett.rc
 clean :
 	-del /q "$(OBJDIR)\*.obj" 2>nul
 	-del /q "$(OBJDIR)\XacRett.res" 2>nul
+	-del /q "$(UNRAR_OBJDIR)\*.obj" 2>nul
+	-del /q "$(UNRARLIB)" 2>nul
+	-del /q "$(UNRAR_RSP)" 2>nul
+	-del /q "$(LINK_RSP)" 2>nul
 
-# Link: provided for when the unrar static lib is ported to VC4.
-# Deliberately NOT part of `all`, and WITHOUT shlwapi.lib (VC4 has no
-# import library for it; our SHLWAPI use is GetProcAddress-only).
-link : $(OBJS) $(OBJDIR)\XacRett.res unrar\UnRAR.lib
-	link /nologo /dll /machine:I386 /incremental:no /out:"$(OUTDIR)\XacRett.dll" /def:"XacRett.def" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib lz32.lib unrar\UnRAR.lib $(OBJS) "$(OBJDIR)\XacRett.res"
+# --- vendored UnRAR (same 49 units as the VC6 lib build) ------------
+# Deliberately NOT part of `all`: the DLL link is a separate target.
+# NOTE: do NOT reuse unrar\UnRAR.lib - that one is VC6-generated.  The
+# VC4 library is built fresh into $(OUTDIR).
+# UNICODE/_UNICODE are required: os.hpp includes windows.h before its own
+# defines, so they must already be set on the command line.
+UNRAR_CFLAGS = /nologo /MT /W3 /GX /O2 /c /D WIN32 /D NDEBUG /D _CONSOLE /D _MBCS /D UNRAR /D RARDLL /D nullptr=NULL /D UNICODE /D _UNICODE /FI"vc4compat\vc4compat.h" /I"..\STL" /I"vc4compat" /I"unrar\vc6compat" /I"."
+UNRAR_OBJS = \
+	$(UNRAR_OBJDIR)\archive.obj \
+	$(UNRAR_OBJDIR)\arcread.obj \
+	$(UNRAR_OBJDIR)\blake2s.obj \
+	$(UNRAR_OBJDIR)\cmddata.obj \
+	$(UNRAR_OBJDIR)\consio.obj \
+	$(UNRAR_OBJDIR)\crc.obj \
+	$(UNRAR_OBJDIR)\crypt.obj \
+	$(UNRAR_OBJDIR)\dll.obj \
+	$(UNRAR_OBJDIR)\encname.obj \
+	$(UNRAR_OBJDIR)\errhnd.obj \
+	$(UNRAR_OBJDIR)\extinfo.obj \
+	$(UNRAR_OBJDIR)\extract.obj \
+	$(UNRAR_OBJDIR)\filcreat.obj \
+	$(UNRAR_OBJDIR)\file.obj \
+	$(UNRAR_OBJDIR)\filefn.obj \
+	$(UNRAR_OBJDIR)\filestr.obj \
+	$(UNRAR_OBJDIR)\find.obj \
+	$(UNRAR_OBJDIR)\getbits.obj \
+	$(UNRAR_OBJDIR)\global.obj \
+	$(UNRAR_OBJDIR)\hash.obj \
+	$(UNRAR_OBJDIR)\headers.obj \
+	$(UNRAR_OBJDIR)\isnt.obj \
+	$(UNRAR_OBJDIR)\largepage.obj \
+	$(UNRAR_OBJDIR)\list.obj \
+	$(UNRAR_OBJDIR)\match.obj \
+	$(UNRAR_OBJDIR)\motw.obj \
+	$(UNRAR_OBJDIR)\options.obj \
+	$(UNRAR_OBJDIR)\pathfn.obj \
+	$(UNRAR_OBJDIR)\qopen.obj \
+	$(UNRAR_OBJDIR)\rarvm.obj \
+	$(UNRAR_OBJDIR)\rawread.obj \
+	$(UNRAR_OBJDIR)\rdwrfn.obj \
+	$(UNRAR_OBJDIR)\resource.obj \
+	$(UNRAR_OBJDIR)\rijndael.obj \
+	$(UNRAR_OBJDIR)\rs16.obj \
+	$(UNRAR_OBJDIR)\scantree.obj \
+	$(UNRAR_OBJDIR)\secpassword.obj \
+	$(UNRAR_OBJDIR)\sha1.obj \
+	$(UNRAR_OBJDIR)\sha256.obj \
+	$(UNRAR_OBJDIR)\smallfn.obj \
+	$(UNRAR_OBJDIR)\strfn.obj \
+	$(UNRAR_OBJDIR)\strlist.obj \
+	$(UNRAR_OBJDIR)\system.obj \
+	$(UNRAR_OBJDIR)\threadpool.obj \
+	$(UNRAR_OBJDIR)\timefn.obj \
+	$(UNRAR_OBJDIR)\ui.obj \
+	$(UNRAR_OBJDIR)\unicode.obj \
+	$(UNRAR_OBJDIR)\unpack.obj \
+	$(UNRAR_OBJDIR)\volume.obj \
+
+$(UNRAR_OBJDIR)\archive.obj : unrar\archive.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\arcread.obj : unrar\arcread.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\blake2s.obj : unrar\blake2s.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\cmddata.obj : unrar\cmddata.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\consio.obj : unrar\consio.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\crc.obj : unrar\crc.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\crypt.obj : unrar\crypt.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\dll.obj : unrar\dll.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\encname.obj : unrar\encname.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\errhnd.obj : unrar\errhnd.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\extinfo.obj : unrar\extinfo.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\extract.obj : unrar\extract.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\filcreat.obj : unrar\filcreat.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\file.obj : unrar\file.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\filefn.obj : unrar\filefn.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\filestr.obj : unrar\filestr.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\find.obj : unrar\find.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\getbits.obj : unrar\getbits.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\global.obj : unrar\global.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\hash.obj : unrar\hash.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\headers.obj : unrar\headers.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\isnt.obj : unrar\isnt.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\largepage.obj : unrar\largepage.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\list.obj : unrar\list.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\match.obj : unrar\match.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\motw.obj : unrar\motw.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\options.obj : unrar\options.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\pathfn.obj : unrar\pathfn.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\qopen.obj : unrar\qopen.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\rarvm.obj : unrar\rarvm.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\rawread.obj : unrar\rawread.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\rdwrfn.obj : unrar\rdwrfn.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\resource.obj : unrar\resource.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\rijndael.obj : unrar\rijndael.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\rs16.obj : unrar\rs16.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\scantree.obj : unrar\scantree.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\secpassword.obj : unrar\secpassword.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\sha1.obj : unrar\sha1.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\sha256.obj : unrar\sha256.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\smallfn.obj : unrar\smallfn.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\strfn.obj : unrar\strfn.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\strlist.obj : unrar\strlist.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\system.obj : unrar\system.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\threadpool.obj : unrar\threadpool.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\timefn.obj : unrar\timefn.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\ui.obj : unrar\ui.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\unicode.obj : unrar\unicode.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\unpack.obj : unrar\unpack.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\volume.obj : unrar\volume.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+unrar : dirs $(UNRAR_OBJS) $(UNRARLIB)
+
+# 49 object paths overflow the VC4 command-line limit, so the
+# list is globbed into a response file instead of spelled out.
+$(UNRARLIB) : dirs $(UNRAR_OBJS)
+	@echo.>$(UNRAR_RSP)
+	@for %%f in ($(UNRAR_OBJDIR)\*.obj) do @echo %%f>>$(UNRAR_RSP)
+	lib /nologo /out:$@ @$(UNRAR_RSP)
+
+# Link: no shlwapi.lib (VC4 ships none; our SHLWAPI use is
+# GetProcAddress-only), so the result stays 95/NT4-loadable by design.
+link : dirs $(OBJS) $(OBJDIR)\XacRett.res $(UNRARLIB)
+	@echo.>$(LINK_RSP)
+	@for %%f in ($(OBJDIR)\*.obj) do @echo %%f>>$(LINK_RSP)
+	link /nologo /dll /machine:I386 /incremental:no /out:"$(OUTDIR)\XacRett.dll" /def:"XacRett.def" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib lz32.lib $(UNRARLIB) @$(LINK_RSP) "$(OBJDIR)\XacRett.res"
 

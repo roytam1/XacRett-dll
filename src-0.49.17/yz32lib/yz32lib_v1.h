@@ -59,13 +59,23 @@ using std::vector;
 typedef time_t YZtime_t;
 
 typedef std::string             FileName ;  // file name
-typedef std::vector< FileName > FileTbl  ;  // file name list
+typedef std::vector< FileName > FileTbl  ;  // file name
+
+#if defined(_MSC_VER) && (_MSC_VER < 1200)
+/* VC4 collapses same-named classes across scopes: an out-of-line
+   `yzFileDecodeV1::X` definition inside `namespace nsYZ32v2` binds to
+   the GLOBAL twin from this header (LNK2005, proven by dumpbin).
+   Tuck the whole flat v1 API into its own namespace on VC4 only;
+   VC6 keeps the historical global spelling. */
+namespace nsYZ32v1 {
+#endif
 
 //-------------------------------------------------------------------
 // Event interface (callback sink)
 class yzFileEv
 {
 public:
+	yzFileEv() {}
 	virtual ~yzFileEv() {}
 
 	// [!] error
@@ -168,14 +178,17 @@ private:
 	);
 
 	friend class yzDecodeHeader;
-	friend class yzFileDecode;
+	friend class yzFileDecodeV1;
 };
 
 /* Destroys a v1 header from TUs that also know nsYZ32v2::yzDecHead.
    VC4 emits a single __delDtor identity for same-named classes in
    different scopes when both are deleted in one TU (C2084), so the
    delete lives here, where only ::yzDecHead exists. */
-void yzDestroyDecHead(yzDecHead* head);
+/* Takes void*: a class-typed parameter mangles differently per TU
+   on VC4 (back-reference numbering), so the helper would never link.
+   The cast back is exact (callers pass yzDecHead*). */
+void yzDestroyDecHead(void* head);
 
 //-------------------------------------------------------------------
 // Header accessor
@@ -253,7 +266,7 @@ public:
 };
 
 //-------------------------------------------------------------------
-class yzFileDecode
+class yzFileDecodeV1
 {
 public:
 	char*        yzfiledecode_output_dir_name ;	// output directory
@@ -271,15 +284,15 @@ private:
 	long            m_image_count ;
 
 private:
-	yzFileDecode(const yzFileDecode&);
-	yzFileDecode& operator=(const yzFileDecode&);
+	yzFileDecodeV1(const yzFileDecodeV1&);
+	yzFileDecodeV1& operator=(const yzFileDecodeV1&);
 
 public:
-	yzFileDecode(
+	yzFileDecodeV1(
 		yzFileEv*    in_yzm,
 		const char*  in_dir_name
 	);
-	~yzFileDecode();
+	~yzFileDecodeV1();
 
 	// Reads and parses only the entry table. 0 on success.
 	int  YzFile_DecodeHeader(
@@ -301,5 +314,16 @@ public:
 #ifdef WIN32
 #pragma warning(default:4786)
 #pragma warning(default:4996)
+#endif
+#if defined(_MSC_VER) && (_MSC_VER < 1200)
+} // namespace nsYZ32v1
+/* Import v1 here: v1.cpp and yz32lib.cpp name these unqualified.
+   Harmless - no other yz* scope exists in their TUs alongside. */
+using namespace nsYZ32v1;
+/* Spelling macro for yz32lib.cpp: YZV1::yzFileDecodeV1 names the v1
+   engine on VC4 and plain ::yzFileDecodeV1 everywhere else. */
+#define YZV1 nsYZ32v1
+#else
+#define YZV1 /* empty: YZV1::yzFileDecodeV1 == ::yzFileDecodeV1 */
 #endif
 #endif // __yz32lib_h__
