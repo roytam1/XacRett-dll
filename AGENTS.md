@@ -573,6 +573,16 @@ no binary-only dependencies (AMD64 port preparation).
     (so `-p<pw>` works and headless runs do not hang), while
     `COpenYz1::CYzEv::MessINPUT` returns "" so **listing never prompts** and
     a password archive simply lists as 0 members.
+  - **The password is asked exactly ONCE per extraction.**
+    `yzFileDecode::DecodeFile` parses the header and then extracts, and each
+    step runs its own `LoadArchive` -> `YzApplyPassword`, so an unguarded
+    hook prompts TWICE (measured with an instrumented
+    `CTool::GetPassword`: 2 calls on success, 1 on a wrong password - the
+    wrong case already aborted on the header parse). Both loads share one
+    `V2Bridge` (it is the `yzFileEv` they are both constructed with), so
+    `V2Bridge::MessINPUT` caches a non-empty password for the session.
+    An EMPTY result is deliberately NOT cached: the listing event returns
+    `""` and must keep asking. Measured after: 1 call, 1 call.
   - A wrong/absent password fails with -1 at the check byte rather than
     decoding to garbage. Official `yzdec.exe` instead accepts a wrong
     password and emits a garbage name and negative size

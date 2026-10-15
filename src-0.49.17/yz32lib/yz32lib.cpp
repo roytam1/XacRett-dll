@@ -114,10 +114,17 @@ public:
 	const char*           arch_name ;
 	int                   notified ;
 	long                  total ;
+	/* Password asked once per decode session: DecodeFile loads the
+	   archive twice (header parse, then extract) and both loads run
+	   YzApplyPassword, which would otherwise prompt twice.  An EMPTY
+	   result is deliberately not cached: the listing event returns ""
+	   and must keep asking. */
+	char*                 m_pw ;
 
 public:
 	V2Bridge()
-		: user(0), head(0), arch_name(0), notified(0), total(0) {}
+		: user(0), head(0), arch_name(0), notified(0), total(0), m_pw(0) {}
+	~V2Bridge() { delete [] m_pw; }
 
 	void MessEX(char* s)
 		{ if (user) user->MessEX(s ? s : "", YZ_MSG_MESS_EX); }
@@ -126,7 +133,15 @@ public:
 	int  MessYN(char* s)
 		{ return user ? user->MessYN(s ? s : "", YZ_MSG_MESS_YN) : 0; }
 	char* MessINPUT(char* s)
-		{ return user ? user->MessINPUT(s ? s : "", YZ_MSG_MESS_INPUT) : 0; }
+	{
+		char* p;
+		if (m_pw) return m_pw;
+		p = user ? user->MessINPUT(s ? s : "", YZ_MSG_MESS_INPUT) : 0;
+		if (!p || !*p) return p;
+		m_pw = new char[strlen(p) + 1];
+		strcpy(m_pw, p);
+		return m_pw;
+	}
 
 	void GaugeInit(int n)   { total = n; }
 	void GaugeSetText(char* s)
