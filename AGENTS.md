@@ -656,8 +656,21 @@ no binary-only dependencies (AMD64 port preparation).
     `kiutil::pathMake83()` before their `fopen`; the derived-name branch
     matters there because `.gz`->`""` etc. still leaves things like
     `LONGNAME.DATA.ungzip`, which is not 8.3 either.
-  - RAR needs nothing: `pathMake` mutates `hdr.FileName` in place, so
-    `RARProcessFile` already receives the mangled name.
+  - **RAR**: `CRar3Tool` (unrar 7.2.7) IS the registered provider -
+    `XacRett.cpp:20` defines `RAR_3X`, so the `#ifndef RAR_3X` branch
+    that registers `CRarTool` (RarTool.cpp, the in-house reader) is
+    never taken; RarTool.cpp is compiled but dead. So every RAR
+    extract goes through `pathMake` + `RARProcessFile`, and the
+    mangled name did reach unrar - `pathMake` rewrites `hdr.FileName`
+    in place - but that was implicit, so `Rar3Tool::Extract` now
+    passes the returned `name` to `RARProcessFile` explicitly. That
+    also fixes a crash on the same lines: `fclose(out)` ran BEFORE
+    the `if(out)` NULL test, so any `fopen` failure (which is
+    exactly what happens on Win32s) was `fclose(NULL)`.
+    Trap: a member called `CON.txt` (any device name) still breaks
+    the RAR chain on a modern OS - `fopen` succeeds and writes to
+    the device, and every later member is then skipped. Under the
+    8.3 fallback the name becomes `CON~1.txt` and the chain holds.
   - **Still not covered**: YZ1 (`yz32lib` has its own `MakePathForFile`
     + `fopen`), DMG (`OpenDmg` writes through its own temp-file helper)
     and GCA (`GcaSDK/gca_api.cpp` builds a `std::string`); all three would
@@ -671,7 +684,16 @@ no binary-only dependencies (AMD64 port preparation).
     legal 8.3 name and the bytes unchanged; the same archive without the
     variable is byte-for-byte the old behaviour; a second run into the
     same directory bumps `~N` instead of overwriting; `-j` still
-    flattens. `tar.gz` gives `a very~1/deeper~1/leaf.dat`. Regressions:
+    flattens. `tar.gz` gives `a very~1/deeper~1/leaf.dat`. RAR needs a
+    hand-built fixture (no RAR writer is available): a store-only
+    RAR 4.x written from the layout in `unrar/arcread.cpp` plus
+    `RarTool.h`, and the authentic `GPLv2-rar4.rar` with its member
+    name rewritten (NameSize/HeadSize/head CRC recomputed; the head
+    CRC is the LOW 16 bits of a PLAIN crc32 over header[2:], NOT
+    inverted - getting that wrong makes unrar list the archive but
+    extract nothing from it, which is how it was found). Both give
+    8/8 rc=0 with byte-identical content under `XACRETT_8DOT3=1`
+    (`LONGNA~1.txt`, `dir wi~1/deeper/deep f~1.bin`). Regressions:
     ARC 18/18 MATCH, 7z 25 fixtures OK (118/157 members, the documented
     baseline), ZIP matrix and the 33-case sweep identical to a DLL built
     from the pre-change tree (the 6 zstd-sandwich failures in

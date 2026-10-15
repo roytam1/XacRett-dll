@@ -104,14 +104,17 @@ bool CRar3Tool::Extract(const char *fname, const char * /*ddir*/)
 			RARProcessFile(arc_h, RAR_SKIP, NULL, hdr.FileName);
 			continue;
 		}
+		/* pathMake rewrites hdr.FileName in place, so `name` is the
+		   sanitised and (where needed) 8.3 mangled path that was just
+		   handed to fopen - pass THAT to unrar, not the original name. */
 		char *name = kiutil::pathMake( hdr.FileName );
-		out=fopen(name,"wb");
-		fclose(out);
-		if(out)
-			RARProcessFile(arc_h, RAR_EXTRACT, NULL, hdr.FileName);
+		if( out=fopen(name,"wb") )
+		{
+			fclose(out);
+			RARProcessFile( arc_h, RAR_EXTRACT, NULL, name );
+		}
 		else
-			RARProcessFile(arc_h, RAR_SKIP, NULL, hdr.FileName);
-		
+			RARProcessFile( arc_h, RAR_SKIP, NULL, name );
 	}
 
 	RARCloseArchive(arc_h);
