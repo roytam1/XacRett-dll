@@ -144,8 +144,14 @@ void SevenZAesDecryptCbc( const BYTE key[32], const BYTE iv[16],
 		{ AesGenTables(); g_aesGenDone = 1; }
 	// The SDK requires the AES state buffer to be 16-byte aligned; the
 	// stack only guarantees 8 on this compiler, so align it explicitly.
+#if defined(_MSC_VER) && (_MSC_VER < 1200)
+	/* No __declspec(align) on VC4: over-allocate and round up. */
+	UInt32 unaligned[AES_NUM_IVMRK_WORDS + 7];
+	st = (UInt32*)( ((unsigned long)unaligned + 15) & ~(unsigned long)15 );
+#else
 	__declspec(align(16)) UInt32 local[AES_NUM_IVMRK_WORDS + 3];
 	st = local;
+#endif
 	szcAesBuf( st );
 	AesCbc_Init( st, iv );
 	Aes_SetKey_Dec( st + 4, key, 32 );

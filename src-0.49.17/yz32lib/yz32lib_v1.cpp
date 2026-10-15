@@ -715,6 +715,8 @@ yzDecHead::~yzDecHead()
 	if (m_file_mtime_tbl) delete [] m_file_mtime_tbl;
 }
 
+void yzDestroyDecHead(yzDecHead* head) { delete head; }
+
 int yzDecHead::FileWrite(const char* in_dir_name, const int& in_n,
                          const unsigned char* in_data)
 {

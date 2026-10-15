@@ -26,14 +26,16 @@ bool COpenYnc::Find_sub(INDIVIDUALINFO *lpSubInfo)
 		kiutil::getline( str,XACR_BUFSIZE,COpenYnc::fp );
 		if( 0==strncmp(str,"=ybegin ",8) )
 		{
-			if( char* nm1=strstr(str," size=") )
+			char* nm1;
+			if( (nm1=strstr(str," size=")) != 0 )
 			{
 				strcpy(size, nm1+6 );
 				for( int sp1=strlen(size)-1;
 					sp1>=0 && size[sp1]==' '; --sp1 )
 					size[sp1] = '\0';
 			}
-			if( char* nm=strstr(str," name=") )
+			char* nm;
+			if( (nm=strstr(str," name=")) != 0 )
 			{
 				strcpy( outname, nm+6 );
 				for( int sp=strlen(outname)-1;
@@ -55,7 +57,8 @@ bool COpenYnc::Find_sub(INDIVIDUALINFO *lpSubInfo)
 		kiutil::getline( str,XACR_BUFSIZE,COpenYnc::fp );
 		if( 0==strncmp(str,"=yend",5) )
 		{
-			if( char* nm3=strstr(str," crc32=") )
+			char* nm3;
+			if( (nm3=strstr(str," crc32=")) != 0 )
 			{
 				strcpy(crc32, nm3+7 );
 				for( int sp3=strlen(crc32)-1;

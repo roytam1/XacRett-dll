@@ -97,12 +97,15 @@ class yzFileEv;		// forward: yzDecHead holds a pointer to it
 class YZ1DLLEXP yzFileStat
 {
 public:
-	string  m_file_name ;
+	std::string  m_file_name ;
 	long    m_file_size ;
 	time_t  m_file_mtime ;
 
 public:
-	yzFileStat(string in_file_name, long in_file_size, time_t in_file_mtime);
+	/* Default ctor: only exists so STLport (eager member
+	   instantiation) accepts std::vector<yzFileStat>. */
+	yzFileStat() : m_file_size(0), m_file_mtime(0) {}
+	yzFileStat(std::string in_file_name, long in_file_size, time_t in_file_mtime);
 };
 
 //-------------------------------------------------------------------
@@ -260,7 +263,7 @@ public:
 		: m_file_name(in_file_name ? in_file_name : "") {}
 	const char* file_name() const { return m_file_name.c_str(); }
 private:
-	string m_file_name;
+	std::string m_file_name;
 };
 
 //-------------------------------------------------------------------

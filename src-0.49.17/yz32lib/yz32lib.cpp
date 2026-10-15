@@ -15,6 +15,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 namespace nsYZ32v2 {
 
@@ -204,7 +205,11 @@ yzDecHead::yzDecHead(const unsigned char* in_area, const long& in_file_cnt,
 	v1 = new ::yzDecHead(in_area, in_file_cnt, &bridge, in_size, success);
 	if (!v1) return;
 	AdoptHeader(this, v1, yzmev);
-	delete v1;	// tables already copied
+	/* The delete lives in yzDestroyDecHead (yz32lib_v1.cpp): VC4
+	   emits a single __delDtor identity for ::yzDecHead and
+	   nsYZ32v2::yzDecHead when both are deleted in one TU (C2084).
+	   Tables already copied. */
+	yzDestroyDecHead(v1);
 }
 
 yzDecHead::~yzDecHead()

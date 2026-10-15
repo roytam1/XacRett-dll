@@ -10,11 +10,21 @@
 #pragma warning( disable : 4786 )
 #endif
 #include <algorithm>
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
 typedef unsigned __int64 UINT64;
 using namespace std;
+
+/* Lifted to file scope: VC4 cannot define member functions in a
+ * local class (C2601).  Same RAII behaviour under every compiler. */
+struct DmgTmpFile
+{
+	char path[MAX_PATH];
+	DmgTmpFile() { path[0]=0; }
+	~DmgTmpFile() { if(path[0]) ::DeleteFile(path); }
+};
 
 
 
@@ -81,7 +91,7 @@ bool CDmgTool::Check( const char* fname, unsigned long fsize )
 	if( fsize <= 0x400 )
 		return false;
 
-	return end != std::search( beg, end, PropListDTD, PropListDTD+sizeof(PropListDTD)-1 );
+	return end != std::search( beg, end, (const BYTE*)PropListDTD, (const BYTE*)(PropListDTD+sizeof(PropListDTD)-1) );
 }
 
 bool CDmgTool::Extract( const char* fname,const char* ddir )
@@ -93,12 +103,7 @@ bool CDmgTool::Extract( const char* fname,const char* ddir )
 	const BYTE* end = beg + mf.size();
 //--------------------------------------------------------------------//
 
-	struct tmp
-	{
-		char path[MAX_PATH];
-		 tmp() { path[0]=0; }
-		~tmp() { if(path[0]) ::DeleteFile(path); }
-	} tmp;
+	DmgTmpFile tmp;
 
 	// "ER"で始まってなければzlib圧縮済みdmgと仮定。一時ファイルへ展開する。
 	if( !(beg[0]=='E' && beg[1]=='R' && beg[2]==0x02 && beg[3]==0x00) )
@@ -169,24 +174,24 @@ bool CDmgTool::zlibDecode( const BYTE* beg, const BYTE* end, FILE* fp )
 
 
 	// <key>blxk</key> ～ </array> を抽出
-	const BYTE* plist_beg = std::search( beg, end, PropListDTD, PropListDTD+sizeof(PropListDTD)-1 );
+	const BYTE* plist_beg = std::search( beg, end, (const BYTE*)PropListDTD, (const BYTE*)(PropListDTD+sizeof(PropListDTD)-1) );
 	static const char keyblkx[]   = "<key>blkx</key>";
 	static const char plist_end[] = "</array>";
-	const BYTE* blkx_beg = std::search( plist_beg, end, keyblkx, keyblkx+sizeof(keyblkx)-1 );
-	const BYTE* blkx_end = std::search(  blkx_beg, end, plist_end, plist_end+sizeof(plist_end)-1 );
+	const BYTE* blkx_beg = std::search( plist_beg, end, (const BYTE*)keyblkx, (const BYTE*)(keyblkx+sizeof(keyblkx)-1) );
+	const BYTE* blkx_end = std::search(  blkx_beg, end, (const BYTE*)plist_end, (const BYTE*)(plist_end+sizeof(plist_end)-1) );
 	if( blkx_beg == end )
 		return false;
 
 	// 全ての <data> ～ </data> について…
 	static const char dataB[] = "<data>";
 	static const char dataE[] = "</data>";
-	const BYTE* data_beg = std::search( blkx_beg, blkx_end, dataB, dataB+sizeof(dataB)-1 );
+	const BYTE* data_beg = std::search( blkx_beg, blkx_end, (const BYTE*)dataB, (const BYTE*)(dataB+sizeof(dataB)-1) );
 
 	unsigned long zoffs=0, tempzoffs=0;
 	while( data_beg != blkx_end )
 	{
 		data_beg += sizeof(dataB);
-		const BYTE* data_end = std::search( data_beg, blkx_end, dataE, dataE+sizeof(dataE)-1 );
+		const BYTE* data_end = std::search( data_beg, blkx_end, (const BYTE*)dataE, (const BYTE*)(dataE+sizeof(dataE)-1) );
 		{
 			// base64 decode
 			vector<BYTE> buf;
@@ -230,7 +235,7 @@ bool CDmgTool::zlibDecode( const BYTE* beg, const BYTE* end, FILE* fp )
 			}
 			zoffs += tempzoffs;
 		}
-		data_beg = std::search( data_end, blkx_end, dataB, dataB+sizeof(dataB)-1 );
+		data_beg = std::search( data_end, blkx_end, (const BYTE*)dataB, (const BYTE*)(dataB+sizeof(dataB)-1) );
 	}
 
 	return true;
@@ -453,8 +458,8 @@ bool CDmgTool::hfsExpand( const BYTE* beg, const BYTE* end, const char* destDir 
 	const unsigned long FirstLeaf = UInt32( catalog_beg+0x18 );
 
 	// １パス目。「ID==>ファイル名/フォルダ名」のマッピングを作成
-	map<unsigned long, unsigned long> id2parent_id;
-	map<unsigned long, string>        id2name;
+	map<unsigned long, unsigned long, std::less<unsigned long> > id2parent_id;
+	map<unsigned long, string, std::less<unsigned long> >        id2name;
 	{
 		for( unsigned long Leaf=FirstLeaf; Leaf; )
 		{
@@ -562,7 +567,7 @@ bool CDmgTool::hfsExpand( const BYTE* beg, const BYTE* end, const char* destDir 
 							const unsigned long blockCount = UInt32(desc+0x6c+8*i);
 							for(int j=0; j!=blockCount; ++j)
 							{
-								unsigned long len = (size_t)min(BlockSize, dsize);
+								unsigned long len = (size_t)min((UINT64)BlockSize, dsize);
 								fwrite( beg+BlockSize*(startBlock+j), 1, len, fp );
 								dsize -= len;
 							}

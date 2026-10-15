@@ -14,6 +14,7 @@
 
 #include "SplitCmdLine.h"//コマンドライン解析用
 #include <map>  //ヘッダファイルを追加
+#include <functional>
 using namespace std;   //こいつを入れないと使えません。
 
 #define RAR_3X 1
@@ -155,13 +156,17 @@ using namespace std;   //こいつを入れないと使えません。
 #include "OpenArchive\OpenJc1.h"
 #endif
 
+#if !defined(_MSC_VER) || (_MSC_VER >= 1200)
 #include <shlwapi.h>
-#pragma comment( lib , "shlwapi.lib" ) 
+#endif
+#if !defined(_MSC_VER) || (_MSC_VER >= 1200)
+#pragma comment( lib , "shlwapi.lib" )
+#endif
 
 // グローバル変数
 static CTool* g_pToolList = NULL;
 static COpenArchive* g_pOpenArchiveList = NULL;//追加By Bonty
-static std::map<CTool*,COpenArchive*> ArchiveListMap;
+static std::map<CTool*,COpenArchive*,std::less<CTool*> > ArchiveListMap;
 
 static int    g_nError[3] = {0,0,0};
 enum { NOT_A_FILE, UNSUPPORTED, FAILED };
@@ -268,7 +273,7 @@ private:
 			//window作成
 			hWnd = CreateDialogParam( Instance,
 										  MAKEINTRESOURCE(IDD_INFDLG),
-										  NULL, Proc, (LPARAM)param );
+										  NULL, (DLGPROC)Proc, (LPARAM)param );
 
 			ShowWindow(hWnd, SW_SHOW);
 			UpdateWindow(hWnd);

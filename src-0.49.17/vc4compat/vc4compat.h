@@ -60,6 +60,14 @@ typedef long LONG_PTR;
 typedef LONG_PTR* PLONG_PTR;
 #endif
 
+/* This STLport + VC4 combination meets `__forceinline` in the
+ * vendored zstd/sevenz C sources, which VC4 does not know as a
+ * keyword (C2054).  Define it away: linkage and calls are
+ * unaffected, only the inlining hint is lost. */
+#ifndef __forceinline
+#define __forceinline
+#endif
+
 /* VC4 has no <shlwapi.h>; we deliberately do not use SHLWAPI (the
  * official binary does import it, but dropping it is what keeps this
  * DLL loadable on stock Windows 95 / NT4). */
@@ -69,7 +77,10 @@ typedef LONG_PTR* PLONG_PTR;
 #endif
 
 /* STLport v2 needs bool to exist before it will parse at all.  These are
- * the headers the tree actually pulls in. */
+ * the headers the tree actually pulls in.  C++ only: the .c files
+ * are force-included with this header too, and C has no namespaces
+ * (every .c file failed with C2282 before this guard). */
+#ifdef __cplusplus
 #include <vector>
 #include <list>
 #include <map>
@@ -77,6 +88,7 @@ typedef LONG_PTR* PLONG_PTR;
 #include <utility>
 #include <algorithm>
 #include <string>
+#endif /* __cplusplus */
 
 #endif /* _MSC_VER < 1200 */
 #endif /* VC4COMPAT_H */

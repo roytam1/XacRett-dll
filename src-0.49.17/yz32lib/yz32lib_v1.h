@@ -97,6 +97,9 @@ public:
 	time_t  m_file_mtime ;   // last modified
 
 public:
+	/* Default ctor: only exists so STLport (eager member
+	   instantiation) accepts std::vector<yzFileStat>. */
+	yzFileStat() : m_file_size(0), m_file_mtime(0) {}
 	yzFileStat(
 		string  in_file_name,
 		long    in_file_size,
@@ -167,6 +170,12 @@ private:
 	friend class yzDecodeHeader;
 	friend class yzFileDecode;
 };
+
+/* Destroys a v1 header from TUs that also know nsYZ32v2::yzDecHead.
+   VC4 emits a single __delDtor identity for same-named classes in
+   different scopes when both are deleted in one TU (C2084), so the
+   delete lives here, where only ::yzDecHead exists. */
+void yzDestroyDecHead(yzDecHead* head);
 
 //-------------------------------------------------------------------
 // Header accessor

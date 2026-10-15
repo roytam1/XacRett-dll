@@ -36,8 +36,10 @@ blockread2:
 				h_VLen=h_FLen;
 				h_FLen=0;
 			}
-			while( int l=GetBlockData() )
-				for( int i=0; i!=l; i++ );
+			int l;
+			int i;
+			while( (l=GetBlockData()) != 0 )
+				for( i=0; i!=l; i++ );
 
 			if( GetNextVol() )
 				goto blockread2;

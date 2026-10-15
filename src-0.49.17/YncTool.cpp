@@ -59,7 +59,9 @@ bool CYncTool::Extract( const char* fname, const char* ddir )
 		{
 			kiutil::getline( str,XACR_BUFSIZE,fp );
 			if( 0==strncmp(str,"=ybegin ",8) )
-				if( char* nm=strstr(str," name=") )
+			{
+				char* nm;
+				if( (nm=strstr(str," name=")) != 0 )
 				{
 					strcpy( outname, nm+6 );
 					for( int sp=strlen(outname)-1;
@@ -67,6 +69,7 @@ bool CYncTool::Extract( const char* fname, const char* ddir )
 						outname[sp] = '\0';
 					break;
 				}
+			}
 		}
 		if( feof(fp) || outname[0]=='\0' ) break;
 

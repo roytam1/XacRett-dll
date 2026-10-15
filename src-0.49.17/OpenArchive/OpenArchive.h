@@ -2,6 +2,7 @@
 #define AFX_OPENARCHIVE_H__57AAB1DD_886F_4D25_860C_2AA917B02AC1__INCLUDED_
 
 #include "..\kiutil.h"
+#include <string.h>
 
 #ifndef FNAME_MAX32
 #define FNAME_MAX32 512
@@ -26,6 +27,19 @@ struct INDIVIDUALINFO {
 	char	dummy1[3];
 	char	szAttribute[8];
 	char	szMode[8];
+/* Entry comparison, by file name.  Members (not globals): VC4
+   does not do argument-dependent lookup, so a global operator
+   is invisible inside STLport and deque<INDIVIDUALINFO> still
+   fails C2678.  Exists only because this STLport-on-VC4
+   combination eagerly instantiates deque<T>'s member
+   operator<; VC6 never instantiates it and no tree code
+   compares entries, so this changes nothing at runtime. */
+	bool operator==(const INDIVIDUALINFO& o) const
+		{ return strcmp(szFileName, o.szFileName) == 0; }
+	bool operator!=(const INDIVIDUALINFO& o) const
+		{ return !(*this == o); }
+	bool operator<(const INDIVIDUALINFO& o) const
+		{ return strcmp(szFileName, o.szFileName) < 0; }
 };
 
 class COpenArchive

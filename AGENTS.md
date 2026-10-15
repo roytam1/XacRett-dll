@@ -20,8 +20,9 @@ no binary-only dependencies (AMD64 port preparation).
   Python 3.13 lives at `C:\Program Files\Python313\python.exe`
   (invoke by absolute path).
 - MSVC 4.x (CL 10.10.6038) also installed, at
-  `C:\MSDEV4\BIN\VCVARS32.BAT`. A VC4 build is NOT wired up, but it is
-  measured, not guessed - see "MSVC4 compatibility" below.
+  `C:\MSDEV4\BIN\VCVARS32.BAT`. All `XacRett.dsp` units are VC4
+  compile-clean (measured, not guessed - see "MSVC4 compatibility"
+  below); no VC4 build script or link yet.
 - Workarea root (also the git repo): `\\Roy-xp\c\devel\XacRett-dll`.
 - Git: pass `-c user.name=roytam1 -c user.email=roytam@gmail.com` on every
   command. Never touch git config. Never push unless asked. Commit per
@@ -629,54 +630,97 @@ no binary-only dependencies (AMD64 port preparation).
   for mixed-solid archives is skipped (no sample; stored→blocked is
   registered).
 
-## MSVC4 compatibility (measured, partially working)
+## MSVC4 compatibility (all XacRett.dsp units compile clean)
 
 Question answered by experiment: **can this tree build under MSVC 4.x?**
-Yes, with a small compatibility layer - but it is not wired into a
-build script yet. Current state, measured one file per `cl`:
-**190 of 233 of our own `.cpp` files compile clean.**
+Compile-clean: yes. **All 220 compile units in `XacRett.dsp` (148 .cpp
++ 72 .c) compile clean under CL 10.10.6038**, with zero change to VC6
+behavior (full build + relink + 25/25 7z matrix + ZIP-AES/XZ/JCALG1/YZ1
+spot checks after every fix). Not yet done: the separate
+`unrar/UnRAR.dsp` static lib under VC4 (earlier rough pass: many
+failures, and `arccmt.cpp` hangs the VC4 compiler outright), and any
+VC4 link.
 
-Landed: `src-0.49.17/vc4compat/vc4compat.h` and
-`src-0.49.17/vc4compat/string`, both `#if _MSC_VER < 1200`-guarded, so
-the VC6 build is untouched (verified: full build + 25/25 7z matrix +
-ZIP-AES/XZ/JCALG1 spot checks after every change). They are only
-reached via `/FI` on the VC4 path.
+Re-measure (TEMP harness, nothing in the repo; one file per `cl` with
+a 120 s timeout each, `<dir>_<file>.obj` naming, flags mirroring
+`genbuild.ps1` plus `/FI vc4compat.h /I STL /I vc4compat`):
+  `python C:\Users\Roy\AppData\Local\Temp\opencode\vc4check.py`
 
-The four things VC4 lacks, and what each needed:
-- **`bool`/`true`/`false`** are reserved-but-unimplemented (`error
-  C2501`); 332 of our own sources use `bool`. Order is delicate:
-  `windows.h`/`ole2.h`/`objidl.h` FIRST (they use the real `bool` in
-  `VARIANT_BOOL`), then the macro, then STL - because STLport's own
-  headers use `bool` and cannot be parsed without it. And
-  `#define bool int` is wrong: it parses but collides with STLport's
-  `operator[]` (`error C2666: 3 overloads have similar conversions`);
-  `unsigned char` matches VC6's 1-byte `bool` and does not.
-- **`<string>`**: the `STL/` in the workarea root is STLport v2 and
-  ships `<vector>`/`<list>`/`<map>`/`<set>`/`<algorithm>` but **no
-  `<string>`**, and VC4 has no STL. `vc4compat/string` supplies the
-  subset we use. Without it, 9 of the first 12 files tried fail.
-  Note it may only declare ONE `erase` overload - VC4's overload
-  resolution makes a defaulted one plus a `void erase(size_t)`
-  ambiguous.
-- **`ULONG_PTR`/`PULONG_PTR`/`LONG_PTR`/`PLONG_PTR`** postdate VC4's
-  SDK; typedefd in the shim.
-- **`__declspec(align(16))`** is `error C2485 unrecognized extended
-  attribute` - one site left, `SevenZCore.cpp` AES state buffer.
+Or build it declaratively (checked in): `src-0.49.17/Makefile.vc4`
+is a plain NMAKE makefile generated from the same `XacRett.dsp`
+SOURCE lines (generator: TEMP `genmakevc4.py`; re-run it when sources
+are added or removed). After `VCVARS32.BAT` (MSDEV4):
+  `nmake -f Makefile.vc4` (objects + resources to `%TEMP%\vc4build`)
+  `nmake -f Makefile.vc4 OUTDIR=C:\vc4out` (redirect outputs)
+  `nmake -f Makefile.vc4 link` (needs `unrar\UnRAR.lib`; open).
+Proven: full 220-unit + .res build, zero errors, incremental no-op
+clean. `STL/` (STLport 2.033, Nov 1997, SGI-STL-2.03 lineage,
+permissive license) is committed at the workarea root so the VC4
+path is self-contained; it stays unconfigured and untouched.
 
-`STL/` also turns out to be **unconfigured**: `stl_config.h` has no
-MSVC++ section at all (it is the SGI default), and `README.VC++`
-warns about VC++ 4.0 namespace problems. It works for most files but
-is the reason 5 files still cannot name `std::vector`.
+Landed in `src-0.49.17/vc4compat/`, all `#if _MSC_VER < 1200`-guarded
+and reached only via `/FI`, so VC6 never sees them:
+- `vc4compat.h`: `bool`/`true`/`false` as `unsigned char`, AFTER
+  windows.h/ole2.h/objidl.h (`#define bool int` collides with
+  STLport's `operator[]`); `ULONG_PTR` family; empty `__forceinline`
+  (vendored zstd/sevenz C sources use it, C2054 otherwise); STL
+  includes under `#ifdef __cplusplus` (without it every .c file
+  dies C2282 - C has no namespaces).
+- `string`: the subset of `std::string` the tree uses (STLport v2
+  ships no `<string>`). Exactly ONE `erase` overload, and NO implicit
+  `const char*` conversion (real std::string has none either) - with
+  it, every `s[i]` is a 3-way C2666 on VC4 (two member `[]`s plus
+  convert-then-builtin-`[]`).
+- `basetsd.h`: VC4 ships none (fdi/Fdi.h needs it), `INT_PTR` and
+  `UINT_PTR` included (MS FDI.H names them).
+- `wincrypt.h`: VC4 ships none (wzaes.c needs it); only the
+  GetProcAddress-era types/constants, no link dependency (same as
+  the VC6 path).
 
-Remaining own-source failures (13), each with an identified cause:
-`using std::vector;` being ill-formed (fixed - a using-declaration may
-not name a class template; VC6 tolerates it, VC4 does not), one
-`shlwapi.h` include VC4 has no header for (we do not use SHLWAPI at
-all), member functions in local classes, VC4 `char`/`int` parse
-strictness, and two overload-resolution clashes. The other 26
-failures are in vendored `unrar`, which already carries a VC6 shim
-set that would need extending; one of them (`arccmt.cpp`) hangs the
-VC4 compiler outright.
+Portable source fixes this forced (each verified VC6-clean):
+- declarations in `if`/`while` conditions hoisted (VC4 C2062;
+  `for`-init is fine): IshTool, YncTool, OpenYnc x3.
+- `using std::vector;` is ill-formed (C2955 on VC4) - made
+  conditional, 12 bare uses qualified (yz32lib).
+- `std::string` uses qualified where a TU also has `using namespace
+  std;` (XacRett.cpp:17 plus yz32lib.h's `using std::string;` reads
+  as C2872 ambiguous on VC4).
+- `std::vector<yzFileStat>` needs a default ctor under STLport's
+  eager member instantiation (C2512): trivial ones added (yz32lib,
+  yz32lib_v1.h).
+- `map<K,V>` needs the 3rd arg with this STLport (C2976, its adaptor
+  has no defaults): `std::less<K>` spelled out (DmgTool, OpenDmg,
+  XacRett).
+- this STLport's `search`/`min` take ONE iterator/type (C2665):
+  pattern pairs cast to `const BYTE*` (all-ASCII patterns,
+  behavior-identical), `min` sides cast to `UINT64`.
+- member functions in local classes lifted to file scope (C2601:
+  the Dmg/OpenDmg RAII tmp-file structs, same behavior everywhere).
+- `__declspec(align(16))` replaced by over-allocate-and-round-up
+  (SevenZCore AES state; VC4 has no align).
+- `<stdio.h>` where VC6 got it transitively (yz32lib.cpp).
+- `<shlwapi.h>` + pragma guarded out (XacRett.cpp; used only via
+  GetProcAddress anyway) and a `(DLGPROC)` cast on the info-dialog
+  proc (VC4 STRICT-era headers spell HWND incompatibly; ABI equal).
+- `::yzDecHead` vs `nsYZ32v2::yzDecHead`: VC4 emits one `__delDtor`
+  identity for both when deleted in one TU (C2084, proven by
+  TEMP-copy bisection); the v1 delete moved to `yzDestroyDecHead`
+  in yz32lib_v1.cpp.
+- `std::deque<INDIVIDUALINFO>` needs element comparison (this
+  STLport's deque has a MEMBER `operator<`, eagerly instantiated;
+  vector's is a non-member and stays lazy): by-filename `==`/`!=`
+  `/<` added as MEMBERS (OpenArchive.h) - VC4 has no
+  argument-dependent lookup, so globals stay invisible inside STL.
+- sevenz `CpuArch.c`: VC4 takes the existing no-cpuid stub branch
+  (naked `__asm` is C2400 there); feature queries report 0, handled.
+
+`STL/` stays unconfigured and untouched: `stl_config.h` has no MSVC++
+section (SGI default) and `README.VC++` warns about VC++ 4.0
+namespaces. Every workaround above lives in our own headers/sources.
+Still open: the unrar static lib under VC4, then a VC4 link (its
+import table can never match official: VC4 has no SHLWAPI.LIB, but
+our SHLWAPI use is already GetProcAddress-based, so a VC4 link stays
+95/NT4-loadable by design).
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).

@@ -54,7 +54,10 @@ public:
 	bool   empty()   const { return n_ == 0; }
 
 	const char* c_str() const { return p_ ? p_ : ""; }
-	operator const char*() const { return c_str(); }
+	/* NOTE: no implicit const char* conversion, on purpose.  Real
+	   std::string has none, and on VC4 it makes every s[i] a 3-way
+	   C2666 ambiguity (two member operator[]s plus convert-then-
+	   builtin-[]).  Call sites already spell .c_str(). */
 
 	char*       data()       { return p_ ? p_ : (char*)""; }
 	const char* data() const { return c_str(); }
