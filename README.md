@@ -132,6 +132,11 @@ to the `.dsp`. Result: `XacRett.dll`, i386, `FileVersion 0.49.17`,
   all 49 vendored UnRAR units pass under CL 10.10 via a small
   `vc4compat/` layer, and `nmake -f Makefile.vc4 link` builds a
   working DLL (VC6 untouched). See `AGENTS.md`.
+- YZ1 password support: `.yz1` archives made by `yzenc.exe -p<PASSWORD>`
+  extract correctly via `-p<password>`. The official 0.49.17 binary
+  cannot open them at all (it crashes); a pre-existing off-by-one
+  that crashed the host after every successful YZ1 extraction is
+  fixed here too.
 - See `AGENTS.md` for build/encoding constraints, per-format findings,
   reference handling (clean-room ports, reference-use-only sources),
   and the pre-commit checklist.

@@ -85,10 +85,16 @@ private:
 	int gauge_DecodeInit( const char*, const yzDecodeHeader& ) {return 0;}
 	int gauge_String( const char* ) {return 0;}
 	int gauge_Value( const int&, const int& ) {return 0;}
-	int gauge_WriteInfo( const yzFileStat&, const int& no, const int& )
+	int gauge_WriteInfo( const yzFileStat& in_yzfstat, const int&, const int& )
 	{
-		//string& ext_name =decoder->yzfiledecode_p_yz_dec_head->m_file_name_tbl[no];
-		string& ext_name =decoder->p_yz_dec_head->m_file_name_tbl[no];
+		/* `no` was 1-based (the engine calls GaugeSetOutputValue(i+1))
+		   while the body indexed m_file_name_tbl[no] directly, so the LAST
+		   member of EVERY archive read one past the end.  That produced a
+		   garbage std::string whose c_str() reached kiutil::StrMatch and
+		   faulted (0xC0000005) after the file had already been written.
+		   The bridge hands us a stat built from the correct 0-based
+		   index; copy it, because the code below rewrites the name. */
+		string ext_name = in_yzfstat.m_file_name;
 
 		if (tool->m_Endflg) return 2;//追加 By Bonty
 		//ワイルドカード処理

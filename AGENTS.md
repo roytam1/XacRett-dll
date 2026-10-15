@@ -549,6 +549,52 @@ no binary-only dependencies (AMD64 port preparation).
   py7zr's `calculate_key` bit for bit; m93_aes.7z/"secret" and
   aes4.7z/"testpw" extract byte-exact and a wrong password fails loudly
   one stage later.
+- YZ1 (`.yz1`, `ARCHIVETYPE_YZ1` 45) password support is DONE. The
+  format is trivial once decoded, and the official 0.49.17 binary simply
+  **cannot** open these - it faults with 0xC0000005 on both listing and
+  extraction - so we deliberately FIX it. Format taken from `yzdec.c`
+  (Hex-Rays) and verified byte-exactly against `yzenc.exe -p<PASSWORD>`:
+  - `hdr[6]` bit 2 (`& 4`) set = payload is encrypted. `hdr[6..7]` is the
+    ASCII literal "00" on a plain archive.
+  - `hdr[7]` = check byte = `(strlen(pw) + sum(pw[k]^k)) & 0xFF`. `v33` is
+    an **8-bit** quantity in the original; that is what makes multi-char
+    passwords work, and it is the trap here (naive 32-bit arithmetic gives
+    the wrong answer).
+  - `hdr[0..19]` is never encrypted. `hdr[20..]` is XOR with a repeating
+    4-byte key indexed by `(offset - 20) & 3`, the key being the
+    big-endian bytes of `v37 = i + v34 + v99*v98` where
+    `v34=v99=v98=i=len(pw)` and, per byte with `c=pw[k]`, `v36 = k ^ c`
+    then `v33=(BYTE)(v33+(c^k)); v99+=v36; v98-=v36; v34*=v36; i^=v36`.
+    The wider accumulators wrap at 32 bits.
+  - Implemented as `YzDeriveKey`/`YzApplyPassword` in
+    `yz32lib/yz32lib_v1.cpp`, called from both `LoadArchive` call sites.
+    It uses the `MessINPUT` hook the engine already declared but never
+    called, so no new plumbing: extraction reaches `CTool::GetPassword()`
+    (so `-p<pw>` works and headless runs do not hang), while
+    `COpenYz1::CYzEv::MessINPUT` returns "" so **listing never prompts** and
+    a password archive simply lists as 0 members.
+  - A wrong/absent password fails with -1 at the check byte rather than
+    decoding to garbage. Official `yzdec.exe` instead accepts a wrong
+    password and emits a garbage name and negative size
+    (`TestFile(1/1):  (-318767104 byte)`) before failing on `fopen`.
+  - **Also fixed a pre-existing crash that hit EVERY successful YZ1
+    extraction**, with or without a password: the engine calls
+    `GaugeSetOutputValue(i+1)`, so `gauge_WriteInfo`'s `no` is 1-based, but
+    the body indexed `m_file_name_tbl[no]` directly - one past the end for
+    the last member. The garbage `std::string`'s `c_str()` reached
+    `kiutil::StrMatch` and faulted (+0x2c into that function, i.e.
+    `mov dl,byte ptr [ecx]`). It now uses the `yzFileStat&` the bridge
+    already builds from the correct 0-based index. Official does not have
+    this bug. Worth remembering: it was hiding because the YZ1 extraction
+    checks compared content and ignored the harness exit code.
+  - Verified: 3-member archives (text/binary/70k) plain and passworded,
+    8 single-member password variants (case, punctuation, digits, 21
+    chars, 1 char), 4 negatives (wrong/empty/case-mangled/absent) all
+    clean with no crash, hang or partial output, and the `yzenc.yz1`
+    workarea sample (password `yzenc`) extracting `yzenc.txt` byte-exact.
+    Every member also matches `yzdec.exe`. Re-checked on the VC4 build.
+  - Reference is the shipped `yzenc.exe`/`yzdec.exe` plus `yzdec.c` /
+    `yzdec.lst` in the workarea root - never vendored.
 - YZ1 (`.yz1`, `ARCHIVETYPE_YZ1` 45, `Yz1Tool` + `COpenYz1` over
   `yz32lib`) listing was silently broken: the listing constructor
   `yzFileDecode(InEv&, yzFileEv*, const char*)` only REMEMBERS the archive

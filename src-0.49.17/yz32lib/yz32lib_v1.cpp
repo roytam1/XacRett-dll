@@ -587,6 +587,80 @@ static void FormatSize(char* buf, unsigned long n)
 }
 
 //--------------------------------------------------------------------
+// Password-protected archives
+//
+// The engine already declared the MessINPUT() hook (yz32lib_v1.h) but
+// nothing ever called it, so an encrypted archive silently produced
+// nothing.  Derivation below is transcribed from yzdec.c (the official
+// unpacker, Hex-Rays output) and verified byte-exactly against archives
+// produced by yzenc.exe -p<PASSWORD>.
+//
+//     hdr[6] bit 2 set  -> payload is encrypted
+//     hdr[7]            -> check byte  (hdr[6..7] == "00" when plain)
+//     hdr[0..19]        -> never encrypted (magic, version, flag,
+//                          check byte, archive/header size, file count)
+//     hdr[20..]         -> XOR with a 4-byte repeating key whose index
+//                          is (offset - 20) & 3
+//
+// v33 is an 8-bit quantity in the original, so the additions wrap at 8
+// bits; the wider accumulators wrap at 32.  All wrapping is done in
+// unsigned here so it is defined rather than relying on x86 overflow.
+//--------------------------------------------------------------------
+static void YzDeriveKey(const char* pw, unsigned char* key,
+                        unsigned char* chk)
+{
+	unsigned int v34, v99, v98, i;
+	unsigned char v33;
+	unsigned int v37;
+	int len = (int)strlen(pw);
+	int k;
+
+	v33 = (unsigned char)len;
+	v34 = v99 = v98 = i = v33;
+	for (k = 0; k < len; k++) {
+		int c = (unsigned char)pw[k];
+		int v36;
+		v33 = (unsigned char)(v33 + (c ^ k));
+		v36 = k ^ c;
+		v99 += (unsigned int)v36;
+		v98 -= (unsigned int)v36;
+		v34 *= (unsigned int)v36;
+		i   ^= (unsigned int)v36;
+	}
+	v37 = i + v34 + v99 * v98;
+	key[0] = (unsigned char)(v37 >> 24);
+	key[1] = (unsigned char)(v37 >> 16);
+	key[2] = (unsigned char)(v37 >> 8);
+	key[3] = (unsigned char)v37;
+	*chk = v33;
+}
+
+// Decrypts `arc` in place when it is password protected.  Returns 0 when
+// the buffer is ready for YZDecodeImage and -1 when it is not, so a wrong
+// password (or none) fails cleanly instead of decoding to garbage.
+//
+// The listing path passes an event whose MessINPUT returns "" and so
+// never prompts; extraction passes one that reaches CTool::GetPassword().
+static int YzApplyPassword(yzFileEv* yzm, unsigned char* arc, long arcLen)
+{
+	unsigned char key[4];
+	unsigned char chk;
+	char* pw;
+	long i;
+
+	if (!arc || arcLen < 20) return -1;
+	if (!(arc[6] & 4)) return 0;			// not encrypted
+
+	pw = yzm ? yzm->MessINPUT("Please input password.") : 0;
+	if (!pw) return -1;
+	YzDeriveKey(pw, key, &chk);
+	if (arc[7] != chk) return -1;		// wrong password
+	for (i = 20; i < arcLen; i++)
+		arc[i] = (unsigned char)(arc[i] ^ key[(i - 20) & 3]);
+	return 0;
+}
+
+//--------------------------------------------------------------------
 // Archive loading (plain or SFX-embedded)
 //--------------------------------------------------------------------
 static int LoadArchive(const char* fname,
@@ -858,6 +932,10 @@ int yzFileDecodeV1::YzFile_DecodeHeader(const char* in_file_name)
 	long n = 0;
 	if (!in_file_name || !in_file_name[0]) return -1;
 	if (LoadArchive(in_file_name, &file, &arc, &arcLen)) return -1;
+	if (YzApplyPassword(yzm, (unsigned char*)arc, arcLen)) {
+		delete [] file;
+		return -1;
+	}
 	if (YZDecodeImage(arc, arcLen, &en, &n, &img, &total)) {
 		delete [] file;
 		return -1;
@@ -909,6 +987,10 @@ int yzFileDecodeV1::DecodeFile(const char* fname, const int& /*mode*/)
 
 	if (!fname || !fname[0]) return -1;
 	if (LoadArchive(fname, &file, &arc, &arcLen)) return -1;
+	if (YzApplyPassword(yzm, (unsigned char*)arc, arcLen)) {
+		delete [] file;
+		return -1;
+	}
 	if (YZDecodeImage(arc, arcLen, &en, &n, &img, &total)) {
 		delete [] file;
 		return -1;

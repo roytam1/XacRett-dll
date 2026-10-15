@@ -24,8 +24,12 @@
 // will not compile against this header; use yz32lib_v2.h for it.
 //
 // Notes:
-//  - Password-protected (encrypted) YZ1 archives are NOT supported;
-//    DecodeFile returns -1 for them.
+//  - Password-protected (encrypted) YZ1 archives are supported: the
+//    MessINPUT hook is used to obtain the password, which is verified
+//    against the header check byte and then used to XOR-decrypt the
+//    payload (see YzDeriveKey/YzApplyPassword in yz32lib_v1.cpp).
+//    A wrong or absent password fails with -1 instead of producing
+//    garbage - the official 0.49.17 binary crashes on these.
 //  - SFX (self-extracting) archives, with the yz01 image embedded near EOF
 //    behind a 4-byte size trailer, are supported.
 //  - Encoding is not implemented (yzFileEncode::EncodeFile returns -1).
