@@ -61,6 +61,7 @@ bool CAtoBTool::Extract( const char* fname,const char* ddir )
 	if (!CheckStr(outname)){fclose(fp); return true;}//’Ç‰Á By Bonty
 
 	// ŠJ‚­
+	kiutil::pathMake83(outname);
 	FILE* op=fopen(outname,"wb");
 	if( op==NULL ){fclose(fp);return false;}
 

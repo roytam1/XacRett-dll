@@ -84,6 +84,7 @@ bool CGzTool::Extract( const char* fname,const char* ddir )
 	gzFile gfp=gzopen( fname,"rb" );
 	if( !gfp )return false;
 
+	kiutil::pathMake83(outname);
 	FILE* fwp=fopen( outname,"wb" );
 	if( fwp )
 	{

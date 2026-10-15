@@ -81,6 +81,7 @@ bool CBelTool::Extract( const char* fname, const char* ddir )
 	}
 
 	// バッファ(bf2)を保存
+	kiutil::pathMake83(outname);
 	FILE* out = fopen( outname,"wb" );
 	if( !out )
 	{

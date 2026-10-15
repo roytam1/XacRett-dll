@@ -37,6 +37,7 @@ bool CCompactCTool::Extract( const char* fname,const char* ddir )
 	if (!CheckStr(outname)){fclose(fp);return true;}//追加 By Bonty
 
 	// 出力先を開く
+	kiutil::pathMake83(outname);
 	if( !(op=fopen(outname,"wb")) ){fclose(fp);return false;}
 
 	// 展開開始

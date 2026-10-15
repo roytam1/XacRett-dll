@@ -83,6 +83,7 @@ bool CUnixDecoderTool::Extract( const char* fname,const char* ddir )
 		return true;
 	}
 
+	kiutil::pathMake83(outname);
 	FILE* op=fopen(outname,"wb");
 	if( !op ){fclose(fp);return false;}
 

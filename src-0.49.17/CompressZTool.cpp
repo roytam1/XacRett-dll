@@ -28,6 +28,7 @@ bool CCompressZTool::Extract( const char* fname,const char* ddir )
 	//ワイルドカード処理
 	if (!CheckStr(outname)){Z_close(fp);return true;}//追加 By Bonty
 
+	kiutil::pathMake83(outname);
 	FILE* fwp=fopen(outname,"wb");
 	if( fwp!=NULL )
 	{

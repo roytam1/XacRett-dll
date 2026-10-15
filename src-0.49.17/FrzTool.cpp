@@ -50,6 +50,7 @@ bool CFrzTool::Extract( const char* fname,const char* ddir )
 	//ワイルドカード処理
 	if (!CheckStr(oriname)){fclose(frz); return true;}//追加 By Bonty
 
+	kiutil::pathMake83(oriname);
 	out=fopen(oriname,"wb");
 
 	if( h2==0x9e )melt1();

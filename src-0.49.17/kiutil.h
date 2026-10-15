@@ -26,6 +26,10 @@ public:
 
 	// 相対パスを与えると [不正文字除去],[複数階層makeDir],[..の__への変換] を行う
 	static char* pathMake( char* path);
+	// long file name support, and the 8.3 fallback used when there is none
+	static bool  longNameOK();
+	static char* pathMake83( char* path);
+	static int   m_lfn;// -1 unknown / 0 no long name / 1 long name ok
 	static bool  m_nodir;//pathMakeで使用する
 							//ディレクトリを無視するフラグ
 

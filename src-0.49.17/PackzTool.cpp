@@ -31,6 +31,7 @@ bool CPackzTool::Extract( const char* fname,const char* ddir )
 		P_close( fp );
 		return true;
 	}
+	kiutil::pathMake83(outname);
 	FILE* fwp=fopen(outname,"wb");
 	if( fwp!=NULL )
 	{

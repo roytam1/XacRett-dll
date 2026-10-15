@@ -1,6 +1,7 @@
 
 #include "stdafx.h"
 #include "kiutil.h"
+#include <stdlib.h>
 
 ///////////////
 void kiutil::timeSet( const char* fname, FILETIME* pft )
@@ -86,6 +87,353 @@ void kiutil::pathInit()
 #define isdblb(c) (lb[(unsigned char)(c)]==2)
 #define step(p) (p+=lb[(unsigned char)*(p)])
 
+//=============================================================
+// 8.3 fallback for file systems that cannot hold long names
+//=============================================================
+// Windows 3.1 + Win32s (and Windows 95 with "lfn=off") has no long name
+// support at all: CreateFile/fopen refuse a name that does not fit 8.3,
+// so extracting such an archive dies with ERROR_CANNOT_WRITE (0x8013).
+// Ask the file system once - on demand, the first time a name that does
+// not fit turns up - and when long names are unavailable mangle the name
+// the way the short name generators of that era did:
+//
+//     LongFileName.txt  ->  LONGFI~1.TXT
+//     short.LONGEXT     ->  short.LON
+//     CON.txt           ->  CON~1.TXT
+//
+// Intermediate components are mangled from the string alone, so every
+// member of one archive lands in the same directory; only the last
+// component is probed against the disk, which keeps ~N unique over
+// repeated extractions.  Where long names do work this is one cached
+// flag test and nothing is ever renamed.
+//
+// XACRETT_8DOT3 in the environment forces the mangling on, which is how
+// the fallback can be exercised on a machine that does have long names.
+
+int kiutil::m_lfn = -1;
+
+bool kiutil::longNameOK()
+{
+	if( m_lfn>=0 )
+		return m_lfn!=0;
+
+	if( getenv("XACRETT_8DOT3") )
+	{
+		m_lfn = 0;
+		return false;
+	}
+
+	HANDLE h = CreateFileA( "XacRettLongNameProbe.tmp", GENERIC_WRITE,
+	                        FILE_SHARE_READ|FILE_SHARE_WRITE, NULL,
+	                        CREATE_ALWAYS,
+	                        FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_TEMPORARY,
+	                        NULL );
+	if( h!=INVALID_HANDLE_VALUE )
+	{
+		CloseHandle( h );
+		DeleteFileA( "XacRettLongNameProbe.tmp" );
+		m_lfn = 1;
+		return true;
+	}
+
+	// Only a refusal of the name itself means "no long names here"; a
+	// directory we are not allowed to write to tells us nothing.
+	DWORD err = GetLastError();
+	if( err==ERROR_ACCESS_DENIED || err==ERROR_SHARING_VIOLATION ||
+	    err==ERROR_WRITE_PROTECT || err==ERROR_DISK_FULL )
+		m_lfn = 1;
+	else
+		m_lfn = 0;
+	return m_lfn!=0;
+}
+
+// DBCS aware: a name is never cut in the middle of a double byte char.
+static int p83width( const char* s )
+{
+	if( kiutil::lb[(unsigned char)*s]!=2 || s[1]=='\0' )
+		return 1;
+	return 2;
+}
+
+static int p83chars( const char* s )
+{
+	int n = 0;
+	while( *s )
+	{
+		n++;
+		s += p83width(s);
+	}
+	return n;
+}
+
+static int p83bytes( const char* s, int chars )
+{
+	int n = 0;
+	while( chars-- > 0 && *s )
+	{
+		int w = p83width(s);
+		n += w;
+		s += w;
+	}
+	return n;
+}
+
+// A name the kernel turns into a device instead of a file.
+static bool p83device( const char* base, int len )
+{
+	static const char* const dev[] = {
+		"CON","PRN","AUX","NUL","CLOCK$","CONIN$","CONOUT$",
+		"COM1","COM2","COM3","COM4","COM5","COM6","COM7","COM8","COM9",
+		"LPT1","LPT2","LPT3","LPT4","LPT5","LPT6","LPT7","LPT8","LPT9" };
+	int i, j;
+
+	// Win32 ignores trailing dots and blanks before the extension
+	while( len>0 && (base[len-1]==' ' || base[len-1]=='.') )
+		len--;
+	if( len<3 )
+		return false;
+
+	for( i=0; i!=int(sizeof(dev)/sizeof(dev[0])); i++ )
+	{
+		int dl = lstrlen(dev[i]);
+		if( dl!=len )
+			continue;
+		for( j=0; j<dl; j++ )
+		{
+			char a = base[j], b = dev[i][j];
+			if( 'a'<=a && a<='z' ) a = (char)(a-'a'+'A');
+			if( 'a'<=b && b<='z' ) b = (char)(b-'a'+'A');
+			if( a!=b )
+				break;
+		}
+		if( j==dl )
+			return true;
+	}
+	return false;
+}
+
+// Does prefix+comp already name something on disk?
+static bool p83taken( const char* prefix, const char* comp )
+{
+	char full[MAX_PATH*2];
+	if( prefix==NULL )
+		return false;
+	lstrcpyn( full,prefix,sizeof(full) );
+	lstrcat( full,comp );
+	return GetFileAttributes(full)!=0xFFFFFFFF;
+}
+
+// Would this component need an 8.3 name at all?  A pure string test, so
+// that the file system probe above only ever runs when there really is
+// something to mangle.
+static bool p83need( const char* comp )
+{
+	char base[MAX_PATH];
+	int  blen, bc, ec, d = -1, i, el;
+
+	for( i=lstrlen(comp)-1; i>=1; i-- )
+		if( comp[i]=='.' ) { d=i; break; }
+
+	if( d<0 )
+	{
+		lstrcpyn( base,comp,sizeof(base) );
+		el = lstrlen(comp);
+	}
+	else
+	{
+		memcpy( base,comp,d ); base[d] = '\0';
+		el = d+1;
+	}
+
+	for( i=0; base[i]; i++ )
+		if( base[i]<' ' || strchr(":*?\"<>|",base[i]) )
+			return true;
+
+	blen = lstrlen(base);
+	bc   = p83chars(base);
+	ec   = p83chars( comp+el );
+	return bc>8 || ec>3 || strchr(base,'.')!=NULL ||
+	       ( blen>0 && (base[blen-1]==' ' || base[blen-1]=='.') ) ||
+	       p83device(base,blen);
+}
+
+// Writes the 8.3 form of one path component.  prefix is the part of the
+// path already built, and is NULL unless this is the last component, so
+// that only a file we are about to create has to differ from what the
+// disk already holds.
+static void p83fit( const char* comp, const char* prefix, char* out )
+{
+	char base[MAX_PATH];
+	char ext[MAX_PATH];
+	char cand[MAX_PATH];
+	int  blen, d = -1, i, bc, ec, ne;
+
+	// the extension starts at the last dot that is not the first char
+	for( i=lstrlen(comp)-1; i>=1; i-- )
+		if( comp[i]=='.' ) { d=i; break; }
+
+	if( d<0 )
+	{
+		lstrcpyn( base,comp,sizeof(base) );
+		ext[0] = '\0';
+	}
+	else
+	{
+		memcpy( base,comp,d ); base[d] = '\0';
+		lstrcpyn( ext,comp+d+1,sizeof(ext) );
+	}
+
+	// characters no 8.3 name can hold (pathMake does this as well, but
+	// this entry point is also used on names that never went through it)
+	for( i=0; base[i]; i++ )
+		if( base[i]<' ' || strchr(":*?\"<>|",base[i]) )
+			base[i] = '_';
+	for( i=0; ext[i]; i++ )
+		if( ext[i]<' ' || strchr(":*?\"<>|",ext[i]) )
+			ext[i] = '_';
+
+	blen = lstrlen(base);
+	bc   = p83chars(base);
+	ec   = p83chars(ext);
+	ne   = (ec>3) ? p83bytes(ext,3) : lstrlen(ext);
+
+	if( bc<=8 && strchr(base,'.')==NULL &&
+	    !( blen>0 && (base[blen-1]==' ' || base[blen-1]=='.') ) &&
+	    !p83device(base,blen) )
+	{
+		// the name itself is fine, so keep it and only trim an extension
+		// that is too long; a file already on disk forces the ~N form
+		int nb = blen;
+		memcpy( cand,base,blen );
+		if( ec>0 )
+		{
+			cand[nb] = '.';
+			memcpy( cand+nb+1,ext,ne );
+			nb += 1+ne;
+		}
+		cand[nb] = '\0';
+		if( !p83taken(prefix,cand) )
+		{
+			lstrcpyn( out,cand,MAX_PATH );
+			return;
+		}
+	}
+
+	// base(6 or 5 chars) + "~N", N counted up from 1
+	for( int n=1; n<100; n++ )
+	{
+		int nd = (n<10) ? 1 : 2;
+		int room = 8-1-nd;
+		int nb = 0;
+
+		for( i=0; i<room && base[i]; i += p83width(base+i) )
+		{
+			if( base[i]=='.' )
+				cand[nb++] = '_';
+			else
+			{
+				int w = p83width(base+i);
+				memcpy( cand+nb,base+i,w );
+				nb += w;
+			}
+		}
+		cand[nb++] = '~';
+		if( nd==2 )
+			cand[nb++] = (char)('0'+n/10);
+		cand[nb++] = (char)('0'+n%10);
+		if( ec>0 )
+		{
+			cand[nb++] = '.';
+			memcpy( cand+nb,ext,ne );
+			nb += ne;
+		}
+		cand[nb] = '\0';
+
+		if( !p83taken(prefix,cand) )
+		{
+			lstrcpyn( out,cand,MAX_PATH );
+			return;
+		}
+	}
+
+	// every name in the ~1..~99 range is taken: overwrite ~99
+	lstrcpyn( out,cand,MAX_PATH );
+}
+
+char* kiutil::pathMake83( char* path )
+{
+	char res[MAX_PATH];
+	char comp[MAX_PATH];
+	char fit[MAX_PATH];
+	int  rn = 0;
+	int  i;
+	char* src = path;
+
+	// "X:\" and friends are kept as they are
+	while( *src=='/' || *src=='\\' || *src=='?' )
+	{
+		if( rn<MAX_PATH-1 ) res[rn++] = *src;
+		src++;
+	}
+	if( src[0]!='\0' && src[1]==':' )
+	{
+		if( rn<MAX_PATH-3 )
+		{
+			res[rn++] = src[0];
+			res[rn++] = ':';
+			res[rn++] = '\\';
+		}
+		src += 2;
+	}
+
+	for( ;; )
+	{
+		int cn = 0;
+
+		while( *src!='\0' && *src!='\\' && *src!='/' )
+		{
+			if( cn<MAX_PATH-1 ) comp[cn++] = *src;
+			src++;
+		}
+		comp[cn] = '\0';
+
+		if( cn==0 )		// a separator, or the end of the path
+		{
+			if( *src=='\0' )
+				break;
+			if( rn<MAX_PATH-1 ) res[rn++] = '\\';
+			src++;
+			continue;
+		}
+
+		// the file system is asked about a name only when it really does
+		// not fit, and only when long names are unavailable
+		if( strcmp(comp,".")==0 || strcmp(comp,"..")==0 ||
+		    !p83need(comp) || longNameOK() )
+		{
+			for( i=0; i<cn; i++ )
+				if( rn<MAX_PATH-1 ) res[rn++] = comp[i];
+		}
+		else
+		{
+			// only the last component has to be free on disk
+			res[rn] = '\0';
+			p83fit( comp, *src=='\0' ? (const char*)res : NULL, fit );
+			for( i=0; fit[i]; i++ )
+				if( rn<MAX_PATH-1 ) res[rn++] = fit[i];
+		}
+
+		if( *src=='\0' )
+			break;
+		if( rn<MAX_PATH-1 ) res[rn++] = '\\';
+		src++;
+	}
+
+	res[rn] = '\0';
+	memcpy( path,res,rn+1 );
+	return path;
+}
+
 char* kiutil::pathMake( char* path )
 {
 	char* st = path;
@@ -113,15 +461,29 @@ char* kiutil::pathMake( char* path )
 						*r = '_';
 			#endif
 			// ディレクトリ作成
-			*p='\0';
-			if(!m_nodir)
-				CreateDirectory( st, NULL );
 			*p='\\';
 			// qを更新
 			q = p+1;
 		}
 		else if( *p<' ' || ( *p>'~' && !( 0xa0<=*p && *p<=0xdf ) ) || strchr(":*?\"<>|",*p) )
 			*p = '_';
+	}
+
+	// long file name fallback (a no-op wherever long names work)
+	pathMake83( st );
+
+	// the directories are made from the finished path, so that a mangled
+	// name is the one that actually gets created
+	if( !m_nodir )
+	{
+		for( char *p=st; *p!='\0'; step(p) )
+		{
+			if( *p!='\\' )
+				continue;
+			*p='\0';
+			CreateDirectory( st, NULL );
+			*p='\\';
+		}
 	}
 
 	if(m_nodir)

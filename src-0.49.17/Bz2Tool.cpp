@@ -41,6 +41,7 @@ bool CBz2Tool::Extract( const char* fname,const char* ddir )
 		return true;
 	}
 
+	kiutil::pathMake83(outname);
 	FILE* fwp=fopen( outname,"wb" );
 	if( fwp!=NULL )
 	{

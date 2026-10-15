@@ -619,6 +619,63 @@ no binary-only dependencies (AMD64 port preparation).
   it is the v1 entry point and leaves `dec_file_count` at 0, and
   `m_arc_name` is private anyway.
 - Known gaps: GCA non-`GCAX` paths are stubbed; `OpenDummy`/`OpenCompactC` have no live listing path.
+- **8.3 fallback for file systems with no long names** (Win32s on
+  Windows 3.1, Win95 with `lfn=off`). Reported symptom: the VC4 build on
+  Win32s returns **0x8013 `ERROR_CANNOT_WRITE`** for any archive with a
+  member whose name does not fit 8.3 - `fopen("...","wb")` simply fails,
+  the provider returns false, and `XacRett.cpp:1129` maps that to 0x8013.
+  That is an OS limit, not a bug (the official binary fails the same way),
+  so the fix is deliberate divergence: `kiutil::longNameOK()` +
+  `kiutil::pathMake83()` in `kiutil.cpp` mangle such names the way the
+  era's short-name generators did (`LongFileName.txt` -> `LongFi~1.txt`,
+  `short.LONGEXTENSION` -> `short.LON`, `CON.txt` -> `CON~1.txt`,
+  DBCS-aware, base 6 chars + `~N` with N counted up from 1 and the last
+  component probed against the disk).
+  Design points that matter:
+  - **the probe is lazy**: `XACRETT_8DOT3` unset, `p83need()` decides from
+    the string alone whether anything needs mangling, and only then is
+    `longNameOK()` asked (it creates+deletes `XacRettLongNameProbe.tmp` in
+    the CWD, i.e. the output dir, once per process). On any system with
+    long names there is no probe, no rename and no extra syscall - proven
+    by a base-vs-new DLL diff on the whole regression set.
+    `XACRETT_8DOT3=1` forces the mangling on and is how the fallback is
+    tested on a machine that does have long names.
+  - `ACCESS_DENIED`/`SHARING_VIOLATION`/`WRITE_PROTECT`/`DISK_FULL` from
+    the probe mean "cannot tell", not "no long names" - otherwise a
+    read-only output dir would silently start renaming.
+  - **intermediate path components are mangled from the string only**,
+    never probed. Probing them would split one archive across two
+    directories: the first member creates `LONGDI~1`, the second sees
+    `LONGDI~1` taken and picks `~2`.
+  - `pathMake` now creates its directories AFTER `pathMake83`, otherwise
+    the unmangled directory name is what gets created and the mangled file
+    has nowhere to go. Same for `-j`, which still runs last.
+  - Call sites: `pathMake` covers ~45 providers. The 12 single-file tools
+    that build the name themselves (AtoB, Bel, Blz, Bz2, CompactC,
+    CompressZ, Frz, Gz, Jam, Mime, Packz, UnixDecoder) get an explicit
+    `kiutil::pathMake83()` before their `fopen`; the derived-name branch
+    matters there because `.gz`->`""` etc. still leaves things like
+    `LONGNAME.DATA.ungzip`, which is not 8.3 either.
+  - RAR needs nothing: `pathMake` mutates `hdr.FileName` in place, so
+    `RARProcessFile` already receives the mangled name.
+  - **Still not covered**: YZ1 (`yz32lib` has its own `MakePathForFile`
+    + `fopen`), DMG (`OpenDmg` writes through its own temp-file helper)
+    and GCA (`GcaSDK/gca_api.cpp` builds a `std::string`); all three would
+    need the call added inside their own file-creation path.
+  - Verified on Windows (VC6 and VC4 DLLs behave identically): a
+    long-name ZIP (`OK.TXT`, `LongFileName.txt`, `LongFileName2.txt`,
+    `short.LONGEXTENSION`, `CON.txt`, `with space.txt`,
+    `dir with long name/nested file.txt`,
+    `dir with long name/deeper/deep file here.bin`, `A.B.C`, a DBCS name)
+    extracts 10/10 rc=0 under `XACRETT_8DOT3=1` with every component a
+    legal 8.3 name and the bytes unchanged; the same archive without the
+    variable is byte-for-byte the old behaviour; a second run into the
+    same directory bumps `~N` instead of overwriting; `-j` still
+    flattens. `tar.gz` gives `a very~1/deeper~1/leaf.dat`. Regressions:
+    ARC 18/18 MATCH, 7z 25 fixtures OK (118/157 members, the documented
+    baseline), ZIP matrix and the 33-case sweep identical to a DLL built
+    from the pre-change tree (the 6 zstd-sandwich failures in
+    `runnewmatrix.py` are stale TEMP expectations, present before too).
 - JCALG1 (`.jc1`, `ARCHIVETYPE_JC1` 59, `Jc1Tool` + the clean-room
   `jcalg1lib/jcalg1.cpp` decompressor) is now correct. Two bugs had been
   hiding in it and BOTH were silent:

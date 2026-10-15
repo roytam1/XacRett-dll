@@ -26,6 +26,7 @@ bool CJamTool::Extract( const char* fname, const char* ddir )
 	if (!CheckStr(outname)){fclose(jam);return true;}//í«â¡ By Bonty
 
 	// ìWäJ
+	kiutil::pathMake83(outname);
 	if( out=fopen( outname,"wb" ) )
 	{
 		if( unjam() ) // Jam32.dll å›ä∑ÉÇÅ[Éh

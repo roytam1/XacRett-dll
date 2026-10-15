@@ -89,6 +89,7 @@ bool CBlzTool::Extract( const char* packedname, const char* ddir )
 		return true;
 	}
     /* create output file */
+    kiutil::pathMake83(newname);
     if ((newfile = fopen(newname, "wb")) == NULL)
     {
     	free(packed);

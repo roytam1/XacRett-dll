@@ -171,6 +171,7 @@ bool CMimeTool::Extract( const char* fname,const char* ddir )
 			skip(fp);
 			continue;
 		}
+		kiutil::pathMake83(outname);
 		FILE* out=fopen(outname,"wb");
 		DoData(fp,out);
 		fclose(out);
