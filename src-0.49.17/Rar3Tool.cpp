@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "Rar3Tool.h"
 #include "unrar/dll.hpp"
+#include "dbglog.h"
 
 #ifdef _DEBUG
 	#pragma comment( lib, "unrar/debugUnRAR.lib" )
@@ -77,6 +78,7 @@ bool CRar3Tool::Check(const char *fname, unsigned long fsize)
 // --- アーカイブを展開する ---
 bool CRar3Tool::Extract(const char *fname, const char * /*ddir*/)
 {
+	DbgLog("CRar3Tool::Extract [%s]", fname);
 	RAROpenArchiveData  arc_data;
 	memset(&arc_data, 0, sizeof(arc_data));
 
@@ -88,6 +90,7 @@ bool CRar3Tool::Extract(const char *fname, const char * /*ddir*/)
 	arc_data.OpenMode = RAR_OM_EXTRACT;
 
 	HANDLE  arc_h = RAROpenArchive(&arc_data);
+	DbgLog("CRar3Tool::Extract RAROpenArchive -> %s", arc_h == NULL ? "NULL" : "ok");
 	if (NULL == arc_h)
 		return false;
 

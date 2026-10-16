@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "OpenRar.h"
+#include "../dbglog.h"
 #include "..\unrar\dll.hpp" /* UnRAR 7.x RAR5 list path */
 
 bool COpenRar::FindFirst(INDIVIDUALINFO *lpSubInfo)
@@ -12,6 +13,7 @@ bool COpenRar::FindFirst(INDIVIDUALINFO *lpSubInfo)
 			rar5_state = 2;
 		if (fp != NULL) fseek(fp, 0, SEEK_SET);
 	}
+	DbgLog("COpenRar::FindFirst rar5_state=%d fp=%s", rar5_state, fp != NULL ? "ok" : "NULL");
 	if (rar5_state == 2)
 		return FindSub5(lpSubInfo);
 	return FindSub(lpSubInfo);
@@ -360,6 +362,7 @@ bool COpenRar::FindSub5(INDIVIDUALINFO *lpSubInfo)
 		arc_data.ArcName = szArcFileName; /* 7.x: ArcName is char*, not an array */
 		arc_data.OpenMode = RAR_OM_LIST;
 		rar5_h = RAROpenArchiveEx(&arc_data);
+		DbgLog("FindSub5: RAROpenArchiveEx([%s]) -> %s OpenResult=%u", szArcFileName, rar5_h == NULL ? "NULL" : "ok", (unsigned)arc_data.OpenResult);
 		if (rar5_h == NULL)
 			return false;
 		RARSetCallback(rar5_h, rar5_callback, (LPARAM)NULL);
@@ -367,13 +370,16 @@ bool COpenRar::FindSub5(INDIVIDUALINFO *lpSubInfo)
 	for (;;) {
 		RARHeaderDataEx hdr;
 		memset(&hdr, 0, sizeof(hdr));
-		if (0 != RARReadHeaderEx(rar5_h, &hdr)) {
+		int rrc = RARReadHeaderEx(rar5_h, &hdr);
+		DbgLog("FindSub5: RARReadHeaderEx -> %d", rrc);
+		if (0 != rrc) {
 			RARCloseArchive(rar5_h);
 			rar5_h = NULL;
 			return false;
 		}
 		if (hdr.Flags & RHDF_DIRECTORY)
 			continue;
+		DbgLog("FindSub5: member [%s] pack=%u unp=%u", hdr.FileName, (unsigned)hdr.PackSize, (unsigned)hdr.UnpSize);
 		lstrcpyn(lpSubInfo->szFileName, hdr.FileName, sizeof(lpSubInfo->szFileName));
 		lpSubInfo->dwCompressedSize = hdr.PackSize;
 		lpSubInfo->dwOriginalSize = hdr.UnpSize;

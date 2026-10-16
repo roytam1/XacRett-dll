@@ -940,6 +940,85 @@ UnRAR VC4 port notes (all measured, none guessed):
     and friends use explicit assignments. Rebuild `UnRAR.lib`
     (`buildunrar7repo.bat`, TEMP) after touching any unrar source -
     the lib is tracked, the DLL links it statically.
+  - **RAR on Win32s needs an ANSI fallback in two layers.** `os.hpp`
+    forces `UNICODE` for the whole unrar build, so every `CreateFile`/etc.
+    is really the W entry point - which resolves to a dead stub on
+    Win32s. RAR was the only format affected because everything else
+    goes through ANSI CRT calls. Two independent gaps, both ASCII-safe:
+    - file layer (`unrar/win32scompat.h`, header-only so no build-list
+      change): `Win32NoUnicode()` gates on GetVersion high bit SET +
+      major 3 (Win32s; the box reports 0x80AB0A03), plus a
+      `CreateFileW`-not-exported check, then converts to ACP and calls
+      the A entry point. GetVersion high bit clear means NT, set means
+      non-NT - so Win95 (set/4) and all NT keep the W path, whose file
+      APIs work there (an earlier high-bit-clear formulation never fired
+      on the test box). The ANSI path itself is proven on modern Windows
+      via `XACRETT_NOUNICODE=1` (`runansi.ps1`: all 6 RAR fixtures
+      list+extract identically through it). Proven by `win32sprobe.exe` (TEMP-built VC4
+      binary, workarea root while needed) whose T1/T7 read `highbit=1
+      major=3` and `CreateFileW short -> 120
+      ERROR_CALL_NOT_IMPLEMENTED`.
+      Pure-ASCII names never touch any NLS API (byte copy).
+      Patched call sites: `File::Open`/
+      `File::Create` (file.cpp), `MakeDir`/`GetFileAttr`/`SetFileAttr`/
+      `RenameFile`/`DelFile`/`DelDir`/`SetDirTime`/`SetFileCompression`/
+      `ResetFileCache` (filefn.cpp), `ConvertNameToFull`/`SetCurDir`/
+      `GetCurDir` (pathfn.cpp). `find.cpp`/`win32lnk.cpp` are not built.
+  - Sequenced debug logging lives behind `XACRETT_RAR_DEBUG`
+    (compile-time, default off = zero code emitted; `dbglog.h`). With
+    it defined, logging is further gated at runtime on the
+    `XACRETT.DBG` flag file in the run directory (env vars are hard
+    on Win32s), appending `[#seq] ...` lines to `XacRett.log` in the
+    CWD - sequence numbers tell lost writes apart from code that never
+    ran. Covers the whole RAR open chain (`Win32NoUnicode` decision,
+    `WinCreateFileA` results, `longNameOK` probe, `FindSub5` headers,
+    `Rar3Tool::Extract`, `RAROpenArchiveEx` stages + catches).
+  - **The thread pool is constructed eagerly and fatally.**
+    `CmdExtract::CmdExtract` runs `Unp->SetThreads()` which does `new
+    ThreadPool(...)` immediately - inside `new DataSet`, before any
+    file is touched. Its constructor `Exit(RARX_FATAL)`ed when the
+    semaphore/event creation failed, so on Win32s every RAR open died
+    with `ERAR_EREAD` while listing nothing (proven by the sequenced
+    debug log: `enter`, then `caught RAR_EXIT 2 Data=NULL`). The pool
+    now degrades to inline single-threaded execution instead (`AddTask`
+    runs the proc directly, `WaitDone` is a no-op, `NULL` handles are
+    never waited on or released meaningfully) - no behavior change
+    where creation works. `XACRETT_NOMT=1` forces degraded mode so the
+    fallback is verifiable without Win32s (`pooltest.exe`: 100 tasks
+    PASS threaded and inline; full RAR battery identical both ways).
+      Import delta is exactly `GetFullPathNameA`/`MoveFileA`/`RemoveDirectoryA`
+      (everything else was already imported); all exist on Win32s.
+    - NLS layer (`unicode.cpp`, `_WIN_ALL` branches only): a dead
+      `MultiByteToWideChar` zeroes the output, so the archive path came
+      back empty and the open failed before any file call. `CharToWide`/
+      `WideToChar` now bypass the OS for pure-ASCII strings (exact: ASCII
+      maps 1:1 in every ACP); `wcsicomp`/`wcsnicomp` fall back to the
+      manual compare when `CompareStringW` returns 0; `toupperw`/`tolowerw`
+      fold A-Z/a-z without `CharUpperW`. Behaviour on NLS-working systems
+      is provably identical (ASCII paths are exact, OS path otherwise kept).
+  - VC6 port traps hit by the above (all real): `std::string` has no
+    `clear()` on VC6 (use `resize(0)`); `std::string FA(buf, n)` is a
+    most-vexing-parse function declaration (use `assign`); never name
+    a variable `small` (`rpcndr.h` does `#define small char`); the VC4
+    `string` shim has `clear`/`assign`/`reserve`/`+=` but exactly one
+    `erase` - only `clear()`/`resize()`/`+=`/`assign()` were used.
+  - **VC4 miscompiles(?) a >260-byte stack array in `win32scompat.h`.**
+    A `char buf[261+]` local inside `WinGetFullPathName` deterministically
+    broke overload resolution 500 lines away in `pathfn.cpp`
+    (`IsDriveLetter(&Name[4])`, `atoiw(&Name[VerPos+1])` suddenly
+    C2664, while `char buf[260]` and every other shape compiled clean -
+    bisected down to the array bound, name-independent. Heap (`vector`)
+    instead of stack for the 520/1040-byte buffers; do not put big
+    locals in headers compiled by VC4.
+    `clear()` on VC6 (use `resize(0)`); `std::string FA(buf, n)` is a
+    most-vexing-parse function declaration (use `assign`); never name
+    a variable `small` (`rpcndr.h` does `#define small char`); the VC4
+    `string` shim has `clear`/`assign`/`reserve`/`+=` but exactly one
+    `erase` - only `clear()`/`resize()`/`+=`/`assign()` were used.
+  - **NMAKE does not track header dependencies.** After editing
+    `win32scompat.h`/`kiutil.h`/etc., the VC4 `UnRAR.lib` and DLL kept
+    stale objects (`file.obj` older than the header) and silently linked
+    the old code. Touch the including TUs (timestamp-only) and rebuild.
   - **`COpenRar::FindSub5` never skipped past file data.** The UnRAR
     API leaves the position at the start of the just-read members
     data, so the next `RARReadHeaderEx` parsed data as a header and

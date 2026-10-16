@@ -2,6 +2,7 @@
 #include "stdafx.h"
 #include "kiutil.h"
 #include <stdlib.h>
+#include "dbglog.h"
 
 ///////////////
 void kiutil::timeSet( const char* fname, FILETIME* pft )
@@ -173,6 +174,7 @@ bool kiutil::longNameOK()
 	   The short name is the control: if it lands, the directory is
 	   writable and only the long name was refused. */
 	bool lng = p83probecreate( "XacRettLongNameProbe.tmp" );
+	DbgLog("longNameOK: long-probe=%d", lng ? 1 : 0);
 	if( lng )
 	{
 		m_lfn = 1;
@@ -182,7 +184,9 @@ bool kiutil::longNameOK()
 	/* Both refused: nothing can be written here at all, so the
 	   extraction is going to fail on its own and renaming would
 	   only make the message less clear.  Assume long names. */
-	m_lfn = ( p83probecreate( "XPRB~1.TMP" ) ) ? 0 : 1;
+	bool sht = p83probecreate( "XPRB~1.TMP" );
+	DbgLog("longNameOK: short-control=%d decision=%d", sht ? 1 : 0, sht ? 0 : 1);
+	m_lfn = sht ? 0 : 1;
 	return m_lfn!=0;
 }
 
@@ -458,6 +462,7 @@ char* kiutil::pathMake83( char* path )
 			// only the last component has to be free on disk
 			res[rn] = '\0';
 			p83fit( comp, *src=='\0' ? (const char*)res : NULL, fit );
+			DbgLog("pathMake83: [%s] -> [%s]", comp, fit);
 			for( i=0; fit[i]; i++ )
 				if( rn<MAX_PATH-1 ) res[rn++] = fit[i];
 		}

@@ -23,8 +23,21 @@ bool WideToChar(const wchar *Src,char *Dest,size_t DestSize)
   *Dest=0; // Set 'Dest' to zero just in case the conversion will fail.
 
 #ifdef _WIN_ALL
-  if (WideCharToMultiByte(CP_ACP,0,Src,-1,Dest,(int)DestSize,NULL,NULL)==0)
-    RetCode=false;
+  /* Win32s has no usable NLS API; pure-ASCII strings convert without it. */
+  {
+    const wchar *p;
+    for (p = Src; *p != 0 && (unsigned)*p < 0x80; p++) ;
+    if (*p == 0)
+    {
+      size_t i;
+      for (i = 0; i < DestSize && Src[i] != 0; i++)
+        Dest[i] = (char)Src[i];
+      if (i < DestSize)
+        Dest[i] = 0;
+    }
+    else if (WideCharToMultiByte(CP_ACP,0,Src,-1,Dest,(int)DestSize,NULL,NULL)==0)
+      RetCode=false;
+  }
 
 // wcstombs is broken in Android NDK r9.
 #elif defined(_APPLE)
@@ -88,8 +101,21 @@ bool CharToWide(const char *Src,wchar *Dest,size_t DestSize)
   *Dest=0; // Set 'Dest' to zero just in case the conversion will fail.
 
 #ifdef _WIN_ALL
-  if (MultiByteToWideChar(CP_ACP,0,Src,-1,Dest,(int)DestSize)==0)
-    RetCode=false;
+  /* Win32s has no usable NLS API; pure-ASCII strings convert without it. */
+  {
+    const char *p;
+    for (p = Src; *p != 0 && (unsigned char)*p < 0x80; p++) ;
+    if (*p == 0)
+    {
+      size_t i;
+      for (i = 0; i < DestSize && Src[i] != 0; i++)
+        Dest[i] = (wchar)Src[i];
+      if (i < DestSize)
+        Dest[i] = 0;
+    }
+    else if (MultiByteToWideChar(CP_ACP,0,Src,-1,Dest,(int)DestSize)==0)
+      RetCode=false;
+  }
 
 // mbstowcs is broken in Android NDK r9.
 #elif defined(_APPLE)
@@ -692,8 +718,13 @@ int wcsicomp(const wchar *s1,const wchar *s2)
     return 0;
 
 #ifdef _WIN_ALL
-  return CompareStringW(LOCALE_USER_DEFAULT,NORM_IGNORECASE|SORT_STRINGSORT,s1,-1,s2,-1)-2;
-#else
+  {
+    int r = CompareStringW(LOCALE_USER_DEFAULT,NORM_IGNORECASE|SORT_STRINGSORT,s1,-1,s2,-1);
+    if (r != 0)
+      return r-2;
+    /* CompareStringW failed (no NLS on Win32s): manual compare below. */
+  }
+#endif
   while (true)
   {
     wchar u1 = towupper(*s1);
@@ -711,7 +742,6 @@ int wcsicomp(const wchar *s1,const wchar *s2)
     s2++;
   }
   return 0;
-#endif
 }
 
 
@@ -725,8 +755,13 @@ int wcsnicomp(const wchar *s1,const wchar *s2,size_t n)
   size_t l1=Min(sl1+1,n);
   size_t sl2=wcslen(s2); // Pre-compute to not call wcslen() in Min() twice.
   size_t l2=Min(sl2+1,n);
-  return CompareStringW(LOCALE_USER_DEFAULT,NORM_IGNORECASE|SORT_STRINGSORT,s1,(int)l1,s2,(int)l2)-2;
-#else
+  {
+    int r = CompareStringW(LOCALE_USER_DEFAULT,NORM_IGNORECASE|SORT_STRINGSORT,s1,(int)l1,s2,(int)l2);
+    if (r != 0)
+      return r-2;
+    /* CompareStringW failed (no NLS on Win32s): manual compare below. */
+  }
+#endif
   if (n==0)
     return 0;
   while (true)
@@ -741,7 +776,6 @@ int wcsnicomp(const wchar *s1,const wchar *s2,size_t n)
     s2++;
   }
   return 0;
-#endif
 }
 
 
@@ -834,6 +868,9 @@ int toupperw(int ch)
   // C locale dependent even in Unicode version. For example, towupper failed
   // to convert lowercase Russian characters. Use 0xffff mask to prevent crash
   // if value larger than 0xffff is passed to this function.
+  // ASCII needs no OS call at all (and CharUpperW is a dead stub on Win32s).
+  if ((ch & ~0x7f) == 0)
+    return (ch >= 'a' && ch <= 'z') ? ch - ('a' - 'A') : ch;
   return (int)(INT_PTR)CharUpper((wchar *)(INT_PTR)(ch&0xffff));
 #else
   return towupper(ch);
@@ -847,6 +884,9 @@ int tolowerw(int ch)
   // CharLower is more reliable than towlower in Windows.
   // See comment for towupper above. Use 0xffff mask to prevent crash
   // if value larger than 0xffff is passed to this function.
+  // ASCII needs no OS call at all (and CharLowerW is a dead stub on Win32s).
+  if ((ch & ~0x7f) == 0)
+    return (ch >= 'A' && ch <= 'Z') ? ch + ('a' - 'A') : ch;
   return (int)(INT_PTR)CharLower((wchar *)(INT_PTR)(ch&0xffff));
 #else
   return towlower(ch);

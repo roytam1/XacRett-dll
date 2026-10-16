@@ -27,9 +27,18 @@ ThreadPool::ThreadPool(uint MaxThreads)
 
   bool Success = CriticalSectionCreate(&CritSection);
 #ifdef _WIN_ALL
-  QueuedTasksCnt=CreateSemaphore(NULL,0,ASIZE(TaskQueue),NULL);
-  NoneActive=CreateEvent(NULL,TRUE,TRUE,NULL);
-  Success=Success && QueuedTasksCnt!=NULL && NoneActive!=NULL;
+  QueuedTasksCnt=NULL;
+  NoneActive=NULL;
+  {
+    char nomt[2];
+    bool forceSingle = GetEnvironmentVariableA("XACRETT_NOMT", nomt, sizeof(nomt)) > 0;
+    if (!forceSingle)
+    {
+      QueuedTasksCnt=CreateSemaphore(NULL,0,ASIZE(TaskQueue),NULL);
+      NoneActive=CreateEvent(NULL,TRUE,TRUE,NULL);
+      Success=Success && QueuedTasksCnt!=NULL && NoneActive!=NULL;
+    }
+  }
 #elif defined(_UNIX)
   AnyActive = false;
   QueuedTasksCnt = 0;
@@ -38,11 +47,12 @@ ThreadPool::ThreadPool(uint MaxThreads)
           pthread_cond_init(&QueuedTasksCntCond,NULL)==0 &&
           pthread_mutex_init(&QueuedTasksCntMutex,NULL)==0;
 #endif
-  if (!Success)
-  {
-    ErrHandler.GeneralErrMsg(L"\nThread pool initialization failed.");
-    ErrHandler.Exit(RARX_FATAL);
-  }
+  /* A pool without working sync primitives (Win32s, where semaphore /
+     event creation fails, or XACRETT_NOMT=1) degrades to inline
+     single-threaded execution - see AddTask/WaitDone - instead of aborting
+     the whole archive open with RARX_FATAL. No behavior change where
+     creation succeeds. */
+  (void)Success;
 
   QueueTop = 0;
   QueueBottom = 0;
@@ -259,6 +269,13 @@ bool ThreadPool::GetQueuedTask(QueueEntry *Task)
 // when WaitDone is called.
 void ThreadPool::AddTask(PTHREAD_PROC Proc,void *Data)
 {
+#ifdef _WIN_ALL
+  if (QueuedTasksCnt==NULL || NoneActive==NULL)
+  {
+    Proc(Data);
+    return;
+  }
+#endif
   if (ThreadsCreatedCount == 0)
     CreateThreads();
   
@@ -278,6 +295,10 @@ void ThreadPool::AddTask(PTHREAD_PROC Proc,void *Data)
 // are sleeping yet.
 void ThreadPool::WaitDone()
 {
+#ifdef _WIN_ALL
+  if (QueuedTasksCnt==NULL || NoneActive==NULL)
+    return;
+#endif
   if (ActiveThreads==0)
     return;
 #ifdef _WIN_ALL

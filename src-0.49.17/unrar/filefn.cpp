@@ -1,4 +1,5 @@
 #include "rar.hpp"
+#include "win32scompat.h"
 
 MKDIR_CODE MakeDir(const std::wstring &Name,bool SetAttr,uint Attr)
 {
@@ -7,12 +8,12 @@ MKDIR_CODE MakeDir(const std::wstring &Name,bool SetAttr,uint Attr)
   // name. So we detect such names and process them with \\?\ prefix.
   wchar LastChar=GetLastChar(Name);
   bool Special=LastChar=='.' || LastChar==' ';
-  BOOL RetCode=Special ? FALSE : CreateDirectory(Name.c_str(),NULL);
+  BOOL RetCode=Special ? FALSE : WinCreateDirectory(Name);
   if (RetCode==0 && !FileExist(Name))
   {
     std::wstring LongName;
     if (GetWinLongPath(Name,LongName))
-      RetCode=CreateDirectory(LongName.c_str(),NULL);
+      RetCode=WinCreateDirectory(LongName);
   }
   if (RetCode!=0) // Non-zero return code means success for CreateDirectory.
   {
@@ -99,14 +100,14 @@ void SetDirTime(const std::wstring &Name,RarTime *ftm,RarTime *ftc,RarTime *fta)
   if (ResetAttr)
     SetFileAttr(Name,0);
 
-  HANDLE hFile=CreateFile(Name.c_str(),GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,
-                          NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS,NULL);
+  HANDLE hFile=WinCreateFile(Name,GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,
+                          NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS);
   if (hFile==INVALID_HANDLE_VALUE)
   {
     std::wstring LongName;
     if (GetWinLongPath(Name,LongName))
-      hFile=CreateFile(LongName.c_str(),GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,
-                       NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS,NULL);
+      hFile=WinCreateFile(LongName,GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,
+                       NULL,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS);
   }
 
   if (hFile==INVALID_HANDLE_VALUE)
@@ -307,12 +308,12 @@ void PrepareToDelete(const std::wstring &Name)
 uint GetFileAttr(const std::wstring &Name)
 {
 #ifdef _WIN_ALL
-  DWORD Attr=GetFileAttributes(Name.c_str());
+  DWORD Attr=WinGetFileAttributes(Name);
   if (Attr==0xffffffff)
   {
     std::wstring LongName;
     if (GetWinLongPath(Name,LongName))
-      Attr=GetFileAttributes(LongName.c_str());
+      Attr=WinGetFileAttributes(LongName);
   }
   return Attr;
 #else
@@ -329,12 +330,12 @@ uint GetFileAttr(const std::wstring &Name)
 bool SetFileAttr(const std::wstring &Name,uint Attr)
 {
 #ifdef _WIN_ALL
-  bool Success=SetFileAttributes(Name.c_str(),Attr)!=0;
+  bool Success=WinSetFileAttributes(Name,Attr)!=0;
   if (!Success)
   {
     std::wstring LongName;
     if (GetWinLongPath(Name,LongName))
-      Success=SetFileAttributes(LongName.c_str(),Attr)!=0;
+      Success=WinSetFileAttributes(LongName,Attr)!=0;
   }
   return Success;
 #elif defined(_UNIX)
@@ -475,12 +476,12 @@ void CalcFileSum(File *SrcFile,uint *CRC32,byte *Blake2,uint Threads,int64 Size,
 bool RenameFile(const std::wstring &SrcName,const std::wstring &DestName)
 {
 #ifdef _WIN_ALL
-  bool Success=MoveFile(SrcName.c_str(),DestName.c_str())!=0;
+  bool Success=WinMoveFile(SrcName,DestName)!=0;
   if (!Success)
   {
     std::wstring LongName1,LongName2;
     if (GetWinLongPath(SrcName,LongName1) && GetWinLongPath(DestName,LongName2))
-      Success=MoveFile(LongName1.c_str(),LongName2.c_str())!=0;
+      Success=WinMoveFile(LongName1,LongName2)!=0;
   }
   return Success;
 #else
@@ -496,12 +497,12 @@ bool RenameFile(const std::wstring &SrcName,const std::wstring &DestName)
 bool DelFile(const std::wstring &Name)
 {
 #ifdef _WIN_ALL
-  bool Success=DeleteFile(Name.c_str())!=0;
+  bool Success=WinDeleteFile(Name)!=0;
   if (!Success)
   {
     std::wstring LongName;
     if (GetWinLongPath(Name,LongName))
-      Success=DeleteFile(LongName.c_str())!=0;
+      Success=WinDeleteFile(LongName)!=0;
   }
   return Success;
 #else
@@ -516,12 +517,12 @@ bool DelFile(const std::wstring &Name)
 bool DelDir(const std::wstring &Name)
 {
 #ifdef _WIN_ALL
-  bool Success=RemoveDirectory(Name.c_str())!=0;
+  bool Success=WinRemoveDirectory(Name)!=0;
   if (!Success)
   {
     std::wstring LongName;
     if (GetWinLongPath(Name,LongName))
-      Success=RemoveDirectory(LongName.c_str())!=0;
+      Success=WinRemoveDirectory(LongName)!=0;
   }
   return Success;
 #else
@@ -536,16 +537,16 @@ bool DelDir(const std::wstring &Name)
 #if defined(_WIN_ALL) && !defined(SFX_MODULE)
 bool SetFileCompression(const std::wstring &Name,bool State)
 {
-  HANDLE hFile=CreateFile(Name.c_str(),FILE_READ_DATA|FILE_WRITE_DATA,
+  HANDLE hFile=WinCreateFile(Name,FILE_READ_DATA|FILE_WRITE_DATA,
                  FILE_SHARE_READ|FILE_SHARE_WRITE,NULL,OPEN_EXISTING,
-                 FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_SEQUENTIAL_SCAN,NULL);
+                 FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_SEQUENTIAL_SCAN);
   if (hFile==INVALID_HANDLE_VALUE)
   {
     std::wstring LongName;
     if (GetWinLongPath(Name,LongName))
-      hFile=CreateFile(LongName.c_str(),FILE_READ_DATA|FILE_WRITE_DATA,
+      hFile=WinCreateFile(LongName,FILE_READ_DATA|FILE_WRITE_DATA,
                  FILE_SHARE_READ|FILE_SHARE_WRITE,NULL,OPEN_EXISTING,
-                 FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_SEQUENTIAL_SCAN,NULL);
+                 FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_SEQUENTIAL_SCAN);
     if (hFile==INVALID_HANDLE_VALUE)
       return false;
   }
@@ -569,9 +570,9 @@ void ResetFileCache(const std::wstring &Name)
 {
   // To reset file cache in Windows it is enough to open it with
   // FILE_FLAG_NO_BUFFERING and then close it.
-  HANDLE hSrc=CreateFile(Name.c_str(),GENERIC_READ,
+  HANDLE hSrc=WinCreateFile(Name,GENERIC_READ,
                          FILE_SHARE_READ|FILE_SHARE_WRITE,
-                         NULL,OPEN_EXISTING,FILE_FLAG_NO_BUFFERING,NULL);
+                         NULL,OPEN_EXISTING,FILE_FLAG_NO_BUFFERING);
   if (hSrc!=INVALID_HANDLE_VALUE)
     CloseHandle(hSrc);
 }

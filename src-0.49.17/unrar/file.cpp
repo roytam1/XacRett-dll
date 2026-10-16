@@ -1,4 +1,5 @@
 #include "rar.hpp"
+#include "win32scompat.h"
 
 File::File()
 {
@@ -62,7 +63,7 @@ bool File::Open(const std::wstring &Name,uint Mode)
   FindData FD;
   if (PreserveAtime)
     Access|=FILE_WRITE_ATTRIBUTES; // Needed to preserve atime.
-  hNewFile=CreateFile(Name.c_str(),Access,ShareMode,NULL,OPEN_EXISTING,Flags,NULL);
+  hNewFile=WinCreateFile(Name,Access,ShareMode,NULL,OPEN_EXISTING,Flags);
 
   DWORD LastError;
   if (hNewFile==FILE_BAD_HANDLE)
@@ -72,7 +73,7 @@ bool File::Open(const std::wstring &Name,uint Mode)
     std::wstring LongName;
     if (GetWinLongPath(Name,LongName))
     {
-      hNewFile=CreateFile(LongName.c_str(),Access,ShareMode,NULL,OPEN_EXISTING,Flags,NULL);
+      hNewFile=WinCreateFile(LongName,Access,ShareMode,NULL,OPEN_EXISTING,Flags);
 
       // For archive names longer than 260 characters first CreateFile
       // (without \\?\) fails and sets LastError to 3 (access denied).
@@ -200,13 +201,13 @@ bool File::Create(const std::wstring &Name,uint Mode)
   if (Special && (Mode & FMF_STANDARDNAMES)==0)
     hFile=FILE_BAD_HANDLE;
   else
-    hFile=CreateFile(Name.c_str(),Access,ShareMode,NULL,CREATE_ALWAYS,0,NULL);
+    hFile=WinCreateFile(Name,Access,ShareMode,NULL,CREATE_ALWAYS,0);
 
   if (hFile==FILE_BAD_HANDLE)
   {
     std::wstring LongName;
     if (GetWinLongPath(Name,LongName))
-      hFile=CreateFile(LongName.c_str(),Access,ShareMode,NULL,CREATE_ALWAYS,0,NULL);
+      hFile=WinCreateFile(LongName,Access,ShareMode,NULL,CREATE_ALWAYS,0);
   }
 
 #else

@@ -1,4 +1,5 @@
 #include "rar.hpp"
+#include "win32scompat.h"
 
 wchar* PointToName(const wchar *Path)
 {
@@ -669,11 +670,11 @@ void ConvertNameToFull(const std::wstring &Src,std::wstring &Dest)
   }
 #ifdef _WIN_ALL
   {
-    DWORD Code=GetFullPathName(Src.c_str(),0,NULL,NULL); // Get the buffer size.
+    DWORD Code=WinGetFullPathName(Src,0,NULL); // Get the buffer size.
     if (Code!=0)
     {
       std::vector<wchar> FullName(Code);
-      Code=GetFullPathName(Src.c_str(),(DWORD)FullName.size(),&FullName[0],NULL);
+      Code=WinGetFullPathName(Src,(DWORD)FullName.size(),&FullName[0]);
 
       if (Code>0 && Code<=FullName.size())
       {
@@ -685,11 +686,11 @@ void ConvertNameToFull(const std::wstring &Src,std::wstring &Dest)
     std::wstring LongName;
     if (GetWinLongPath(Src,LongName)) // Failed with normal name, try long.
     {
-      Code=GetFullPathName(LongName.c_str(),0,NULL,NULL); // Get the buffer size.
+      Code=WinGetFullPathName(LongName,0,NULL); // Get the buffer size.
       if (Code!=0)
       {
         std::vector<wchar> FullName(Code);
-        Code=GetFullPathName(LongName.c_str(),(DWORD)FullName.size(),&FullName[0],NULL);
+        Code=WinGetFullPathName(LongName,(DWORD)FullName.size(),&FullName[0]);
 
         if (Code>0 && Code<=FullName.size())
         {
@@ -1234,7 +1235,7 @@ std::wstring GetProgramFile(const std::wstring &Name)
 #if defined(_WIN_ALL)
 bool SetCurDir(const std::wstring &Dir)
 {
-  return SetCurrentDirectory(Dir.c_str())!=0;
+  return WinSetCurrentDirectory(Dir)!=0;
 }
 #endif
 
@@ -1242,11 +1243,11 @@ bool SetCurDir(const std::wstring &Dir)
 #ifdef _WIN_ALL
 bool GetCurDir(std::wstring &Dir)
 {
-  DWORD BufSize=GetCurrentDirectory(0,NULL);
+  DWORD BufSize=WinGetCurrentDirectory(0,NULL);
   if (BufSize==0)
     return false;
   std::vector<wchar> Buf(BufSize);
-  DWORD Code=GetCurrentDirectory((DWORD)Buf.size(),&Buf[0]);
+  DWORD Code=WinGetCurrentDirectory((DWORD)Buf.size(),&Buf[0]);
   Dir=&Buf[0];
   return Code!=0;
 }

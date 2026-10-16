@@ -1,4 +1,5 @@
 #include "rar.hpp"
+#include "../dbglog.h"
 
 static int RarErrorToDll(RAR_EXIT ErrCode);
 
@@ -37,7 +38,9 @@ HANDLE PASCAL RAROpenArchiveEx(struct RAROpenArchiveDataEx *r)
     ErrHandler.Clean();
 
     r->OpenResult=0;
+    DbgLog("RAROpenArchiveEx: enter [%s] mode=%u", r->ArcName ? r->ArcName : "(null)", (unsigned)r->OpenMode);
     Data=new DataSet;
+    DbgLog("RAROpenArchiveEx: DataSet ok");
     Data->Cmd.DllError=0;
     Data->OpenMode=r->OpenMode;
     Data->Cmd.FileArgs.AddString(L"*");
@@ -69,12 +72,14 @@ HANDLE PASCAL RAROpenArchiveEx(struct RAROpenArchiveDataEx *r)
     // Open shared mode is added by request of dll users, who need to
     // browse and unpack archives while downloading.
     Data->Cmd.OpenShared=(r->OpFlags&ROADOF_SHARED)!=0;
+    DbgLog("RAROpenArchiveEx: opening, AreFileApisANSI=%d", (int)AreFileApisANSI());
     if (!Data->Arc.Open(ArcName,Data->Cmd.OpenShared ? FMF_OPENSHARED:0))
     {
       r->OpenResult=ERAR_EOPEN;
       delete Data;
       return nullptr;
     }
+    DbgLog("RAROpenArchiveEx: opened ok");
     if (!Data->Arc.IsArchive(true))
     {
       if (Data->Cmd.DllError!=0)
@@ -157,6 +162,7 @@ HANDLE PASCAL RAROpenArchiveEx(struct RAROpenArchiveDataEx *r)
   }
   catch (RAR_EXIT ErrCode)
   {
+    DbgLog("RAROpenArchiveEx: caught RAR_EXIT %d Data=%s DllError=%d ErrHandler=%d", (int)ErrCode, Data != NULL ? "set" : "NULL", Data != NULL ? (int)Data->Cmd.DllError : -1, (int)ErrHandler.GetErrorCode());
     if (Data!=NULL && Data->Cmd.DllError!=0)
       r->OpenResult=Data->Cmd.DllError;
     else
@@ -167,12 +173,14 @@ HANDLE PASCAL RAROpenArchiveEx(struct RAROpenArchiveDataEx *r)
   }
   catch (std::bad_alloc&) // Catch 'new' exception.
   {
+    DbgLog("RAROpenArchiveEx: caught bad_alloc");
     r->OpenResult=ERAR_NO_MEMORY;
     if (Data != NULL)
       delete Data;
   }
   catch (std::length_error&)
   {
+    DbgLog("RAROpenArchiveEx: caught length_error");
     r->OpenResult=ERAR_NO_MEMORY;
     if (Data != NULL)
       delete Data;
