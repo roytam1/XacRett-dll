@@ -4,6 +4,7 @@
 #include "GcaSDK.h"
 #include "gca_arc.h"
 #include "gca_bwt.h"
+#include "../kiutil.h"   // 8.3 fallback (no-op where long names work)
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -359,6 +360,14 @@ static BOOL gcaWriteOne(GcaSession* s, const GcaFileEntry& e, const std::string&
         out += "\\";
     out += rel;
     for (p = &out[0]; *p; p++) if (*p == '/') *p = '\\';
+    /* 8.3 fallback (no-op wherever long names work); must run before the
+       mkdir below so the directories match the mangled file name */
+    {
+        char tmp83[MAX_PATH * 2];
+        strncpy(tmp83, out.c_str(), sizeof(tmp83) - 1); tmp83[sizeof(tmp83)-1] = 0;
+        kiutil::pathMake83(tmp83);
+        out.assign(tmp83);
+    }
     /* mkdir -p for parent */
     {
         char tmp[MAX_PATH * 2];

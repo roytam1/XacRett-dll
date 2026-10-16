@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "../kiutil.h"   // 8.3 fallback (no-op where long names work)
 
 //--------------------------------------------------------------------
 // Bit reader (Pascal TBitReader)
@@ -815,6 +816,7 @@ int yzDecHead::FileWrite(const char* in_dir_name, const int& in_n,
 	if (!rel[0]) strncpy(rel, "unnamed", MAX_PATH - 1);
 	_snprintf(out, sizeof(out) - 1, "%s\\%s", base, rel);
 	out[sizeof(out) - 1] = 0;
+	kiutil::pathMake83(out);
 	MakePathForFile(out);
 	wp = fopen(out, "wb");
 	if (!wp) return -1;
@@ -1017,6 +1019,7 @@ int yzFileDecodeV1::DecodeFile(const char* fname, const int& /*mode*/)
 		if (!rel[0]) strncpy(rel, "unnamed", MAX_PATH - 1);
 		_snprintf(out, sizeof(out) - 1, "%s\\%s", base, rel);
 		out[sizeof(out) - 1] = 0;
+		kiutil::pathMake83(out);
 		MakePathForFile(out);
 		wp = fopen(out, "wb");
 		if (!wp) { fail = 1; break; }

@@ -696,10 +696,40 @@ no binary-only dependencies (AMD64 port preparation).
     the RAR chain on a modern OS - `fopen` succeeds and writes to
     the device, and every later member is then skipped. Under the
     8.3 fallback the name becomes `CON~1.txt` and the chain holds.
-  - **Still not covered**: YZ1 (`yz32lib` has its own `MakePathForFile`
-    + `fopen`), DMG (`OpenDmg` writes through its own temp-file helper)
-    and GCA (`GcaSDK/gca_api.cpp` builds a `std::string`); all three would
-    need the call added inside their own file-creation path.
+  - **YZ1 and GCA are now covered too** (DMG is the last holdout).
+    YZ1 builds its own output path in `yz32lib` (`yzDecHead::FileWrite`
+    plus two sites in `yz32lib_v1.cpp`): each does
+    `MakePathForFile(out)` then `fopen(out,"wb")`, so the fix is one
+    `kiutil::pathMake83(out);` **immediately before** `MakePathForFile`
+    -- mangle first or the unmangled directory names get created and the
+    mangled file has nowhere to go.  GCA builds a `std::string` in
+    `GcaSDK/gca_api.cpp:gcaWriteOne`; the call goes after the `/`->`\`
+    conversion and before the `mkdir -p`, and the mangled string is
+    assigned back with `out.assign(tmp83)` (`assign`, not a
+    `std::string(buf,n)` temporary, which is a most-vexing-parse on VC6)
+    so the later `fopen`/`CreateFileA`/`SetFileAttributesA` all use the
+    mangled name.  Both files already pull `<windows.h>`, so the added
+    `#include "../kiutil.h"` needs nothing else.
+  - YZ1/GCA 8.3 verified with fresh fixtures built by the period tools
+    (`yzenc.exe` takes a FOLDER, `gcac.exe a <arc> <folder>`), both over
+    the same tree (`OK.TXT`, `LongFileName.txt`, `LongFileName2.txt`,
+    `short.LONGEXTENSION`, `with space.txt`, `A.B.C`, and two nested
+    long dirs).  Forced runs give 8/8 files, every path component legal
+    8.3 (`LongFi~1.txt`/`LongFi~2.txt`, `short.LON`, `A_B~1.C`, and the
+    directory `dir with long name` -> `dir wi~1`), contents identical to
+    the baseline run, and the member paths are reproduced verbatim when
+    the fallback is off.  All 20 pre-existing GCA fixtures re-extract
+    identically with the fallback forced on, and the password-protected
+    `yzenc.yz1` (`yzenc`) is byte-identical both ways.  VC4 and VC6 agree
+    on both name and bytes.
+  - **The fallback can write MORE than the baseline, and that is the
+    point**: three GCA fixtures (`b_none/b_norm/b_solid.gca`, 306 members)
+    contain one DBCS-named member whose name has no legal Win32 path, so
+    the plain run drops it (305 files) while the forced run materialises
+    it as `_____y~1.txt` (306).  A regression harness must therefore
+    assert the forced run is a SUPERSET, never that it is equal.
+  - **Still not covered**: DMG only (`OpenDmg` writes through its own
+    temp-file helper).  That is the last provider bypassing `pathMake`.
   - Verified on Windows (VC6 and VC4 DLLs behave identically): a
     long-name ZIP (`OK.TXT`, `LongFileName.txt`, `LongFileName2.txt`,
     `short.LONGEXTENSION`, `CON.txt`, `with space.txt`,
@@ -800,11 +830,10 @@ no binary-only dependencies (AMD64 port preparation).
   only as fmt 2.0; `cont=1` (solid continuation) comes only from the
   oracle `sqc`, never from `sqx.exe create` - every obtainable stream has
   cont=0, so the 3-line cont path (refuse without a live model, else
-  continue) mirrors the reference but is untested. Gaps, both
-  pre-existing and out of scope: fmt-2.0 LZ methods 1-4 fail in the
-  untouched `DecodeFile` (v1.1 LZ is fine; its inputs and code are
-  provably unchanged, same 0-byte FAIL before and after); method 7+
-  ultra is XFAIL (the reference cannot extract it either).
+  continue) mirrors the reference but is untested. Gaps: method 7+
+  ultra is XFAIL (the reference cannot extract it either).  The other
+  gap noted here -- fmt-2.0 LZ methods 1-4 failing -- is now FIXED; see
+  the "SQX format-2.0 LZ" section below.
   Plumbing fixes this required (both pre-existing, both hit every SQX
   harness run with `-j` + absolute outdir, proven by the whole matrix):
   `CSqxTool::Extract` now uses `pathMake`'s adjusted pointer (house
