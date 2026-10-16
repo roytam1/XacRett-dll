@@ -468,7 +468,10 @@ int os_create_ouput_file(OS_FILE *OsFile, char *szName)
 char      szDir[CX_MAXPATH];
 
 	os_get_dir_name(szName,szDir);
-	if( os_create_full_file_path(szDir) == (int)FALSE )
+	/* empty dir means current directory (MeltArchive chdirs to the
+	   outdir; happens with -j flattening): nothing to create. */
+	if( szDir[0] != 0 &&
+	    os_create_full_file_path(szDir) == (int)FALSE )
 		return (int)FALSE;
 	
 	if( os_file_exist(szName) == (int)TRUE )

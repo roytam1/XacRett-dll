@@ -439,6 +439,10 @@ SOURCE=.\SqxTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\SqxPpmd.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\StdAfx.cpp
 # ADD CPP /Yc"stdafx.h"
 # End Source File
@@ -733,6 +737,10 @@ SOURCE=.\SplTool.h
 # Begin Source File
 
 SOURCE=.\SqxTool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\SqxPpmd.h
 # End Source File
 # Begin Source File
 

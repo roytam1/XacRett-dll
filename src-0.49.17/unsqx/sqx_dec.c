@@ -684,6 +684,8 @@ void DecodeAudioFile(void)
 	UncompressAudioFile();
 }
 
+extern int SqxUnPpmd(void); /* SqxPpmd.cpp: method 6 (PPMd) */
+
 void ExtractArcFile(ARC_NODE *ALNode)
 {
 	ProgressStruct.iNewProg = OPTION_SET;
@@ -695,6 +697,8 @@ void ExtractArcFile(ARC_NODE *ALNode)
 		UnstoreArcFile();
 	else if( ALNode->lMethod == SQX_C1_AUDIO )
 		DecodeAudioFile();
+	else if( ALNode->lMethod == SQX_C1_EX_NORMAL )
+		SqxUnPpmd();
 	else
 		DecodeFile(ALNode->lCompFlags,ALNode->lFlags & SQX_SOLID_FILE_FLAG,(1U << (((ALNode->lFlags >> 8) & 15) + 15)));
 

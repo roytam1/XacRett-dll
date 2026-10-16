@@ -765,25 +765,60 @@ no binary-only dependencies (AMD64 port preparation).
   signature, mangled size field, 0x7FFFFFFF size field, flipped payload
   bit) produce no hang and no crash. The reference compressor REFUSES
   incompressible input (random data), so there is no such fixture.
-  **SQX method 6 (`SQX_C1_EX_NORMAL`) emits a zero-byte member.**
-  Deliberately NOT worked around - we are waiting on upstream `unsqx`.
-  What is already established, so nobody re-derives it:
-  - methods 6-10 (`EX_NORMAL/GOOD/HIGH/BEST/AUDIO`) are just the
-    "EX" compression levels of the same SQ codec. `ExtractArcFile()`
-    routes everything except STORED (0) and AUDIO (5) into the ONE
-    shared `DecodeFile(lCompFlags, lSolidFlag, 1<<(((lFlags>>8)&15)+15))`
-    in `unsqx/uarde.c`, and the dictionary size comes from the header
-    flags, not from the method number. So there is no method-6-specific
-    decode path to get wrong.
-  - **the trap that makes this look like a header bug:** `SQX_EX_FILE_HEAD`
-    is *not* the EX-method header. `ReadNextArcFHDR()` only uses it when
-    `usHeadFlags & SQX_FILE64_FLAG` is set, i.e. it is the >4GB
-    `SQX_FILE_HEAD` extension, and it shares `cHeadType ==
-    SQX_FILE_HEAD_ID`. Reading it as "the method-6 header" leads straight
-    to the wrong name/size offsets.
-  - consequence in our tree: the member is created, decodes to nothing,
-    and is left at 0 bytes (the house skip-and-continue then reports
-    success). Everything else about the format behaves.
+- SQX method 6 (`SQX_C1_EX_NORMAL`, on-disk `0x06` = `text(PPMd)`, fmt 2.0
+  only) is DONE (`SqxPpmd.h/.cpp` + dispatch in `ExtractArcFile`, session
+  reset per archive from `CSqxTool::Extract`). PPMd variant I over the SQX
+  carryless range coder, driven through the tree's vendored `ppmd8/` model
+  core (same 7-Zip lineage the reference was ported from); only the SQX
+  front end (word-swapped bit reader, TOP/BOT range layer, cont/order/mem
+  header) and the symbol loop live here, mirrored against our core's model
+  API (`Update1/Update1_0/Update2/UpdateModel/MakeEscFreq`). Reference is
+  seb3773/Squeez-c (`TEMP\sqxref`, MIT - reference use only, never
+  vendored). Two transliteration traps, both caught before they ever ran:
+  the escape-miss tail masks only the counted `low_states` window
+  (masking the whole context undercounts later orders and diverges), and
+  the escape-hit walk is a plain subtract over the pre-filtered list (no
+  mask check). `Ppmd8_UpdateModel` is global in `ppmd8.c` but absent from
+  `ppmd8.h`, so it is declared in `SqxPpmd.cpp` (link fails loudly if it
+  ever goes away). `szMode` is unset (matches official, which yields
+  nothing here). The old "no method-6-specific decode path" note is
+  retired; the `SQX_EX_FILE_HEAD` trap stands (`ReadNextArcFHDR()` only
+  uses it with `SQX_FILE64_FLAG`, i.e. the >4GB extension sharing
+  `cHeadType == SQX_FILE_HEAD_ID` - reading it as "the method-6 header"
+  gives the wrong name/size offsets).
+  Verified: `2.sqx` byte-exact; full `packed_corpus` pass 135 members
+  byte-exact incl. every method-6 member (hello/eng/code/nested, fmt 2.0),
+  all v1.1 LZ and all stored; 12/12 generated fixtures (orders
+  2/4/6/8/12/16, mems 1/4/32 incl. 1 MB arena recycle, 637 KB rescale
+  workout, solid two-file session persistence, binary input, all
+  CRC-exact); VC4 DLL byte-identical on `2.sqx` + 45 KB `code.c`.
+  Corruption negatives (truncations, payload bit flips, garbage/empty,
+  damaged archive) all fail loudly in <0.1 s, none hang or crash.
+  Format facts worth keeping: the header file CRC is standard CRC32
+  WITHOUT the final xor (the harness must expect the std CRC of the
+  reference bytes, not the header value); `sqx.exe create` emits method 6
+  only as fmt 2.0; `cont=1` (solid continuation) comes only from the
+  oracle `sqc`, never from `sqx.exe create` - every obtainable stream has
+  cont=0, so the 3-line cont path (refuse without a live model, else
+  continue) mirrors the reference but is untested. Gaps, both
+  pre-existing and out of scope: fmt-2.0 LZ methods 1-4 fail in the
+  untouched `DecodeFile` (v1.1 LZ is fine; its inputs and code are
+  provably unchanged, same 0-byte FAIL before and after); method 7+
+  ultra is XFAIL (the reference cannot extract it either).
+  Plumbing fixes this required (both pre-existing, both hit every SQX
+  harness run with `-j` + absolute outdir, proven by the whole matrix):
+  `CSqxTool::Extract` now uses `pathMake`'s adjusted pointer (house
+  pattern, cf. `ZipTool`) - ignoring it left a `"C:\name"` stub that
+  `CreateFile` refuses with ACCESS_DENIED - gated on `-j` and never for
+  UNC, so all previously-working paths are byte-identical; and
+  `os_create_ouput_file` skips dir creation for an empty dir (bare
+  basename = CWD, which `MeltArchive` already chdir'd to).
+  Harness trap: `dlltest` checks `outdir\member`, but `-j` flattens
+  subdir members to `outdir\basename` - compare the flattened path.
+  TEMP-side trap fixed along the way: `vc4check.py:objname()` stripped 2
+  chars (`[:-2]`), naming every `.cpp` object `X.c.obj`; those strays
+  share `%TEMP%\vc4build\obj` with nmake and the link glob eats both
+  copies (LNK2005). Strip the real extension instead.
 - ACE unpacker (`CAceTool`, UNACE v1.2b lineage) handles STORE + LZ1
   (`TYPE 0/1`); ACE 2.0 blocked mode (`TYPE 2`) is decoded by the
   clean-room `AceBlock` engine (bitstream/Huffman/LZ77 core + EXE/DELTA/

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "SqxTool.h"
+#include "SqxPpmd.h"
 
 CSqxTool *pSqx; //.....
 
@@ -75,6 +76,8 @@ bool CSqxTool::Extract( const char* fname, const char* ddir )
 	if( InitDecompressor() == (int)FALSE )
 		return false;
 
+	SqxPpmd_BeginArchive();
+
 	lSkipFlag = OPTION_NONE;
 
 	while( TRUE )
@@ -122,7 +125,16 @@ bool CSqxTool::Extract( const char* fname, const char* ddir )
 			ArcStruct.uCFileCRC = AlNode.uFileCRC;
 
 			GetOutFileName(AlNode.szFName,szOutFName);
-			kiutil::pathMake(szOutFName);//-----------------------
+			/* pathMake returns the adjusted pointer (it strips the drive
+			   and, with -j, flattens to the basename in place): using the
+			   original buffer leaves "C:\name" behind and the create
+			   fails on C:\. Compact it down (house pattern, cf. ZipTool),
+			   but only for -j and never for UNC: without -j the buffer
+			   itself stays a valid absolute path. */
+			{ char *szAdjusted = kiutil::pathMake(szOutFName);//-----------------------
+			  if( kiutil::m_nodir && szAdjusted != szOutFName &&
+			      (szOutFName[0] != 92 || szOutFName[1] != 92) )
+			      memmove(szOutFName,szAdjusted,strlen(szAdjusted)+1); }
 
 			os_seek(ArcStruct.arcfile,AlNode.l64FileHdrStart + AlNode.lTotalBlockSize,SEEK_SET);
 			ArcStruct.iIgnoreWrite = OPTION_NONE;
