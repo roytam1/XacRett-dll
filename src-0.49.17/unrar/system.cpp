@@ -189,7 +189,10 @@ HMODULE WINAPI LoadSysLibrary(const wchar *Name)
     return nullptr;
   std::wstring FullName;
   MakeName(&SysDir[0],Name,FullName);
-  return LoadLibrary(FullName.c_str());
+  UINT oldErrMode = SetErrorMode(SEM_NOOPENFILEERRORBOX);
+  HMODULE ret = LoadLibrary(FullName.c_str());
+  SetErrorMode(oldErrMode);
+  return ret;
 }
 
 

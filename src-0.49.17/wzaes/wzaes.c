@@ -190,12 +190,15 @@ int iz_aes_entropy(unsigned char *out,size_t n) {
 #if defined(_WIN32) || defined(WIN32)
     HMODULE lib;
     HCRYPTPROV h;
+    UINT oldErrMode;
     iz_acquire_fn acquire;
     iz_random_fn random_bytes;
     iz_release_fn release;
     int ok;
     if(n>0xffffffffUL) return 0;
+    oldErrMode=SetErrorMode(SEM_NOOPENFILEERRORBOX);
     lib=LoadLibraryA("advapi32.dll");
+    SetErrorMode(oldErrMode);
     if(!lib)return 0;
     acquire=(iz_acquire_fn)GetProcAddress(lib,"CryptAcquireContextA");
     random_bytes=(iz_random_fn)GetProcAddress(lib,"CryptGenRandom");

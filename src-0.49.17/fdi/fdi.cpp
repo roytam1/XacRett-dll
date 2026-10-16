@@ -36,7 +36,9 @@ static HMODULE FDI_Load(void)
 {
 	if (!g_tried) {
 		g_tried = TRUE;
+		UINT oldErrMode = SetErrorMode(SEM_NOOPENFILEERRORBOX);
 		g_cabinet = LoadLibraryA("cabinet.dll");
+		SetErrorMode(oldErrMode);
 	}
 	return g_cabinet;
 }

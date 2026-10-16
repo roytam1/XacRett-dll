@@ -191,7 +191,11 @@ static void SetDlgItemPathCompat(HWND dlg, int id, LPCSTR path)
 {
 	typedef void (WINAPI *PSDPATHFUNC)(HWND, int, LPCSTR);
 	HMODULE hSh = GetModuleHandleA("shlwapi.dll");
-	if (hSh == NULL) hSh = LoadLibraryA("shlwapi.dll");
+	if (hSh == NULL) {
+		UINT oldErrMode = SetErrorMode(SEM_NOOPENFILEERRORBOX);
+		hSh = LoadLibraryA("shlwapi.dll");
+		SetErrorMode(oldErrMode);
+	}
 	PSDPATHFUNC pF = hSh == NULL ? NULL : (PSDPATHFUNC)GetProcAddress(hSh, "PathSetDlgItemPathA");
 	if (pF != NULL) pF(dlg, id, path);
 	else SetDlgItemTextA(dlg, id, path);
