@@ -370,6 +370,39 @@ no binary-only dependencies (AMD64 port preparation).
   `SystemTimeToTzSpecificLocalTime`, `PathSetDlgItemPathA` (fallback
   `SetDlgItemTextA`; drops the whole SHLWAPI.dll dependency, which
   stock 95/NT4 lack entirely); `SetSuspendState` stubbed).
+- **The last two post-NT4 static imports are gone.**  Both came
+  from the vendored **unrar**, not from our own code, so a byte scan of
+  the 221 build objects finds neither -- look in `unrar/UnRAR.lib`:
+    - `AreFileApisANSI` (2000+) in `unrar/dll.cpp:54`.
+    - `GetShortPathNameW` (2000+) in `unrar/filcreat.cpp`.
+  `GetShortPathNameW` is the exact same case as `GetLongPathNameW`
+  six lines above it, which was already converted -- it was simply
+  overlooked; the fix mirrors that block (`VC6_GSPN`).  `AreFileApisANSI`
+  becomes a local `RarFileApisANSI()` (`VC6_AFAA`) that resolves it
+  dynamically and, when absent, decides locally: the file APIs are ANSI
+  exactly when we are not on NT (`GetVersion` high bit set), which is
+  what `AreFileApisANSI` reports on those systems.  KERNEL32 drops from
+  136 imports to 134 and the import table now matches official's for
+  every symbol that is Windows 95/NT4 or older.  RAR is unaffected:
+  all 6 fixtures (incl. the 72-member `aida64.rar`) extract byte-for-byte
+  identically to the pre-fix DLL, and `runnewmatrix.py` is unchanged.
+  **Rebuild `UnRAR.lib` after touching any unrar source** (the lib is
+  tracked and the DLL links it statically):
+  `%TEMP%\opencode\buildunrar7repo.bat`, which mirrors the upstream
+  7.x lib OBJECT list minus `rar.cpp` plus `motw.cpp`.  A source edit
+  alone changes nothing until that runs and the DLL relinks.
+- **The `FreeEnvironmentStrings*` pair is NOT a gap -- leave it alone.**
+  Those, plus `GetEnvironmentStrings{,W}`, come from the CRT
+  (`libc.lib`/`libcmt.lib`, i.e. `/MT` startup), **not from our code**,
+  and the official 0.49.17 binary imports all four as well.  The W
+  variants exist on NT and the A variants on Win95, so the combined
+  set simply pins the floor at **NT4** -- which is where official sits
+  anyway (it imports `SHLWAPI.dll`, `IMAGEHLP.dll` and `WINMM.dll`,
+  none of which Win95 has).  Dropping them would mean dropping the
+  CRT, which is not a trade worth making.  Useful way to tell the
+  three cases apart: scan the build `.obj`s first (a hit there is our
+  code), then the tracked `.lib`s (`UnRAR.lib` hit = vendored), then
+  the VC98 `LIB` dir (a hit in `libc.lib` = CRT, leave it).
   Verify with `dumpbin /imports` diff vs official after any unrar change.
 - bzip2 fixtures: upstream `sample1/2/3.bz2` + `.ref` (in TEMP
   `bz2test/`), plus generated multi-block + ZIP-method-12 fixtures

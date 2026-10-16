@@ -30,6 +30,24 @@ HANDLE PASCAL RAROpenArchive(struct RAROpenArchiveData *r)
 }
 
 
+#if defined(_WIN_ALL)
+/* VC6/retro: AreFileApisANSI is Windows 2000+, so it cannot be a static
+   import (VC6_AFAA).  Resolve it dynamically; when it is missing the
+   answer is decided locally, because the file APIs are ANSI exactly when
+   we are not on NT (GetVersion high bit set) -- which is what
+   AreFileApisANSI reports on those systems. */
+static bool RarFileApisANSI()
+{
+  typedef BOOL (WINAPI *AFAAPI)();
+  HMODULE k=GetModuleHandleA("kernel32.dll");
+  AFAAPI p=k==NULL ? NULL : (AFAAPI)GetProcAddress(k,"AreFileApisANSI");
+  if (p!=NULL)
+    return p()!=0;
+  return (GetVersion() & 0x80000000)!=0;
+}
+#endif
+
+
 HANDLE PASCAL RAROpenArchiveEx(struct RAROpenArchiveDataEx *r)
 {
   DataSet *Data=nullptr;
@@ -51,7 +69,7 @@ HANDLE PASCAL RAROpenArchiveEx(struct RAROpenArchiveDataEx *r)
     {
       AnsiArcName=r->ArcName;
 #ifdef _WIN_ALL
-      if (!AreFileApisANSI())
+      if (!RarFileApisANSI())
         OemToExt(r->ArcName,AnsiArcName);
 #endif
     }
@@ -72,7 +90,7 @@ HANDLE PASCAL RAROpenArchiveEx(struct RAROpenArchiveDataEx *r)
     // Open shared mode is added by request of dll users, who need to
     // browse and unpack archives while downloading.
     Data->Cmd.OpenShared=(r->OpFlags&ROADOF_SHARED)!=0;
-    DbgLog("RAROpenArchiveEx: opening, AreFileApisANSI=%d", (int)AreFileApisANSI());
+    DbgLog("RAROpenArchiveEx: opening, AreFileApisANSI=%d", (int)RarFileApisANSI());
     if (!Data->Arc.Open(ArcName,Data->Cmd.OpenShared ? FMF_OPENSHARED:0))
     {
       r->OpenResult=ERAR_EOPEN;

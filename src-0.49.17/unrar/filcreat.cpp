@@ -70,6 +70,14 @@ bool UpdateExistingShortName(const std::wstring &Name)
   GLPNFUNC pGlpn=hKrnl==NULL ? NULL : (GLPNFUNC)GetProcAddress(hKrnl,"GetLongPathNameW");
   if (pGlpn==NULL)
     return false;
+  /* GetShortPathNameW is 2000+ and, like GetLongPathNameW above, must
+     not be a static import (VC6_GSPN).  Without it this function has
+     nothing to do: it only exists to preserve the long name of an
+     existing file whose short name matches, so skipping it is safe. */
+  typedef DWORD (WINAPI *GSPNFUNC)(LPCWSTR,LPWSTR,DWORD);
+  GSPNFUNC pGspn=hKrnl==NULL ? NULL : (GSPNFUNC)GetProcAddress(hKrnl,"GetShortPathNameW");
+  if (pGspn==NULL)
+    return false;
   DWORD Res=pGlpn(Name.c_str(),NULL,0);
   if (Res==0)
     return false;
@@ -77,11 +85,11 @@ bool UpdateExistingShortName(const std::wstring &Name)
   Res=pGlpn(Name.c_str(),&LongPathBuf[0],(DWORD)LongPathBuf.size());
   if (Res==0 || Res>=LongPathBuf.size())
     return false;
-  Res=GetShortPathName(Name.c_str(),NULL,0);
+  Res=pGspn(Name.c_str(),NULL,0);
   if (Res==0)
     return false;
   std::vector<wchar> ShortPathBuf(Res);
-  Res=GetShortPathName(Name.c_str(),&ShortPathBuf[0],(DWORD)ShortPathBuf.size());
+  Res=pGspn(Name.c_str(),&ShortPathBuf[0],(DWORD)ShortPathBuf.size());
   if (Res==0 || Res>=ShortPathBuf.size())
     return false;
   std::wstring LongPathName=&LongPathBuf[0];
