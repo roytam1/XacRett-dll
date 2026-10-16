@@ -112,11 +112,14 @@ void kiutil::pathInit()
 
 int kiutil::m_lfn = -1;
 
-// Create this file and then open the same name back.  Both halves
-// matter: a 16 bit file system driver can accept a create whose name
-// it cannot represent and then keep the file under some mangled
-// name, so a create-only probe answers "long names work" when they
-// do not.  The file is always removed again.
+// Create this file, open the same name back, and read the name back
+// with FindFirstFile.  All three halves matter: a 16 bit file system
+// driver can accept a create whose name it cannot represent and then
+// keep the file under some mangled name, and a driver that truncates
+// consistently would even pass the re-open - but it cannot return the
+// untruncated name from FindFirstFile.  The file is always removed
+// again.  Any failure means "no long names": the directory proved
+// writable by the short-name control, so renaming can only help.
 static bool p83probecreate( const char* name )
 {
 	HANDLE h = CreateFileA( name, GENERIC_READ|GENERIC_WRITE,
@@ -136,7 +139,13 @@ static bool p83probecreate( const char* name )
 		if( h!=INVALID_HANDLE_VALUE )
 			{
 			CloseHandle( h );
-			ok = true;
+			WIN32_FIND_DATA fd;
+			HANDLE fh = FindFirstFileA( name, &fd );
+			if( fh!=INVALID_HANDLE_VALUE )
+				{
+				FindClose( fh );
+				ok = ( 0==stricmp( fd.cFileName, name ) );
+				}
 			}
 		}
 	DeleteFileA( name );

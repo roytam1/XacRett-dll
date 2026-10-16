@@ -52,4 +52,22 @@ FileHeader& FileHeader::operator = (FileHeader &hd)
 void MainHeader::Reset()
 {
   *this=MainHeader(); /* VC6: no braced init (VC6_VALUEINIT) */
+  /* VC6 does not zero POD members in T() when the struct also holds
+     members with constructors (std::wstring/RarTime here), so the temp
+     above leaves every POD with stack garbage. Zero the ones the header
+     parse only assigns conditionally: a locator record with a zero
+     quick-open offset never assigns QOpenOffset, and we would
+     QOpen.Load() garbage - aida64.rar lists 0 members with ERAR_BAD_DATA
+     for exactly this reason (its offset vint is 0; GPLv2-rar5.rar only
+     worked because its nonzero offset overwrote the garbage). */
+  HighPosAV=0;
+  PosAV=0;
+  CommentInHeader=false;
+  PackComment=false;
+  Locator=false;
+  QOpenOffset=0;
+  QOpenMaxSize=0;
+  RROffset=0;
+  RRMaxSize=0;
+  MetaNameMaxSize=0;
 }

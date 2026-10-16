@@ -644,7 +644,11 @@ no binary-only dependencies (AMD64 port preparation).
     enough: a 16 bit file system driver can accept the create and then
     keep the file under some mangled name, which would make the probe
     answer "long names work" when they do not. `OPEN_EXISTING` on the
-    same name is the check that cannot lie that way.
+    same name is the check that cannot lie that way - and neither can
+    a driver that truncates *consistently* (create and re-open both
+    succeed on the truncated name), so the probe also reads the name
+    back with `FindFirstFile` and requires it to match: only the exact
+    long name counts as long-name support.
   - **the probe is DIFFERENTIAL, and the error code is never read.**
     Do not go back to deciding from `GetLastError`: the whole point of
     the four "cannot tell" codes (ACCESS_DENIED / SHARING_VIOLATION /
@@ -918,6 +922,31 @@ UnRAR VC4 port notes (all measured, none guessed):
   to `T&` (C2616) - use an explicit
   `if (p_) return p_[i]; return nul();` with a function-local static
   null char.
+  - **`MainHeader::Reset()` left every POD uninitialised on VC6.**
+    `*this=MainHeader()` does not zero POD members when the struct also
+    holds members with constructors (`std::wstring`/`RarTime`) - the
+    same `T var()` trap as the `yzDestroyDecHead` note above, but here
+    it bit upstream code: `QOpenOffset`/`RROffset`/`Locator` and friends
+    are only assigned when the corresponding extra records exist. A
+    locator record with a zero quick-open offset (like `aida64.rar`)
+    never assigns `QOpenOffset`, so `QOpen.Load()` ran on stack garbage
+    and the archive listed 0 members with `ERAR_BAD_DATA` - while
+    `GPLv2-rar5.rar` worked by luck (its nonzero offset overwrote the
+    garbage). Proven with a traced TEMP unrar build (`QOPEN LOAD at
+    30`, inside the main header itself) after byte-swap bisection
+    against the working fixture. `Reset()` now zeroes the PODs
+    explicitly, in the style of `FileHeader::Reset()` (which was already
+    safe). The only `*this=T()` left in unrar; `EndArcHeader::Reset`
+    and friends use explicit assignments. Rebuild `UnRAR.lib`
+    (`buildunrar7repo.bat`, TEMP) after touching any unrar source -
+    the lib is tracked, the DLL links it statically.
+  - **`COpenRar::FindSub5` never skipped past file data.** The UnRAR
+    API leaves the position at the start of the just-read members
+    data, so the next `RARReadHeaderEx` parsed data as a header and
+    only single-member RAR5 archives listed correctly. It now calls
+    `RARProcessFile(rar5_h, RAR_SKIP, NULL, NULL)` before returning
+    each member (a pure seek in `RAR_OM_LIST` mode, so solid archives
+    stay fast to list). `aida64.rar`: 0 -> 72 members.
 - **yz32lib: v1 and v2 both declare a class called `yzFileDecode`, and
   VC4 mangles enclosing namespaces inconsistently** - the v1 out-of-
   line definitions in `nsYZ32v1` still decorated as GLOBAL, colliding

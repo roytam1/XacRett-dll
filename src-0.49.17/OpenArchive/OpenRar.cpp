@@ -400,6 +400,12 @@ bool COpenRar::FindSub5(INDIVIDUALINFO *lpSubInfo)
 		}
 		lpSubInfo->wDate = (WORD)(hdr.FileTime >> 16);
 		lpSubInfo->wTime = (WORD)hdr.FileTime;
+		/* The UnRAR API leaves the file position at the start of this
+		   member's data: the next RARReadHeaderEx would parse data as a
+		   header. Skip past it now (a no-op seek in RAR_OM_LIST mode,
+		   so listing stays fast even for solid archives). Without this
+		   only single-member archives listed correctly. */
+		RARProcessFile(rar5_h, RAR_SKIP, NULL, NULL);
 		return true;
 	}
 }
