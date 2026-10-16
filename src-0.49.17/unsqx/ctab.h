@@ -103,6 +103,19 @@ typedef struct
 
 #define	DIST_CODES		56
 
+/* Format 2.0 (methods 1-4 in fmt-2.0 archives): the litlen alphabet
+   has two extra codes (257 = copy-1, 285 = 16th length-3 code),
+   shifting the later groups; the dist table has 54 codes. */
+#define	NC2				311
+#define	LEN2_START2		262
+#define	LEN3_START2		270
+#define	LEN_START2		286
+#define	SYM_COPY1		257
+#define	DIST_CODES2		54
+#define	DIST_CODES8		54
+#define	DIST_LOW16		16
+#define	LEN3_CODES2		16
+
 #define DL_START		(LIT_CODES)
 #define REP_START		(LIT_CODES + DL_CODES)
 #define LEN2_START		(LIT_CODES + DL_CODES + REP_CODES)
@@ -115,11 +128,11 @@ typedef struct
 #if defined(__SQX_SINGLE_CTAB__)   
 
 UWORD32 peekcode(CTAB_STRUCT *CTab,UWORD16 uBitCode);
-#define PEEKCODE(CTab) peekcode(&CTab,(UWORD16)(uBitBuf >> (INBUF_BIT_SIZE - CTab.uMBCode)));
+#define PEEKCODE(CTab) peekcode(&(CTab),(UWORD16)(uBitBuf >> (INBUF_BIT_SIZE - (CTab).uMBCode)));
 
 #else
 
-#define PEEKCODE(CTab) (CTab.uCodes[uBitBuf >> (INBUF_BIT_SIZE - CTab.uMBCode)])
+#define PEEKCODE(CTab) ((CTab).uCodes[uBitBuf >> (INBUF_BIT_SIZE - (CTab).uMBCode)])
 
 #endif
 
@@ -129,6 +142,8 @@ extern UWORD32 Len3Offsets[LEN3_CODES];
 extern UWORD32 Len3EBits[LEN3_CODES];
 extern UWORD32 LenOffsets[LEN_CODES];
 extern UWORD32 LenEBits[LEN_CODES];
+extern UWORD32 Len3Offsets2[LEN3_CODES2];
+extern UWORD32 Len3EBits2[LEN3_CODES2];
 
 extern UWORD32 *BaseDTable;
 extern UWORD32 *BaseDBits;
@@ -138,11 +153,19 @@ extern CTAB_STRUCT BitCTab;
 extern CTAB_STRUCT LitLenCTab[2];
 extern CTAB_STRUCT RepCTab;
 extern CTAB_STRUCT DistCTab;
+extern CTAB_STRUCT Low16CTab;
 
 extern UWORD32 uLastLen;
 extern UWORD32 uLastDist;
 extern UWORD32 PrevDists[4];
 extern UWORD32 uPrevDistIndex;
+
+/* Format-2.0 decode state: set per member by DecodeFile (uFmt20),
+   per LZ block by ReadTabs (uHave16); uDistState is the 2.0 current
+   distance (symbol 257), kept across solid members like the rest. */
+extern UWORD32 uFmt20;
+extern UWORD32 uHave16;
+extern UWORD32 uDistState;
 
 int InitCTab(CTAB_STRUCT *CTabStruct,UWORD32 uMaxCode,UWORD32 uMBCode);
 void FreeCTab(CTAB_STRUCT *CTabStruct);

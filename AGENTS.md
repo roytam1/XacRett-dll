@@ -1081,6 +1081,83 @@ UnRAR VC4 port notes (all measured, none guessed):
 Its import table can never match official: VC4 has no SHLWAPI.LIB, but
 our SHLWAPI use is already GetProcAddress-based, so the VC4 build stays
 95/NT4-loadable by design.
+
+## SQX format-2.0 LZ (methods 1-4) -- DONE
+
+`ctab.h/.c`, `uarde.h/.c`, `mm_coder.c`, `sqx_dec.c`.  Verified against
+`packed_corpus` with `runmatrix2.py`: **202 member passes, ZERO
+BYTES-DIFFER and ZERO MISSING**.  The only non-passes are 15 `REF-AMBIG`
+(every `*_v2.0_ultra` = method 7, which the reference itself cannot
+extract) and 10 `REF-REFUSES` (`sqxtest/DamagedArchive`).
+
+Format facts (reference is seb3773/Squeez-c, TEMP only):
+- fmt-2.0 litlen alphabet is `NC2`=311 and the groups SHIFT: `LEN2_START2`
+  262, `LEN3_START2` 270, `LEN_START2` 286.  Symbol 257 (`SYM_COPY1`)
+  copies 1 byte at the current distance, and there are 16 length-3
+  codes (`Len3Offsets2`/`Len3EBits2`, 0..16384) instead of 15.
+- fmt-2.0 has **no symbol shift**: `sym == raw_code`.  v1.1 shifts by
+  +1 above 256 and +1 more above 283.  Getting this wrong costs you the
+  whole stream, so it is worth stating.
+- Length-2 / length-3 matches are fixed lengths (2 and 3), no +1.  The
+  repeated-offset group is 258..261 with `k = sym - 257`, and adds +1 to
+  the length only when the distance is `> 0x7FFF` (v1.1 uses
+  `MIN_LEN3`/`MIN_LEN4` instead).
+- Per-block `have16` bit introduces a 16-code low-distance Huffman table
+  whose lengths are read with a 4-bit width field.  A dist code with
+  `ebits >= 4` reads `ebits-4` raw high bits, then a `low16` Huffman
+  symbol, and the distance is `base + (hi << 4) + low + 1`.
+- **Dist alphabet is 54 codes and the base table is the 8 MB set, not the
+  4 MB set.**  The reference picks base tables from `dic_size` in BYTES
+  (`>= 8192` -> 8m), so fmt-2.0's 54 codes line up with the 54-entry
+  table.  Pairing the 54 fmt-2.0 codes with our 52-entry 4 MB table
+  indexes out of bounds past code 51; `SetBaseDistTabs` now selects
+  `BaseDTable_8M`/`BaseDBits_8M` for `uFmt20`.  Codes >= 42 have
+  different base/bits in the two tables, so this only shows up on large
+  distances (>= ~1.5 MB) -- i.e. not on any current fixture, which is
+  exactly why it needs saying out loud.
+- MM range-coder initial frequency is **8** for fmt-2.0 (1 for v1.1).
+- `DecodeFile` took a 4th arg `lArcerVer`; `uFmt20 = (lArcerVer >= 20)`
+  and `sqx_dec.c` passes `ALNode->lVersion`.  All v1.1 len/dist tables in
+  our tree are bit-identical to the reference's.
+
+**The actual bug was a macro, not the tables.**  `NEEDBITS(NumBits)` and
+`DUMPBITS(NumBits)` in `arcio.h` had no inner parens around the
+parameter, so a compound argument reassociated:
+`NEEDBITS(uEBits - 4)` expanded to `uBitBuf >> (32 - uEBits - 4)` --
+**12 bits instead of 4**.  That silently ate 8 extra bits and corrupted
+every fmt-2.0 distance code with `ebits > 4`, and the desync only became
+visible ~6000 ops later as a wrong byte at offset 21504.  Fixed at the
+call site (route the count through a local) AND the macros plus both
+`PEEKCODE` forms in `ctab.h` were parenthesised.  An audit of the whole
+`unsqx` tree showed these were the **only** compound-argument call
+sites, so the macro hardening is behaviour-preserving for everything
+else -- but any future `NEEDBITS(a - b)` would have been silently wrong,
+so prefer an identifier.
+
+Traps worth keeping:
+- `NEEDBITS(n)` is `(uBitBuf >> (INBUF_BIT_SIZE - n))`, so it silently
+  returns far too many bits rather than failing.  When a shift-derived
+  value looks impossible, log the shift amount before suspecting tables.
+- Bisecting with the reference is fast: `SQX_TRACE=1` makes it print
+  `[trace] op: sym=N (bt=..., remaining R bytes)` and, for long matches,
+  `[trace] match dist=.. len=.. code=.. ebits=.. base=..`.  Log our own
+  `(origsize_left, code)` per op and align on `origsize_left` to find the
+  first divergent op -- here op 6180 had the right length but a wrong
+  distance, and one op later the `> 0x7FFF` length bump turned the error
+  visible.  Trace files are UTF-16.
+- `dlltest` extracts **0 bytes and still prints `rc=0`** if the outdir
+  does not exist.  Create it first or you will chase a phantom
+  regression.
+- The matrix harness flattens with `-j`, so nested members collide on
+  basename and are reported `REF-AMBIG`; that label also appears for
+  every `REF-AMBIG` archive the reference declines to unpack.  Treat
+  `BYTES-DIFFER`/`MISSING` as the only real failures.
+- Left open on purpose: for **v1.1** the reference would also want the
+  8 MB base table for dictionaries >= 8 KB, but v1.1 declares
+  `DIST_CODES`=56 against a 54-entry table, and no fixture reaches dist
+  code 42, so that change cannot be validated here.  v1.1 keeps the old
+  exact-size switch.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).

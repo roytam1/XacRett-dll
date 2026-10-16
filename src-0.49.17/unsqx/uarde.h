@@ -55,7 +55,7 @@ extern UBYTE	*pImageBuf;
 
 int InitDecodeLz(void);
 void FreeDecodeLz(void);
-void DecodeFile(long lCompFlags,long lSolidFlag,UWORD32 uDecDicSize);
+void DecodeFile(long lCompFlags,long lSolidFlag,UWORD32 uDecDicSize,long lArcerVer);
 
 #endif //- #if !defined(__UARDE_H)   
 

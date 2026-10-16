@@ -104,7 +104,45 @@ void CopyString(unsigned uLen,unsigned uDist)
 	}
 }
 
-void DecodeFile(long lCompFlags,long lSolidFlag,UWORD32 uDecDicSize)
+/* Format-2.0 distance code: low 4 extra bits come from the per-block
+   Low16 Huffman table when present (mirror of reference read_dist). */
+static UWORD32 ReadDistCode20(void)
+{
+	UWORD32 uCode;
+	UWORD32 uDist;
+	UWORD32 uEBits;
+
+	uCode = PEEKCODE(DistCTab);
+	DUMPBITS(DistCTab.uLens[uCode]);
+	uDist = BaseDTable[uCode];
+	uEBits = BaseDBits[uCode];
+	if( uEBits > 0 )
+	{
+		if( uHave16 != OPTION_NONE && uEBits >= 4 )
+		{
+			UWORD32 uHi = 0;
+			UWORD32 uNumBits;
+			if( uEBits > 4 )
+			{
+				uNumBits = uEBits - 4;
+				uHi = NEEDBITS(uNumBits);
+								DUMPBITS(uNumBits);
+			}
+			uCode = PEEKCODE(Low16CTab);
+			DUMPBITS(Low16CTab.uLens[uCode]);
+			uDist += (uHi << 4) + uCode;
+					}
+		else
+		{
+			uDist += NEEDBITS(uEBits);
+			DUMPBITS(uEBits);
+		}
+	}
+
+	return uDist + 1;
+}
+
+void DecodeFile(long lCompFlags,long lSolidFlag,UWORD32 uDecDicSize,long lArcerVer)
 {
 UWORD32			uCodeNum;
 UWORD32			uLen;
@@ -119,12 +157,24 @@ UWORD32			uCount;
 SQX_DELTA_HEAD	SqxDeltaHead;
 SLONG32			lOneBlock;
 SLONG64			lLastProgr;
+SLONG64			l64OutStart;
 
 	InitBitStream();
 	uBTBlockPtr = 0;
 
 	CUR_MAX_DIC_SIZE = uDecDicSize;
 	SetBaseDistTabs((CUR_MAX_DIC_SIZE >> 10));
+
+	uFmt20 = (lArcerVer >= 20) ? OPTION_SET : OPTION_NONE;
+
+	/* The window is MIN_MAX_DIC_SIZE bytes; a larger (or empty, or
+	   non-power-of-2) dictionary would index outside it. Refuse. */
+	if( uDecDicSize == 0 || uDecDicSize > MIN_MAX_DIC_SIZE ||
+	    (uDecDicSize & (uDecDicSize - 1)) != 0 )
+	{
+		ArcStruct.ArchiveStatus = SQX_EC_BAD_FILE_FORMAT;
+		return;
+	}
 
 	if( lSolidFlag == OPTION_NONE )
 	{
@@ -169,6 +219,7 @@ SLONG64			lLastProgr;
 	}
 
 	lLastProgr = 0;
+	l64OutStart = ProgressStruct.l64Processed;
 
 	lOneBlock = (SLONG32)(IoStruct.l64OrigSize / 100);
 	if( lOneBlock < (1 << 15) )
@@ -228,6 +279,148 @@ SLONG64			lLastProgr;
 		}
 
 		uBTBlockPtr--;
+
+		if( uFmt20 != OPTION_NONE )
+		{
+						if( uCodeNum < 256 )
+			{
+				SWindow[uCurrPos] = (UBYTE)uCodeNum;
+				if( ++uCurrPos >= CUR_MAX_DIC_SIZE )
+					WriteDictionary();
+				uCurrPos &= (CUR_MAX_DIC_SIZE - 1);
+				IoStruct.l64OrigSize--;
+				ProgressStruct.l64Processed++;
+				continue;
+			}
+			else if( uCodeNum == 256 )
+			{
+				uDistState = uLastDist;
+				CopyString(uLastLen,uLastDist);
+				IoStruct.l64OrigSize -= uLastLen;
+				uLen = uLastLen;
+				ProgressStruct.l64Processed += uLen;
+				continue;
+			}
+			else if( uCodeNum == SYM_COPY1 )
+			{
+				uDist = uDistState;
+				if( uDist == 0 ||
+				    (SLONG64)uDist > (ProgressStruct.l64Processed - l64OutStart) +
+				                      (SLONG64)(uCurrPos - uWritePos) )
+				{
+					ArcStruct.ArchiveStatus = SQX_EC_BAD_FILE_FORMAT;
+					break;
+				}
+				SWindow[uCurrPos] = SWindow[(uCurrPos - uDist) & (CUR_MAX_DIC_SIZE - 1)];
+				if( ++uCurrPos >= CUR_MAX_DIC_SIZE )
+					WriteDictionary();
+				uCurrPos &= (CUR_MAX_DIC_SIZE - 1);
+				IoStruct.l64OrigSize--;
+				ProgressStruct.l64Processed++;
+				continue;
+			}
+			else if( uCodeNum < LEN2_START2 )
+			{
+				uCodeNum -= 257;
+				uLastDist = PrevDists[(uPrevDistIndex - uCodeNum) & 3];
+				
+				uCodeNum = PEEKCODE(RepCTab);
+				DUMPBITS(RepCTab.uLens[uCodeNum]);
+
+				if( uCodeNum == LEN_CODES - 1 )
+				{
+					uLastLen = 257 + NEEDBITS(14);
+					DUMPBITS(14);
+				}
+				else
+				{
+					uLastLen = LenOffsets[uCodeNum];
+					uEBits = LenEBits[uCodeNum];
+					if( uEBits > 0 )
+					{
+						uLastLen += NEEDBITS(uEBits);
+						DUMPBITS(uEBits);
+					}
+				
+					uLastLen += 2;
+
+					if( uLastDist > 0x7FFF )
+						uLastLen++;
+				}
+				
+				uDistState = uLastDist;
+				IoStruct.l64OrigSize -= uLastLen;
+				CopyString(uLastLen,uLastDist);
+				uLen = uLastLen;
+				ProgressStruct.l64Processed += uLen;
+				continue;
+			}
+			else if( uCodeNum < LEN3_START2 )
+			{
+				uLen = 2;
+				uCodeNum -= LEN2_START2;
+				uDist = Len2Offsets[uCodeNum];
+				uEBits = Len2EBits[uCodeNum];
+				if( uEBits > 0 )
+				{
+					uDist += NEEDBITS(uEBits);
+					DUMPBITS(uEBits);
+				}
+
+				uDist++;
+				uDistState = uDist;
+				IoStruct.l64OrigSize -= uLen;
+				CopyString(uLen,uDist);
+				ProgressStruct.l64Processed += uLen;
+				continue;
+			}
+			else if( uCodeNum < LEN_START2 )
+			{
+				uLen = 3;
+				uCodeNum -= LEN3_START2;
+				uDist = Len3Offsets2[uCodeNum];
+				uEBits = Len3EBits2[uCodeNum];
+				if( uEBits > 0 )
+				{
+					uDist += NEEDBITS(uEBits);
+					DUMPBITS(uEBits);
+				}
+				uDist++;
+				uDistState = uDist;
+				IoStruct.l64OrigSize -= uLen;
+				CopyString(uLen,uDist);
+				ProgressStruct.l64Processed += uLen;
+				continue;
+			}
+			else
+			{
+				if( uCodeNum == NC2 - 1 )
+				{
+					uLen = 257 + NEEDBITS(14);
+					DUMPBITS(14);
+					uDist = ReadDistCode20();
+				}
+				else
+				{
+					uCodeNum -= LEN_START2;
+					uLen = LenOffsets[uCodeNum];
+					uEBits = LenEBits[uCodeNum];
+					if( uEBits > 0 )
+					{
+						uLen += NEEDBITS(uEBits);
+						DUMPBITS(uEBits);
+					}
+					uLen += 4;
+					uDist = ReadDistCode20();
+				}
+
+				uDistState = uDist;
+				IoStruct.l64OrigSize -= uLen;
+				CopyString(uLen,uDist);
+				ProgressStruct.l64Processed += uLen;
+				continue;
+			}
+		}
 
 		if( uCodeNum < 256 )
 		{

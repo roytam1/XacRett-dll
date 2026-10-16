@@ -92,6 +92,9 @@ UWORD32 Len2EBits[LEN2_CODES]				= {2,2,3, 4, 5, 6,  6,  6};
 
 UWORD32 Len3Offsets[LEN3_CODES]				= {0,1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192};
 UWORD32 Len3EBits[LEN3_CODES]				= {0,0,1,2,3, 4, 5, 6,  7, 8,   9,   10,  11, 12,  13};
+UWORD32 Len3Offsets2[LEN3_CODES2]	= {0,1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384};
+UWORD32 Len3EBits2[LEN3_CODES2]	= {0,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14};
+
 
 UWORD32 LenOffsets[LEN_CODES]				= {0,1,2,3,4,5,6,7,8,10,12,16,20,24,32,40,48,64,80,96,128,160,192,224,0};
 UWORD32 LenEBits[LEN_CODES]					= {0,0,0,0,0,0,0,0,1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5,  5,  5,  5,  5,0};
@@ -103,7 +106,24 @@ UWORD32 BaseDTable_2M[DIST_CODES_2M + 1]	= {0,1,2,3,4,6,8,12,16,24,32,48,64,96,1
 UWORD32 BaseDBits_2M[DIST_CODES_2M]			= {0,0,0,0,1,1,2, 2, 3, 3, 4, 4, 5, 5,  6,  6,  7,  7,  8,  8,   9,   9,  10,  10,  11,  11,  12,   12,   13,   13,   14,   14,   15,   15,    16,    16,    17,    17,    17,    17,    17,    17,     17,     17,     17,     17,     17,     17,     17,     17};
 
 UWORD32 BaseDTable_4M[DIST_CODES_4M + 1]	= {0,1,2,3,4,6,8,12,16,24,32,48,64,96,128,192,256,384,512,768,1024,1536,2048,3072,4096,6144,8192,12288,16384,24576,32768,49152,65536,98304,131072,196608,262144,393216,524288,786432,1048576,1310720,1572864,1835008,2097152,2359296,2621440,2883584,3145728,3407872,3670016,3932160,4194304};
-UWORD32 BaseDBits_4M[DIST_CODES_4M]			= {0,0,0,0,1,1,2, 2, 3, 3, 4, 4, 5, 5,  6,  6,  7,  7,  8,  8,   9,   9,  10,  10,  11,  11,  12,   12,   13,   13,   14,   14,   15,   15,    16,    16,    17,    17,    18,    18,     18,     18,     18,     18,     18,     18,     18,     18,     18,     18,     18,     18};
+UWORD32 BaseDBits_4M[DIST_CODES_4M]			= {0,0,0,0,1,1,2, 2, 3, 3, 4, 4, 5, 5,  6,  6,  7,  7,  8,  8,   9,   9,  10,  10,  11,  11,  12,   12,   13,   13,   14,   14,   15,   15,    16,    16,    17,    17,    18,    18,     18,     18,     18,     18,     18,     18,     18,     18,     18,     18,     18,     18};
+
+/* Format 2.0 only (54 dist codes, sqx20.dll).  The reference selects
+   the base tables by dictionary size in BYTES and uses the 8 MB set
+   for anything >= 8 KB, which is why format 2.0 declares 54 dist
+   codes while v1.1 declares 56.  Without this the 54 fmt-2.0 codes
+   index a 52-entry table (out of bounds past code 51). */
+UWORD32 BaseDTable_8M[DIST_CODES8 + 1]	=
+{0, 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768,
+ 1024, 1536, 2048, 3072, 4096, 6144, 8192, 12288, 16384, 24576, 32768, 49152,
+ 65536, 98304, 131072, 196608, 262144, 393216, 524288, 786432, 1048576, 1572864,
+ 2097152, 2621440, 3145728, 3670016, 4194304, 4718592, 5242880, 5767168,
+ 6291456, 6815744, 7340032, 7864320};
+UWORD32 BaseDBits_8M[DIST_CODES8]	=
+{0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8,
+ 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 18, 18,
+ 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19};
+
 
 UWORD32 *BaseDTable;
 UWORD32 *BaseDBits;
@@ -113,6 +133,11 @@ CTAB_STRUCT	BitCTab;
 CTAB_STRUCT LitLenCTab[2];
 CTAB_STRUCT RepCTab;
 CTAB_STRUCT DistCTab;
+CTAB_STRUCT Low16CTab;
+
+UWORD32 uFmt20 = OPTION_NONE;
+UWORD32 uHave16 = OPTION_NONE;
+UWORD32 uDistState = 0;
 
 UWORD32 uLastLen = 0;
 UWORD32 uLastDist = 0;
@@ -371,6 +396,7 @@ void FreeDecodeTabs(void)
 	FreeCTab(&LitLenCTab[1]);
 	FreeCTab(&RepCTab);
 	FreeCTab(&DistCTab);
+	FreeCTab(&Low16CTab);
 	FreeMMCoders();
 }
 
@@ -382,13 +408,13 @@ int AllocateDecodeTabs(void)
 	if( InitCTab(&BitCTab,BCODES,BCODE_BITS) == (int)FALSE )
 		return (int)FALSE;
 	
-	if( InitCTab(&LitLenCTab[0],NC,LCODE_BITS) == (int)FALSE )
+	if( InitCTab(&LitLenCTab[0],NC2,LCODE_BITS) == (int)FALSE )
 	{
 		FreeDecodeTabs();
 		return (int)FALSE;
 	}
 	
-	if( InitCTab(&LitLenCTab[1],NC,LCODE_BITS) == (int)FALSE )
+	if( InitCTab(&LitLenCTab[1],NC2,LCODE_BITS) == (int)FALSE )
 	{
 		FreeDecodeTabs();
 		return (int)FALSE;
@@ -406,11 +432,25 @@ int AllocateDecodeTabs(void)
 		return (int)FALSE;
 	}
 
+	if( InitCTab(&Low16CTab,DIST_LOW16,LCODE_BITS) == (int)FALSE )
+	{
+		FreeDecodeTabs();
+		return (int)FALSE;
+	}
+
 	return (int)TRUE;
 }
 
 void SetBaseDistTabs(UWORD32 uCurDicSize)
 {
+	if( uFmt20 != OPTION_NONE )
+	{
+		BaseDTable = &BaseDTable_8M[0];
+		BaseDBits = &BaseDBits_8M[0];
+		CUR_DIST_CODES = DIST_CODES2;
+		return;
+	}
+
 	BaseDTable = &BaseDTable_1M[0];
 	BaseDBits = &BaseDBits_1M[0];
 	CUR_DIST_CODES = DIST_CODES_1M;
@@ -553,6 +593,35 @@ UWORD32		uNumEntropyCoders;
 		*uMMBlock = OPTION_NONE;
 		uBTBlockPtr = NEEDBITS(15);
 		DUMPBITS(15);
+
+		uHave16 = OPTION_NONE;
+		if( uFmt20 != OPTION_NONE )
+		{
+			uHave16 = NEEDBITS(1);
+			DUMPBITS(1);
+			if( uHave16 != OPTION_NONE )
+			{
+				UWORD32 uWidth;
+				UWORD32 uCount16;
+				uWidth = NEEDBITS(4);
+				DUMPBITS(4);
+				if( uWidth == 0 )
+					return (int)FALSE;
+				for( uCount16 = 0; uCount16 < DIST_LOW16; uCount16++ )
+				{
+					Low16CTab.uLens[uCount16] = NEEDBITS(uWidth);
+					DUMPBITS(uWidth);
+				}
+				if( GenerateUCTab(&Low16CTab) == (int)FALSE )
+					return (int)FALSE;
+			}
+		}
+
+		LitLenCTab[0].uNumCode = LitLenCTab[1].uNumCode =
+			(uFmt20 != OPTION_NONE) ? NC2 : NC;
+		DistCTab.uNumCode =
+			(uFmt20 != OPTION_NONE) ? DIST_CODES2 : DIST_CODES;
+
 
 		*uFourTrees = NEEDBITS(1);
 		DUMPBITS(1);

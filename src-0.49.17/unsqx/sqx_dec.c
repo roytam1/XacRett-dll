@@ -700,7 +700,7 @@ void ExtractArcFile(ARC_NODE *ALNode)
 	else if( ALNode->lMethod == SQX_C1_EX_NORMAL )
 		SqxUnPpmd();
 	else
-		DecodeFile(ALNode->lCompFlags,ALNode->lFlags & SQX_SOLID_FILE_FLAG,(1U << (((ALNode->lFlags >> 8) & 15) + 15)));
+		DecodeFile(ALNode->lCompFlags,ALNode->lFlags & SQX_SOLID_FILE_FLAG,(1U << (((ALNode->lFlags >> 8) & 15) + 15)),ALNode->lVersion);
 
 	if( (ArcStruct.iFileWasSplit == OPTION_NONE) && (IoStruct.u32FileCRC != ArcStruct.uCFileCRC) )
 	{

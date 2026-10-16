@@ -66,10 +66,10 @@ SLONG32 InitBitStream(void);
 SLONG32 ReadBitStream(void);
 void WriteDictionary(void);
 
-#define NEEDBITS(NumBits)	(uBitBuf >> (INBUF_BIT_SIZE - NumBits))	
+#define NEEDBITS(NumBits)	(uBitBuf >> (INBUF_BIT_SIZE - (NumBits)))	
 #define DUMPBITS(NumBits)																\
 {																						\
-	uBitBufBits += NumBits;																\
+	uBitBufBits += (NumBits);																\
 	uBitBufPos += uBitBufBits >> INBUF_SHIFT;											\
 	uBitBufBits &= INBUF_MASK;															\
 	if( uBitBufPos == INBUF_POS_MAX )													\

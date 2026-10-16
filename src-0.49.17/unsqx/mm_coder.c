@@ -53,6 +53,10 @@ All rights reserved.
 
 #if !defined(__SQX_VARS_H)
 #include "sqx_vars.h"
+
+#if !defined(__CTAB_H)
+#include "ctab.h"
+#endif
 #endif
 
 #define		MM_NC		256
@@ -106,12 +110,28 @@ void StartMMDecoders(void)
 	RC_StartDecode(&RangeCoder);
 }
 
+static UWORD32 MM_InitFreq8[MM_NC];
+
 void ResetMMCoders(void)
 {
-	RC_ModelInit(&MM_Coder[0],MM_NC,NULL,ARI_INC,MM_ORDER_0_ADAPT,1);
-	RC_ModelInit(&MM_Coder[1],MM_NC,NULL,ARI_INC,MM_ORDER_0_ADAPT,1);
-	RC_ModelInit(&MM_Coder[2],MM_NC,NULL,ARI_INC,MM_ORDER_0_ADAPT,1);
-	RC_ModelInit(&MM_Coder[3],MM_NC,NULL,ARI_INC,MM_ORDER_0_ADAPT,1);
+	UWORD32 *pInitFreq = NULL;
+	UWORD32 uCount;
+
+	/* Format 2.0 starts MM models at frequency 8, not 1. */
+	if( uFmt20 != OPTION_NONE )
+	{
+		if( MM_InitFreq8[0] != 8 )
+		{
+			for( uCount = 0; uCount < MM_NC; uCount++ )
+				MM_InitFreq8[uCount] = 8;
+		}
+		pInitFreq = &MM_InitFreq8[0];
+	}
+
+	RC_ModelInit(&MM_Coder[0],MM_NC,pInitFreq,ARI_INC,MM_ORDER_0_ADAPT,1);
+	RC_ModelInit(&MM_Coder[1],MM_NC,pInitFreq,ARI_INC,MM_ORDER_0_ADAPT,1);
+	RC_ModelInit(&MM_Coder[2],MM_NC,pInitFreq,ARI_INC,MM_ORDER_0_ADAPT,1);
+	RC_ModelInit(&MM_Coder[3],MM_NC,pInitFreq,ARI_INC,MM_ORDER_0_ADAPT,1);
 }
 
 void DecodeRcData(UWORD32 uNumCoder,UBYTE *pBuf,UWORD32 uSize)
