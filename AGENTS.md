@@ -645,9 +645,25 @@ no binary-only dependencies (AMD64 port preparation).
     keep the file under some mangled name, which would make the probe
     answer "long names work" when they do not. `OPEN_EXISTING` on the
     same name is the check that cannot lie that way.
-  - `ACCESS_DENIED`/`SHARING_VIOLATION`/`WRITE_PROTECT`/`DISK_FULL` from
-    the probe mean "cannot tell", not "no long names" - otherwise a
-    read-only output dir would silently start renaming.
+  - **the probe is DIFFERENTIAL, and the error code is never read.**
+    Do not go back to deciding from `GetLastError`: the whole point of
+    the four "cannot tell" codes (ACCESS_DENIED / SHARING_VIOLATION /
+    WRITE_PROTECT / DISK_FULL) was to protect a read-only output dir
+    from renaming, but a 16 bit FAT driver is free to report a
+    too-long name as any of them, and every such code has to answer
+    "long names are fine" - so the fallback silently switched itself
+    back off on exactly the platform that needs it. Reported as
+    "only 8.3 names extract" on `aida64.7z`. Instead: create the long
+    probe name; if that is refused, create a SHORT 8.3 control name
+    (`XPRB~1.TMP`) in the same directory - if the control lands, the
+    directory is writable and only the name was refused, so mangle.
+    Both failing still means "cannot write here at all", which keeps
+    the old read-only behaviour for free. Proven with
+    `proveprobe.py`: a directory squatting the long probe name (so
+    CreateFile on it fails for a reason unrelated to LFN) makes
+    `aida64.exe.manifest` -> `aida64~1.man` and `kerneld.ia64` ->
+    `kerneld.ia6`; the pre-fix DLL keeps both long and drops the
+    other 50. `probereadonly.py` covers case C with an ACL.
   - **intermediate path components are mangled from the string only**,
     never probed. Probing them would split one archive across two
     directories: the first member creates `LONGDI~1`, the second sees

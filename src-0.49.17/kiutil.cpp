@@ -112,6 +112,37 @@ void kiutil::pathInit()
 
 int kiutil::m_lfn = -1;
 
+// Create this file and then open the same name back.  Both halves
+// matter: a 16 bit file system driver can accept a create whose name
+// it cannot represent and then keep the file under some mangled
+// name, so a create-only probe answers "long names work" when they
+// do not.  The file is always removed again.
+static bool p83probecreate( const char* name )
+{
+	HANDLE h = CreateFileA( name, GENERIC_READ|GENERIC_WRITE,
+	                        FILE_SHARE_READ|FILE_SHARE_WRITE, NULL,
+	                        CREATE_ALWAYS,
+	                        FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_TEMPORARY,
+	                        NULL );
+	bool ok = false;
+
+	if( h!=INVALID_HANDLE_VALUE )
+		{
+		CloseHandle( h );
+		h = CreateFileA( name, 0,
+		                   FILE_SHARE_READ|FILE_SHARE_WRITE, NULL,
+		                   OPEN_EXISTING,
+		                   FILE_ATTRIBUTE_NORMAL, NULL );
+		if( h!=INVALID_HANDLE_VALUE )
+			{
+			CloseHandle( h );
+			ok = true;
+			}
+		}
+	DeleteFileA( name );
+	return ok;
+}
+
 bool kiutil::longNameOK()
 {
 	if( m_lfn>=0 )
@@ -123,38 +154,26 @@ bool kiutil::longNameOK()
 		return false;
 	}
 
-	const char* probe = "XacRettLongNameProbe.tmp";
-	HANDLE h = CreateFileA( probe, GENERIC_WRITE,
-	                        FILE_SHARE_READ|FILE_SHARE_WRITE, NULL,
-	                        CREATE_ALWAYS,
-	                        FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_TEMPORARY,
-	                        NULL );
-	if( h!=INVALID_HANDLE_VALUE )
+	/* Differential probe: try the long name AND a short one in the same
+	   directory.  Deciding from the error code instead does not work -
+	   on the platforms that need this fallback at all, a 16 bit FAT
+	   driver is free to report the refusal as ACCESS_DENIED or
+	   SHARING_VIOLATION, and every such guess has to mean "long names
+	   are fine" to protect a read-only output dir, which silently
+	   switches the fallback back off exactly where it is needed.
+	   The short name is the control: if it lands, the directory is
+	   writable and only the long name was refused. */
+	bool lng = p83probecreate( "XacRettLongNameProbe.tmp" );
+	if( lng )
 	{
-		CloseHandle( h );
-		/* Opening the same name back matters: a 16 bit file system
-		   driver can accept the create and then keep the file under
-		   some mangled name, which would make a create-only probe
-		   answer "long names work" when they do not. */
-		HANDLE h2 = CreateFileA( probe, GENERIC_READ,
-		                          FILE_SHARE_READ|FILE_SHARE_WRITE, NULL,
-		                          OPEN_EXISTING,
-		                          FILE_ATTRIBUTE_NORMAL, NULL );
-		if( h2!=INVALID_HANDLE_VALUE )
-			CloseHandle( h2 );
-		DeleteFileA( probe );
-		m_lfn = ( h2!=INVALID_HANDLE_VALUE ) ? 1 : 0;
-		return m_lfn!=0;
+		m_lfn = 1;
+		return true;
 	}
 
-	// Only a refusal of the name itself means "no long names here"; a
-	// directory we are not allowed to write to tells us nothing.
-	DWORD err = GetLastError();
-	if( err==ERROR_ACCESS_DENIED || err==ERROR_SHARING_VIOLATION ||
-	    err==ERROR_WRITE_PROTECT || err==ERROR_DISK_FULL )
-		m_lfn = 1;
-	else
-		m_lfn = 0;
+	/* Both refused: nothing can be written here at all, so the
+	   extraction is going to fail on its own and renaming would
+	   only make the message less clear.  Assume long names. */
+	m_lfn = ( p83probecreate( "XPRB~1.TMP" ) ) ? 0 : 1;
 	return m_lfn!=0;
 }
 
