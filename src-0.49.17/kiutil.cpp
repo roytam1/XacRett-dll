@@ -513,8 +513,15 @@ char* kiutil::pathMake( char* path )
 			*p = '_';
 	}
 
-	// long file name fallback (a no-op wherever long names work)
-	pathMake83( st );
+	// long file name fallback (a no-op wherever long names work).
+	// The FULL path has to go in, not "st": st skips the drive, and the
+	// collision probe inside pathMake83 is a GetFileAttributes on
+	// prefix+candidate, so a drive-relative prefix never resolves and
+	// two members whose mangled names collide silently overwrite each
+	// other (seen with -j, where the caller memmoves the drive-stripped
+	// result back over the buffer).  pathMake83 keeps a leading X: intact
+	// and returns the same buffer, so "st" stays valid afterwards.
+	pathMake83( path );
 
 	// the directories are made from the finished path, so that a mangled
 	// name is the one that actually gets created

@@ -728,8 +728,31 @@ no binary-only dependencies (AMD64 port preparation).
     the plain run drops it (305 files) while the forced run materialises
     it as `_____y~1.txt` (306).  A regression harness must therefore
     assert the forced run is a SUPERSET, never that it is equal.
-  - **Still not covered**: DMG only (`OpenDmg` writes through its own
-    temp-file helper).  That is the last provider bypassing `pathMake`.
+  - **DMG was never actually a gap** -- the note above was wrong.
+    `DmgTool.cpp:548` already calls `kiutil::pathMake( outname )` before
+    its `fopen`, and there is no conditional compilation anywhere in that
+    file, so the fallback applies.  `OpenDmg.cpp` writes only to a
+    `GetTempFileName` name (`XacXXXX.tmp`), which is 8.3-legal by
+    construction.  An audit of every `fopen(...,"wb")` /
+    `CreateFile(...CREATE_ALWAYS)` in the tree now leaves nothing
+    uncovered: 70 write sites, all either guarded or machine-named.
+  - **`pathMake` passed the WRONG pointer to the 8.3 helper, and it cost
+    real data.**  It advanced `st` past the drive, then called
+    `pathMake83( st )` -- so the collision probe inside
+    `pathMake83`->`p83fit`->`p83taken` was a `GetFileAttributes` on a
+    *drive-relative* `prefix+candidate`, which resolves against the CWD
+    and fails with ERROR_PATH_NOT_FOUND.  A candidate therefore always
+    looked free.  With `-j` (which flattens to a bare basename) two
+    members whose mangled names collide silently overwrite each other:
+    `long83.sqx` yielded 6 files for 7 members, with `LongFi~1.txt`
+    holding the *second* member.  Fixed by passing the full path
+    (`pathMake83( path )`); `pathMake83` keeps a leading `X:` intact and
+    rewrites in place, so `st` stays valid for the directory loop and for
+    the callers that use the returned pointer.  Behaviour where long
+    names work is unchanged (`longNameOK()` short-circuits all
+    mangling), proven by a baseline-vs-fixed A/B: `runnewmatrix.py`
+    output is byte-identical, ARC 18/18 MATCH, SQX matrix still 202, and
+    the forced-8.3 harness goes from SQX 6/7 to 7/7.
   - Verified on Windows (VC6 and VC4 DLLs behave identically): a
     long-name ZIP (`OK.TXT`, `LongFileName.txt`, `LongFileName2.txt`,
     `short.LONGEXTENSION`, `CON.txt`, `with space.txt`,
