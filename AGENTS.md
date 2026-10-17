@@ -11,6 +11,35 @@ tree plus `XacRett.lst` (IDA disassembly, 2527 procs) plus `XacRett.c`
 against the official 0.49.17 binary, reproducible `src-0.49.17/` tree,
 no binary-only dependencies (AMD64 port preparation).
 
+**STATUS: the original goal is COMPLETE** (recorded 2026-10-18).
+"Re-create the missing parts so the incomplete source builds" is done:
+all 220 `XacRett.dsp` units plus the 49 vendored UnRAR units build
+from a clean tree with no binary-only dependencies, under BOTH VC6 and
+MSVC 4.x, and the result matches the official 0.49.17 binary on
+version (`FileVersion 0.49.17`) and on all 11 exports.  Behavior has
+been verified member-for-member against official across RAR, ZIP,
+SQX, 7z, ACE, LBR, YZ1 and the tar family.  Do not re-open the
+reconstruction; work here is now ADDITIVE (new formats), and each
+new provider is verified against an authentic fixture the same way.
+
+Two policies came out of that work and still decide every judgement
+call, so keep applying them:
+
+- **Deliberate divergence where official is broken.**  We FIX official
+  and say so in the per-format notes, rather than copying a defect:
+  ARC methods 4-9 (official yields nothing), YZ1 (official faults with
+  0xC0000005, and a gauge-index crash of ours was fixed), the 8.3
+  output-name fallback, `-p<password>` for headless runs, and the
+  whole `.lz`/`.xz`/`.zst`/`.tar.*` provider family.  Match official
+  only where official is actually correct.
+- **Do not import a symbol just to match the import table.**  Official
+  imports IMAGEHLP/WINMM for exactly one symbol each, both of which
+  we have already replaced or never needed; adding them would only
+  widen our dependency surface.  `GetProcAddress` conversion is
+  warranted only for OUR OWN call sites to post-95 APIs (the
+  `VC6_GSPN` / `VC6_AFAA` cases), never for CRT startup (see the
+  `FreeEnvironmentStrings*` note below).
+
 ## Environment
 
 - Windows, Visual C++ 6.0 at
@@ -44,10 +73,20 @@ no binary-only dependencies (AMD64 port preparation).
   the same `/Fo` names or the link silently consumes stale objects
   (this has bitten before — always verify with a behavior probe, never
   by DLL size/date alone).
-- Current output `%TEMP%\dlbuild\XacRett.dll`: 671744 bytes, i386,
+- Current output `%TEMP%\dlbuild\XacRett.dll`: 1015808 bytes, i386,
   `FileVersion 0.49.17`, 11/11 exports identical to the 724992-byte
-  target. Imports are only KERNEL32/USER32/LZ32/SHLWAPI/ADVAPI32
-  (target additionally uses IMAGEHLP/WINMM — known gap).
+  target (checked with `dumpbin /exports`).  Imports are only
+  KERNEL32/USER32/LZ32/ADVAPI32 -- SHLWAPI was dropped in `8345737`.
+  The target alone still imports SHLWAPI, IMAGEHLP and WINMM, but
+  those two are **one symbol each** and are NOT a gap for us:
+  IMAGEHLP is only `MakeSureDirectoryPathExists`, which `pathMake`
+  already does itself with `CreateDirectory` (`kiutil.cpp:535,561`),
+  and WINMM is only `timeGetTime`, confined to a single official
+  function that brackets the command-line phase to record a
+  centisecond (`/0xA`) duration for the gauge.  Neither symbol is
+  in any of our 224 objects or in the vendored `UnRAR.lib`, so
+  importing them would only widen our dependency surface for no
+  gain.  The real floor is the `EnvironmentStringsW` pair below.
 - Test harness `%TEMP%\lha\dlltest.exe` (source
   `opencode\dlltest.c`, build via `opencode\mkdlltest.bat`):
   `dlltest <dll> <archive> <outdir> <member> <expcrc> <exptype>`,
