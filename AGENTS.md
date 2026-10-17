@@ -386,11 +386,17 @@ no binary-only dependencies (AMD64 port preparation).
   every symbol that is Windows 95/NT4 or older.  RAR is unaffected:
   all 6 fixtures (incl. the 72-member `aida64.rar`) extract byte-for-byte
   identically to the pre-fix DLL, and `runnewmatrix.py` is unchanged.
-  **Rebuild `UnRAR.lib` after touching any unrar source** (the lib is
-  tracked and the DLL links it statically):
+  **Rebuild `UnRAR.lib` after touching ANY unrar source or header**
+  (the lib is tracked and the DLL links it statically):
   `%TEMP%\opencode\buildunrar7repo.bat`, which mirrors the upstream
-  7.x lib OBJECT list minus `rar.cpp` plus `motw.cpp`.  A source edit
-  alone changes nothing until that runs and the DLL relinks.
+  7.x lib OBJECT list minus `rar.cpp` plus `motw.cpp`.  An edit alone
+  changes nothing until that runs and the DLL relinks.  **This bites
+  headers hardest**: `327feb9` (the Win95 ANSI gate) touched
+  `unrar/win32scompat.h` only, and because the VC6 DLL links the
+  PREBUILT lib the header edit reached the VC4 build (which compiles
+  unrar from source) but NOT the VC6 DLL, which silently kept the
+  old gate.  Nothing in the tree reports this; compare the lib mtime
+  against the header, or just always rebuild after an unrar edit.
 - **The `FreeEnvironmentStrings*` pair is NOT a gap -- leave it alone.**
   Those, plus `GetEnvironmentStrings{,W}`, come from the CRT
   (`libc.lib`/`libcmt.lib`, i.e. `/MT` startup), **not from our code**,
@@ -1066,13 +1072,26 @@ UnRAR VC4 port notes (all measured, none guessed):
     Win32s. RAR was the only format affected because everything else
     goes through ANSI CRT calls. Two independent gaps, both ASCII-safe:
     - file layer (`unrar/win32scompat.h`, header-only so no build-list
-      change): `Win32NoUnicode()` gates on GetVersion high bit SET +
-      major 3 (Win32s; the box reports 0x80AB0A03), plus a
-      `CreateFileW`-not-exported check, then converts to ACP and calls
-      the A entry point. GetVersion high bit clear means NT, set means
-      non-NT - so Win95 (set/4) and all NT keep the W path, whose file
-      APIs work there (an earlier high-bit-clear formulation never fired
-      on the test box). The ANSI path itself is proven on modern Windows
+      change): `Win32NoUnicode()` gates on GetVersion high bit SET
+      (non-NT) plus major/minor, plus a `CreateFileW`-not-exported
+      check, then converts to ACP and calls the A entry point.
+      **Win95 belongs in the fallback too** (high bit set, major 4,
+      minor 0): it also chokes on the Unicode file APIs.  This was
+      believed otherwise here ("Win95 (set/4) and all NT keep the W
+      path, whose file APIs work there") and that wrong assumption is
+      what made every RAR open fail on Win95 with `ERAR_EREAD` (18,
+      i.e. `RARX_FATAL`/`RARX_READ`) while listing nothing.  Fixed in
+      `327feb9` by adding the `major==4 && minor==0` arm; the minor
+      check deliberately leaves Win98+ on the W path, whose W APIs do
+      work.  A note on the two log lines that pointed at it: they came
+      out because `Makefile.vc4` had `/D XACRETT_RAR_DEBUG` on
+      `CFLAGS` but **not** on `UNRAR_CFLAGS`, so every unrar-side
+      `DbgLog` compiled away and the log stopped at our own two lines.
+      Keep the flag on both lines when debugging (it is runtime-gated
+      on the `XACRETT.DBG` file, so it is safe to leave on).
+      GetVersion high bit clear means NT, which keeps the W path (an
+      earlier high-bit-clear formulation never fired on the test box).
+      The ANSI path itself is proven on modern Windows
       via `XACRETT_NOUNICODE=1` (`runansi.ps1`: all 6 RAR fixtures
       list+extract identically through it). Proven by `win32sprobe.exe` (TEMP-built VC4
       binary, workarea root while needed) whose T1/T7 read `highbit=1

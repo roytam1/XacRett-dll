@@ -6,10 +6,16 @@
 // used to make every RAR open, listing and extraction fail there while
 // the ANSI CRT paths (fopen, our own RarTool reader) kept working.
 //
-// Detect Win32s once via GetVersion - high bit SET (non-NT) + major
-// version 3 - and only there convert the path to ACP and call the A entry
-// point. On Win95 (set/4, real W file APIs) and all NT nothing changes:
-// these wrappers compile to the plain W call.
+// Detect the affected systems once via GetVersion - high bit SET
+// (non-NT) plus the major/minor version - and only there convert the
+// path to ACP and call the A entry point:
+//   major < 4            Win32s (3.1 / 3.11)
+//   major 4, minor 0     Windows 95
+// Win95 belongs here too: it also chokes on the Unicode file APIs, so
+// an earlier belief that its W entry points were usable made every RAR
+// open fail there with ERAR_EREAD (18). The minor check keeps Win98
+// and later on the W path, where the W APIs do work. NT is untouched
+// (high bit clear) and compiles to the plain W call.
 //
 // Conversion never touches an NLS API for pure-ASCII names (byte copy),
 // which covers every shipped fixture; only non-ASCII names go through
@@ -43,6 +49,9 @@ static bool Win32NoUnicode()
        path there. Win95 (highbit=1, major 4) and all NT (highbit=0) keep
        the W path: their W file APIs work. */
     if ((v & 0x80000000) && LOBYTE(LOWORD(v)) < 4)
+      win32s_no_unicode = 1;
+    /* Windows 95 chokes on Unicode APIs as well. */
+    else if ((v & 0x80000000) && LOBYTE(LOWORD(v)) == 4 && (DWORD)(HIBYTE(LOWORD(v))) == 0)
       win32s_no_unicode = 1;
     else
     {
