@@ -4,6 +4,7 @@
 #include "LzmaTool.h"
 #include "XzTool.h"
 #include "ZstdTool.h"
+#include "LzDecode.h"
 
 struct TarHeader
 {
@@ -384,6 +385,31 @@ size_t CTxzTool::TarRead(void* red,size_t size)
 	return CTarTool::TarRead(red, size);
 }
 void CTxzTool::TarClose()
+{
+	CTarTool::TarClose();
+	if( tmpLive ) { DeleteFile(tmpPath); tmpPath[0]=0; tmpLive = false; }
+}
+
+bool CLzTarTool::TarOpen(const char* fname)
+{
+	char tmp[MAX_PATH];
+	DWORD n;
+	if( tmpPath[0] ) { DeleteFile(tmpPath); tmpPath[0]=0; }
+	tmpLive = false;
+	n = GetTempPath(MAX_PATH, tmp);
+	if( n==0 || n+20>=MAX_PATH ) return false;
+	lstrcat(tmp, "XacRettTlz.tmp");
+	if( !LzDecodeFile(fname, tmp) ) { DeleteFile(tmp); return false; }
+	lstrcpy(tmpPath, tmp);
+	if( !CTarTool::TarOpen(tmpPath) ) { DeleteFile(tmpPath); tmpPath[0]=0; return false; }
+	tmpLive = true;
+	return true;
+}
+size_t CLzTarTool::TarRead(void* red,size_t size)
+{
+	return CTarTool::TarRead(red, size);
+}
+void CLzTarTool::TarClose()
 {
 	CTarTool::TarClose();
 	if( tmpLive ) { DeleteFile(tmpPath); tmpPath[0]=0; tmpLive = false; }

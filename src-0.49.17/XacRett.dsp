@@ -505,6 +505,9 @@ SOURCE=.\ZooTool.cpp
 # Begin Source File
 
 SOURCE=.\ZstdTool.cpp
+SOURCE=.\LzTool.cpp
+SOURCE=.\LzDecode.cpp
+SOURCE=.\OpenArchive\OpenLz.cpp
 # End Source File
 # Begin Source File
 

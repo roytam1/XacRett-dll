@@ -57,7 +57,7 @@ Handle-style listing:
   `int XacRettFindNext(HARC, INDIVIDUALINFO*)` — `0` per member,
   nonzero at end. The info struct is zeroed by the callee each call;
   `szMode[8]` carries a readable compression-method name (`lh5`,
-  `deflate`, `stored`, `m3`, `crunch`, `MSZIP`, `ultra`, `zstd`, `crlzh`, …).
+  `deflate`, `stored`, `m3`, `crunch`, `MSZIP`, `ultra`, `zstd`, `lz`, `crlzh`, …).
 - `int XacRettCloseArchive(HARC)`.
 
 Housekeeping:
@@ -65,18 +65,18 @@ Housekeeping:
 - `WORD XacRettGetVersion()` / `XacRettGetSubVersion()` — `49` / `17`.
 - `BOOL XacRettGetRunning()` — nonzero while an operation runs.
 
-## Supported formats (71 types)
+## Supported formats (73 types)
 
 Multi-file archives: ACE (store/LZ77/blocked+filters), ARC (m1–m9),
 ARJ, AR, RAR, CAB (MSZIP/Quantum/LZX), LZH/LZS/PMA (all methods),
 ZIP (0/8/9/10/12/14/18/93/95/98/99, incl. WinZip AES), ZOO, GCA, SQX,
 YZ1, AIN (M1–M4), LBR (stored/squeezed/crunched/CrLZH),
-TAR + Tbz/Tgz/TaZ/Taz/Tlzma/Txz/Tzst, CPIO (+gz/Z/bz2), ISO, DMG,
+TAR + Tbz/Tgz/TaZ/Taz/Tlzma/Txz/Tzst/Tlz, CPIO (+gz/Z/bz2), ISO, DMG,
 ALZ, JAK, IS (InstallShield), IMP, ISH, REZ, ZAC, ASD, QPAK, CPT,
 DZ, BGA, ARG, BEL, JAM, YNC, ASK, LZX, and more —
 see `ARCHIVETYPE_*` in `src-0.49.17/XacRett.h` for the full list.
 
-Single-stream codecs: GZ (deflate), BZ2, LZMA, XZ, ZSTD (+ `.tar.*`
+Single-stream codecs: GZ (deflate), BZ2, LZMA, XZ, ZSTD, lzip (+ `.tar.*`
 companions), Z/LZW (compress), JCALG1,
 aPLib, SZDD (MSCompress), PACKZ, Freeze, Jam, BLZ, SPL (splitter),
 plus text encodings (BinHex, Base64, uuencode, yEnc, Boo, AtoB) and
@@ -128,6 +128,16 @@ to the `.dsp`. Result: `XacRett.dll`, i386, `FileVersion 0.49.17`,
 - YZ1 listing fixed (it silently listed zero members while the
   official binary listed them); `alice.yz1` now matches the
   official listing and extracts byte-identical.
+- lzip (`.lz`) and `.tar.lz` (incl. the `.tlz` alias lzip itself
+  uses) are supported: multimember files, trailing data ignored the
+  way lzip ignores it, and all three integrity factors (CRC32,
+  data size, member size) are enforced per member.  Verified against
+  an authentic lzip file plus generated fixtures (empty, 31 B,
+  3000 B, 346 KB, 2-member, and text) - every payload byte-exact
+  against liblzma, `.tar.lz` listing identical to the equivalent
+  plain tar, and 9 corruption negatives all refused with no output.
+  Note the dictionary size comes from the member header (lzip stores
+  no properties byte: the stream is always the default LZMA-302eos).
 - MSVC 4.x compatibility: all 220 `XacRett.dsp` compile units AND
   all 49 vendored UnRAR units pass under CL 10.10 via a small
   `vc4compat/` layer, and `nmake -f Makefile.vc4 link` builds a

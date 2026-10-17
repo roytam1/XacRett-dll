@@ -106,6 +106,20 @@ private:
 	bool tmpLive;
 };
 
+class COpenTlz : public COpenTar
+{
+// .tar.lz via whole-file lzip decode to temp (see CLzTarTool).
+public:
+	COpenTlz() : COpenTar() {tmpPath[0]=0; tmpLive=false;};
+protected:
+	bool   TarOpen(LPCSTR fname);
+	size_t TarRead(void* red,size_t size);
+	void   TarClose();
+private:
+	char tmpPath[MAX_PATH];
+	bool tmpLive;
+};
+
 class COpenTxz : public COpenTar
 {
 public:

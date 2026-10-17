@@ -3,6 +3,7 @@
 #include "..\LzmaTool.h"
 #include "..\XzTool.h"
 #include "..\ZstdTool.h"
+#include "..\LzDecode.h"
 
 static DWORD tar_s2i(char* d,int l)
 {
@@ -308,6 +309,31 @@ size_t COpenTlzma::TarRead(void* red,size_t size)
 	return COpenTar::TarRead(red, size);
 }
 void COpenTlzma::TarClose()
+{
+	COpenTar::TarClose();
+	if( tmpLive ) { DeleteFile(tmpPath); tmpPath[0]=0; tmpLive = false; }
+}
+
+bool COpenTlz::TarOpen(LPCSTR fname)
+{
+	char tmp[MAX_PATH];
+	DWORD n;
+	if( tmpPath[0] ) { DeleteFile(tmpPath); tmpPath[0]=0; }
+	tmpLive = false;
+	n = GetTempPath(MAX_PATH, tmp);
+	if( n==0 || n+20>=MAX_PATH ) return false;
+	lstrcat(tmp, "XacRettTlz.tmp");
+	if( !LzDecodeFile(fname, tmp) ) { DeleteFile(tmp); return false; }
+	lstrcpy(tmpPath, tmp);
+	if( !COpenTar::TarOpen(tmpPath) ) { DeleteFile(tmpPath); tmpPath[0]=0; return false; }
+	tmpLive = true;
+	return true;
+}
+size_t COpenTlz::TarRead(void* red,size_t size)
+{
+	return COpenTar::TarRead(red, size);
+}
+void COpenTlz::TarClose()
 {
 	COpenTar::TarClose();
 	if( tmpLive ) { DeleteFile(tmpPath); tmpPath[0]=0; tmpLive = false; }

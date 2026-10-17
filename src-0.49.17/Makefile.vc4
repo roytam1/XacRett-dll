@@ -109,6 +109,9 @@ OBJS = \
     $(OBJDIR)\XacRett.obj \
     $(OBJDIR)\XzDecode.obj \
     $(OBJDIR)\XzTool.obj \
+    $(OBJDIR)\LzTool.obj \
+    $(OBJDIR)\LzDecode.obj \
+    $(OBJDIR)\OpenArchive_OpenLz.obj \
     $(OBJDIR)\YncTool.obj \
     $(OBJDIR)\Yz1Tool.obj \
     $(OBJDIR)\ZacTool.obj \
@@ -486,6 +489,15 @@ $(OBJDIR)\XzDecode.obj : XzDecode.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\XzTool.obj : XzTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\LzTool.obj : LzTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\LzDecode.obj : LzDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenLz.obj : OpenArchive\OpenLz.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\YncTool.obj : YncTool.cpp

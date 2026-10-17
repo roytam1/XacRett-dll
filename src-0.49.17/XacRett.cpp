@@ -36,6 +36,7 @@ using namespace std;   //‚±‚¢‚Â‚ð“ü‚ê‚È‚¢‚ÆŽg‚¦‚Ü‚¹‚ñB
 #include "XzTool.h"
 #include "SevenZTool.h"
 #include "ZstdTool.h"
+#include "LzTool.h"
 #include "Bz2Tool.h"
 #include "CompressZTool.h"
 #include "BgaTool.h"
@@ -109,6 +110,7 @@ using namespace std;   //‚±‚¢‚Â‚ð“ü‚ê‚È‚¢‚ÆŽg‚¦‚Ü‚¹‚ñB
 #include "OpenArchive\OpenXz.h"
 #include "OpenArchive\OpenSevenZ.h"
 #include "OpenArchive\OpenZstd.h"
+#include "OpenArchive\OpenLz.h"
 #include "OpenArchive\OpenRez.h"
 #include "OpenArchive\OpenJak.h"
 #include "OpenArchive\OpenRar.h"
@@ -547,8 +549,16 @@ void DllSub(void)//ƒ[ƒh‚·‚é
 	o=o->AddTail( new COpenSevenZ);
 	ArchiveListMap[t]=o;
 
+	t=t->AddTail( new CLzTarTool );
+	o=o->AddTail( new COpenTlz);
+	ArchiveListMap[t]=o;
+
 	t=t->AddTail( new CTlzmaTarTool );
 	o=o->AddTail( new COpenTlzma);
+	ArchiveListMap[t]=o;
+
+	t=t->AddTail( new CLzTool );
+	o=o->AddTail( new COpenLz);
 	ArchiveListMap[t]=o;
 
 	t=t->AddTail( new CLzmaTool );
@@ -1187,8 +1197,12 @@ int ArcNameToNum(LPCSTR buffer )
 		return ARCHIVETYPE_GZ;
 	else if ( lstrcmp(buffer,"Tar+XZ “WŠJ")==0)
 		return ARCHIVETYPE_TXZ;
+	else if ( lstrcmp(buffer,"Tar+LZIP “WŠJ")==0)
+		return ARCHIVETYPE_TLZ;
 	else if ( lstrcmp(buffer,"Tar+LZMA “WŠJ")==0)
 		return ARCHIVETYPE_TLZMA;
+	else if ( lstrcmp(buffer,"LZIP “WŠJ")==0)
+		return ARCHIVETYPE_LZIP;
 	else if ( lstrcmp(buffer,"LZMA “WŠJ")==0)
 		return ARCHIVETYPE_LZMA;
 	else if ( lstrcmp(buffer,"XZ “WŠJ")==0)

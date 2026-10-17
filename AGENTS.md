@@ -1262,6 +1262,78 @@ Traps worth keeping:
   code 42, so that change cannot be validated here.  v1.1 keeps the old
   exact-size switch.
 
+## lzip (`.lz`) and `.tar.lz` -- DONE
+
+`ARCHIVETYPE_LZIP` 72 / `ARCHIVETYPE_TLZ` 73 (`NUM_ARCHIVETYPE` 73).  New
+files `LzDecode.h/.cpp`, `LzTool.h/.cpp`, `OpenArchive/OpenLz.h/.cpp`,
+plus a `CLzTarTool`/`COpenTlz` pair in `TarTool`/`OpenTar` for the tar
+form (`.tar.lz`, and the `.tlz` alias lzip itself uses).  Registration
+order matters and mirrors LZMA: the tar variant is added **before** the
+plain one, because `.tar.lz` is really a tar and the sweep picks the first
+`IsType` match whose `Check()` passes.
+
+Format facts (from the lzip spec, cross-checked against an authentic
+`nicfix.tar.lz`):
+- member = `"LZIP"` | VN(1) | DS(1) | LZMA stream | CRC32(4) | DataSize(8) |
+  MemberSize(8) -- **6-byte header, 20-byte trailer**, all little-endian.
+- There is **no properties byte and no size in the header**.  lzip always
+  uses the default LZMA parameters (lc=3, lp=0, pb=2 -> props byte 0x5D,
+  "LZMA-302eos") and always terminates the stream with an End Of Stream
+  marker.  Passing the wrong props byte decodes nothing at all.
+- DS holds the dictionary size: bits 4-0 are the base-2 log of the base
+  size (legal 12..29), bits 7-5 a numerator subtracted as
+  `frac * 2^(base-4)`.  Spec example: 0xD3 = 2^19 - 6*2^15 = 320 KiB.
+- **The CRC is the ordinary reflected 0xEDB88320 CRC-32 (i.e. zlib's)**;
+  lzip only stores it little-endian.  Verified by decoding a real lzip
+  file: `zlib.crc32(output)` equals the trailer field exactly.  That check
+  matters -- writing and reading your own CRC would happily validate a
+  wrong variant, which is the fixture-validates-the-fixture trap.
+- Trailing data after the last member is ignored, as lzip does by
+  default.  Multimember files are supported.
+
+**Why a dedicated engine instead of reusing `LzmaDecodeStream`:** the
+container needs the EXACT compressed-stream length, because the trailer
+cannot be located without it -- the member's compressed size is stored
+nowhere; only the member size is, in the trailer at the END of the
+member.  `LzmaDecodeStream` buffers internally and does not report bytes
+consumed, which is also what makes multimember files and trailing data
+untractable through it.  `LzDecodeStream` therefore keeps its own buffer
+and advances its cursor by the `slen` that `LzmaDec_DecodeToDic` reports.
+
+Traps worth keeping:
+- `LzmaDec_DecodeToDic( p, limit, inbuf, &inPos, ...)` takes the available
+  input count **IN** through `inPos` and returns the consumed count in it.
+  Initialising it to 0 (as one naturally would) makes the decoder see an
+  empty input and every member fails; assign `LzAvail()` first.  This cost
+  real debugging time and is the same family of bug as the ZIP m95
+  `inlen` note below.
+- `ULONGLONG` does not exist in the VC4 SDK, so `LzDecode.h` typedefs
+  `LzU64` as `unsigned __int64` (the `XzDecode.cpp`/`vc4compat/basetsd.h`
+  precedent).  Using `ULONGLONG` compiles under VC6 and breaks VC4.
+- **Do not regenerate `Makefile.vc4` with `genmakevc4.py`.**  It emits a
+  much smaller makefile that loses the hand-tuned unrar object list, the
+  response-file rules and the `clean` section (232 lines dropped).  Add new
+  units by hand: one line in the object list plus one rule, mirroring
+  `XzTool.obj`.  That is the only divergence from the documented
+  "re-run the generator" advice.
+- Listing reads the sizes from the **trailer index** (walking backwards
+  from EOF, lzip's own distributed index) so it never decompresses; an
+  index that does not tile the file exactly (trailing data, corruption)
+  reports 0 rather than a guess.  The CRC cannot be shown up front
+  because lzip stores it per member, so `dwCRC` stays 0.
+- Dictionaries are clamped to 4 KiB..64 MiB, the same house cap as
+  `LzmaDecodeStream`.  lzip allows up to 512 MiB, so a stream needing
+  more than 64 MiB is a documented gap; it fails loudly via the CRC
+  check rather than emitting wrong bytes.
+
+Verified (`lztest.py`, TEMP): an authentic `nicfix.tar.lz` plus generated
+fixtures -- empty, 31 B, 3000 B, 346 KB, 2-member, text -- every payload
+byte-exact against a liblzma oracle; `.tar.lz` lists identically to the
+equivalent plain `.tar` (12/12 entries); 9 corruption negatives (bad
+magic/version/DS, truncated, flipped bit, bad CRC, bad data size, bad
+member size, header-only) all refused with no output and no hang; VC4 and
+VC6 byte-identical; `runnewmatrix.py` unchanged.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).
