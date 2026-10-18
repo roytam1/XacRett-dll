@@ -19,40 +19,84 @@ bool CBelTool::Extract( const char* fname, const char* ddir )
 	if( bel==NULL )	return false;
 
 	fseek( bel,0,SEEK_END );
-	int fs1 = ftell( bel );
+	long fl = ftell( bel );
 	fseek( bel,0,SEEK_SET );
+	// The header is 8 bytes; anything shorter cannot be decoded and
+	// every later field is read from it.
+	if( fl<8 || fl>16777216L*2 )
+	{
+		fclose( bel );
+		return false;
+	}
+	int fs1 = (int)fl;
 
 	BYTE* bf1 = new BYTE[fs1+10];
-	fread( bf1,1,fs1,bel );
+	if( (int)fread( bf1,1,fs1,bel )!=fs1 )
+	{
+		delete [] bf1;
+		fclose(bel);
+		return false;
+	}
 	fclose(bel);
 
 	// 解凍先バッファ(bf2)確保
-	int fs2 = bf1[0]+(bf1[1]<<8)+(bf1[2]<<16);
-	BYTE *p1 = bf1+8, *p2 = bf1+bf1[3]+(bf1[4]<<8);
+	int fs2 = bf1[0]+(bf1[1]<<8)+(bf1[2]<<16);		// LE24
+	int doff = bf1[3]+(bf1[4]<<8);				// LE16
+	// This is the check the decoder was missing.  doff indexes
+	// straight into bf1, and fs2 is a bare 24-bit number, so a
+	// corrupt header used to walk p2 arbitrarily far past the
+	// allocation (a 14-byte file declaring doff=18814 crashed with
+	// 0xC0000005).  fs2==0 also made new BYTE[0] and then wrote
+	// bf2[0] unconditionally.  16 MB is the documented limit.
+	if( fs2<=0 || fs2>16777216 || doff<8 || doff>=fs1 )
+	{
+		delete [] bf1;
+		return false;
+	}
+	BYTE* bf1e = bf1+fs1;					// end of input
+	BYTE *p1 = bf1+8, *p2 = bf1+doff;
 	BYTE* bf2 = new BYTE[fs2];
 
 	// バッファ(bf2)に解凍(ここのアルゴリズム解読しなきゃ...)
 	BYTE *p=bf2, a;
 	int i=0,j,l,lp;
-	while( i<fs2-1 )
+	// p-bf2 tracks i exactly (both advance by the same amounts),
+	// so bounding i bounds the write pointer too.  p1/p2 get their
+	// own end-of-input guard.
+	while( i<fs2-1 && p1<bf1e && p2<bf1e )
 	{
 		lp = *(p1++);
 		l  = (i+(lp&31)>fs2-1) ? fs2-i-1 : lp&31 ;
 		i += l;
+		if( l>bf1e-p2 )
+			break;					// input ran out mid-copy
 		for( j=0; j<l; j++ )
 			*(p++) = *(p2++);
 		if( lp!=31 )
 		{
 			if( lp<32 )
+			{
+				if( p1>=bf1e )
+					break;
 				l=*(p1++);
+			}
 			else
 				l=lp/32;
+			if( l<1 )
+				l=1;
 			a =  *(p2-1);
+			// Clamp the repeat so it can never run past bf2[fs2-1].
+			if( l-1>fs2-1-i )
+				l=fs2-i;
 			i += l-1;
 			for( j=0; j<l-1; j++ )
 				*(p++)=a;
 		}
 	}
+	if( p>bf2+fs2-1 )
+		p=bf2+fs2-1;
+	if( p2>=bf1e )
+		p2=bf1e-1;
 	*p = *p2;
 
 	// 保存ファイルネーム作成
