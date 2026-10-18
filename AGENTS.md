@@ -1424,6 +1424,119 @@ magic/version/DS, truncated, flipped bit, bad CRC, bad data size, bad
 member size, header-only) all refused with no output and no hang; VC4 and
 VC6 byte-identical; `runnewmatrix.py` unchanged.
 
+## Provider routing: the two-pass sweep (audit of all 73 providers)
+
+**Read this before adding or reordering any provider.**  The routing rule
+is NOT what it looks like, and one provider's `Check` was silently
+stealing a dozen others.
+
+`XacRettGetArchiveType` / `XacRettOpenArchive` / `XacRettCheckArchive`
+each make **two** passes over `g_pToolList`:
+
+1. first pass: take the first tool whose `IsType(ext)` matches, then
+   `break` -- only ONE candidate ever gets its `Check` called;
+2. only if that yields nothing: scan the whole list and take the first
+   tool whose `Check()` passes.
+
+Two traps follow, both measured:
+
+- **`CTool::IsType` is declared in the base and returns `false`.**  So a
+  provider is invisible to pass 1 unless it *overrides* `IsType` --
+  and the usual way to find out is wrong, because a naive scan of the
+  class body finds the base's declaration and reports every provider as
+  visible.  Resolve inheritance and ask whether the NEAREST
+  `IsType`-declaring ancestor is `CTool` itself.
+- **Doing extension dispatch inside `Check` instead of `IsType` makes a
+  provider pass-1-invisible.**  `CSharTool`, `CBelTool`, `CJamTool`,
+  `CBooTool`, `CAskTool`, `CUnixDecoderTool` (uue/xxe) all gate on
+  `pathExt` *inside* `Check`.  Same test, wrong method: it only runs in
+  pass 2, where position decides the winner.
+
+Audit result over the 73 live registrations (74 minus `CPmdTool`, which
+is commented out at `XacRett.cpp:649`): **14 are pass-1-invisible, and
+12 of them were unreachable.**  `CLzmaTool::Check` was
+`hdr[0] <= 224` (nothing but the props byte, because LZMA-Alone has no
+magic) and sat at line 568 -- ahead of 12 of them.  Every one of those
+12 files started with a byte <= 224, so LZMA claimed them first:
+
+    COMPRESSZ(576) PACKZ(600) MIME(655) UUDECODE(659) XXDECODE(663)
+    SHAR(667) AtoB(671) FISH(675) BEL(679) JAM(682) BOO(685) ASK(688)
+
+Measured with the same fixtures against the OFFICIAL binary: official
+routes uu/xxe/shar/jam/boo/compressZ correctly and we sent all of them
+to LZMA.  **This was a regression WE introduced by adding LZMA** --
+official 0.49.17 has no LZMA support at all (it returns UNKNOWN for a
+`.lzma`), so there was no upstream behaviour to inherit.  Only
+`CGzTool` and `CBz2Tool` escaped, purely because they happen to sit at
+532/564, i.e. before 568.
+
+The general lesson: **do not judge a provider's safety by how strict its
+own `Check` is.**  What matters is whether some *earlier* lax `Check`
+matches its files first.  My first pass got this wrong for CompressZ
+and Packz -- their `Check`s are strict (2-byte magic) and it did not
+matter, because LZMA's one-byte test matched first.
+
+## LZMA-Alone detection: the real header test (fixes the 12)
+
+`CLzmaTool::Check` now requires a well-formed LZMA-Alone header, not
+just a props byte:
+
+    siz >= 13
+    hdr[0] <= 224                       ((pb*5+lp)*9+lc)
+    dict = LE32(hdr+1);  dict >= 4096 && (dict & (dict-1)) == 0
+
+The power-of-two dictionary is the discriminator, and it is safe
+because **the LZMA SDK / 7-Zip encoder rejects a non power-of-two dict**
+(`LzmaEncProps_Init`), so no genuine `.lzma` can fail it.  Verified
+before shipping, because over-tightening here would be self-inflicted:
+
+- 18 genuine `.lzma`/`.tlz` payloads scanned: all 18 pass (props 0x5D,
+  dicts 4096 / 65536 / 8 MB).
+- The only rejects are correctly NOT bare LZMA-Alone: `tree.tlz` is a
+  *lzip* stream (`"LZIP"|VN|DS` -> dict 0x0150495A) and the six
+  `m14_lzma.zip` members are Xtro/PKZIPC-framed (`ver0 ver1 props_size
+  props`).  Neither path ever reaches `CLzmaTool`.
+- End-to-end against the **authentic xz-5.8.2 test suite** plus our own
+  `lzmafix` fixtures and a Python `FORMAT_ALONE` file: 8/8 byte-exact.
+  The upstream `good-*` files carry their uncompressed size at bytes
+  5..12, which gives a free oracle: every one matched that size exactly.
+
+Result: 13 of the 12 previously-unreachable providers now route
+correctly and match official.  Note the standalone `.bz2` reorder (see
+the "Standalone `.bz2`" note) turns out to be belt-and-braces -- the
+Check tightening alone would have fixed `.bz2` too, since a bzip2
+stream's bytes 1..4 are `Z`,`h`,9,.. and never a power of two.
+
+## PACKZ: unbounded output on malformed input (disk-fill DoS)
+
+`CPackzTool::Extract` looped `while( s=P_read(...) )` with no bound.
+`P_read` only stops when the end-of-block symbol decodes
+(`P_readonce` sets `m_eof`), which never happens on a corrupt tree, so
+a 62-byte junk `.pkz` wrote **~6 MB/s until the disk filled** --
+measured 55 MB in 10 s under VC6 and 56 MB in 10 s under the OFFICIAL
+binary, i.e. a shared defect.  Observed as a hang under any watchdog.
+
+This is a *masked* bug, not one the LZMA fix created: PACKZ and CompressZ
+both start with `0x1f`, so LZMA's lax `Check` stole every PACKZ file and
+the provider was unreachable for any input until this change.
+
+Fix: `PFILE::orig_len` holds the original length, read big-endian by
+`read_tree` (`complib.cpp:203-205`), so the loop is bounded exactly
+rather than by a guessed compression ratio.  If `total != cap` the
+partial file is removed, so a failed extract never leaves a truncated
+lie.  Deliberate divergence, same class as the ARC and YZ1 fixes.
+Result: `packz.pkz` / `packz_alt.pz` / `xpk3.pk3` now finish in 0.03 s
+with rc=0; official still times out on all three.  VC4 agrees.
+
+Remaining, both pre-existing and NOT regressions:
+- `test.bel` returns 0xC0000005 under **our** build exactly as under
+  official (both crash), so this is shared, not ours -- but it is a real
+  crash and worth an authentic `.bel` sample before anyone trusts it.
+- A corrupt `.lzma` (`xz-5.8.2 bad-*`) leaves a 3-13 byte partial file
+  behind while returning rc=1.  Byte-identical before and after the
+  `Check` change (A/B'd), so it predates it; `CLzmaTool::Extract` has
+  no delete-on-failure, unlike the ZIP/WinZip-AES paths.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).
