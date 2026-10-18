@@ -1533,6 +1533,39 @@ supporting it would mean teaching the shar extractor to run uudecode
 payloads, which is a feature, not a defect fix.  Recorded so nobody
 reads the empty output as a regression.
 
+**A second batch of authentic fixtures closed three more.**  Same
+oracle (the `LICENCE` member of `GPLv2-rar4.rar`), same three builds:
+
+| fixture | made by | route | result |
+|---|---|---|---|
+| `LICENCE1.jak` / `LICENCE2.jak` | Jack32 | 26 JAK | 18340 B, MATCH |
+| `LICENCE.B2A` | `BTOA.EXE` | 39 ATOB | 18340 B, MATCH |
+| `LICENCE.BOO` | `MSBMKB.COM` | 10 BOO | 18342 B, 18340 exact + 2 |
+
+`LICENCE.B2A` matters more than it looks: it starts `xbtoa Begin`, which
+is exactly the marker `CAtoBTool` looks for, so **ATOB is verified
+end-to-end even though no `.atob` file exists** -- BTOA output *is* the
+xbtoa format.  A provider can therefore be certified through a sibling
+format that shares its encoding, which is worth remembering before
+concluding a format is unprovable.
+
+**JAK is a file SPLITTER, and `CJakTool::Extract` implements the
+combine, not a plain extract.**  Given either half it derives the base
+name, then walks `1.jak`, `2.jak`, ... appending each part's payload
+until a part is missing.  That is why `LICENCE1.jak` and `LICENCE2.jak`
+both produce the identical complete 18340-byte file, and it is correct
+behaviour -- worth knowing before "fixing" it as a duplicate-output bug.
+All three builds agree.
+
+BOO is off by exactly two trailing bytes (`90 90`), identical in ours,
+VC4 and official, with the first 18340 bytes byte-exact.  It comes from
+the final group `2Y2@`, which the decoder turns into 3 bytes where only
+1 is wanted.  **Left unfixed on purpose**: the obvious rule -- leading
+character is the group byte count -- is disproved by the *first* group
+of the same file, which also starts `2` and does need 3 bytes, so
+patching it would need a second sample to avoid breaking valid files.
+Documented rather than guessed.
+
 Still routing-only (no authentic sample available anywhere): `JAM`,
 `BOO`, `ASK`.  `AtoB`/`Fish`/`Mime` report UNKNOWN, which matches
 official, so there is nothing to close there.
