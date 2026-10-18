@@ -1539,10 +1539,19 @@ Remaining, pre-existing and NOT regressions:
   `GPLv2-rar4.rar`.  So BEL is now verified end to end against an
   authentic sample, and it is one of the 12 providers the LZMA
   `Check` fix brought back; before that it was unreachable.
-- A corrupt `.lzma` (`xz-5.8.2 bad-*`) leaves a 3-13 byte partial file
-  behind while returning rc=1.  Byte-identical before and after the
-  `Check` change (A/B'd), so it predates it; `CLzmaTool::Extract` has
-  no delete-on-failure, unlike the ZIP/WinZip-AES paths.
+- A corrupt `.lzma` used to leave a partial file behind, and is now
+  FIXED: `CLzmaTool::Extract` calls `DeleteFile` when
+  `LzmaDecodeFile` fails, which is what the two tar callers
+  (`OpenTar.cpp:301`, `TarTool.cpp:352`) already did -- the standalone
+  provider was the only one that forgot.  Measured before/after on
+  the `xz-5.8.2` suite: `bad-unknown_size-without_eopm` and
+  `bad-too_big_size-with_eopm` go 13 B -> nothing on disk.
+  Worth stating precisely, because the other three `bad-*` files
+  (`too_small_size` 1/2/3) still produce 12/3/9 bytes and that is
+  CORRECT: they decode successfully to their declared size and only
+  "fail" upstream because trailing data follows, which we ignore by
+  the same trailing-data policy lzip uses.  So "produced bytes" is
+  not by itself a failure signal -- compare against the size field.
 
 ## Pre-commit checklist
 

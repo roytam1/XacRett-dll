@@ -90,6 +90,13 @@ bool CLzmaTool::Extract( const char* fname,const char* ddir )
 	if (!CheckStr(outname))return true;
 	char *name = kiutil::pathMake( outname );
 	if( !LzmaDecodeFile( fname, name ) )
+	{
+		// Same pattern as the two tar callers (OpenTar.cpp:301,
+		// TarTool.cpp:352): a failed decode must not leave a partial
+		// file behind.  The xz-5.8.2 bad-* fixtures otherwise leave
+		// 3-13 bytes on disk while reporting failure.
+		DeleteFile( name );
 		return false;
+	}
 	return true;
 }
