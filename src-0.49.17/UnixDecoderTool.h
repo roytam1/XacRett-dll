@@ -44,4 +44,10 @@ protected:
 	}
 };
 
+// Decode an in-memory uudecode payload straight to a file.  The output
+// name comes from the payload's `begin` line, which GNU shar always
+// emits.  Returns 1 on success.  Used by the shar extractor; the
+// standalone .uue/.xxe providers keep using Extract() unchanged.
+int UnixDecodeUueToFile( const char* data, long len, const char* dir );
+
 #endif

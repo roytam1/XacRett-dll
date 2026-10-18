@@ -1583,6 +1583,89 @@ Remaining, pre-existing and NOT regressions:
   the same trailing-data policy lzip uses.  So "produced bytes" is
   not by itself a failure signal -- compare against the size field.
 
+## BEL: the decoder crashes on malformed input (FIXED)
+
+`CBelTool::Extract` validated **nothing**.  The 8-byte header is
+`0..2` uncompressed size (LE24), `3..4` offset of the RLE data (LE16),
+`5..7` output extension, `8..` control bytes -- and the code derived
+pointers from it immediately:
+
+    int fs2 = bf1[0]+(bf1[1]<<8)+(bf1[2]<<16);
+    BYTE *p1 = bf1+8, *p2 = bf1+bf1[3]+(bf1[4]<<8);
+
+`doff` indexes straight into `bf1`, so a corrupt header walked `p2`
+arbitrarily far past the allocation.  A **14-byte** junk `.bel`
+declaring `doff=18814` therefore read ~18 KB out of bounds ->
+**0xC0000005**.  `fs2==0` was equally fatal: `new BYTE[0]` and then an
+unconditional `*(p)=*p2` wrote out of bounds.  The loop advanced `p1`
+and `p2` with no end-of-input guard at all, and the RLE repeat count was
+never clamped to the output buffer.
+
+Fix: reject `fs1<8`, `fs2<=0`, `fs2>16 MB` and `doff<8 || doff>=fs1`;
+give `p1`/`p2` an end pointer; clamp the repeat so it can never pass
+`bf2[fs2-1]`; clamp `p` before the final store; and check `fread`.
+Note `p-bf2` tracks `i` exactly (both advance by the same amounts), so
+bounding `i` bounds the write pointer too.
+
+Measured with a 30-case fuzz set (empty, 1-7 bytes, `fs2` 0 / max / 16 MB,
+`doff` 7 / == size / past end / 65535, truncated, all-00, all-FF, 12
+random blobs, plus the authentic file): **6 cases crashed with
+0xC0000005 before, 0 after**, and the authentic `LICENCE.bel` still
+gives 18340 bytes.
+
+Worth remembering: three of the `bad` cases still produce output (12/3/9
+bytes) because they decode successfully to their declared size.  That is
+correct, not a leftover -- the same "produced bytes are not a failure
+signal" trap as the corrupt-`.lzma` note above.
+
+## shar: uudecode payloads (FIXED, deliberate divergence)
+
+GNU shar stores a binary member as a heredoc piped into a decoder:
+
+    sed 's/^X//' << 'SHAR_EOF' | uudecode &&
+    begin 600 LICENCE.txt
+    ...
+    `
+    end
+    SHAR_EOF
+
+`CSharTool::Extract` only understood `sed`/`gres`/`cat`, so this was
+silently skipped and **official 0.49.17 produces nothing either** --
+matching it was correct, but it is a feature gap, and supporting it means
+the extractor recognises the form (not running shell code; the payload
+is decoded directly).  Two traps, both hit:
+
+- **The branch must be tested BEFORE the `sed` branch**, because the line
+  literally starts with `sed` and was being parsed as a plain sed
+  redirection.
+- **`SHAR_EOF` appears twice** in the archive: the payload terminator and
+  later the `md5sum -c` heredoc.  Stopping at the first is correct.
+
+`getheredoc()` must skip the quote: shar writes `<< 'SHAR_EOF'`, and a
+parser that treats `'` as the terminator start returns empty and the
+branch never runs.
+
+The decode is a new additive `UnixDecodeUueToFile()` in
+`UnixDecoderTool.{h,cpp}`; `CUnixDecoderTool::Extract` is untouched, so
+the standalone `.uue`/`.xxe` providers cannot regress.  One trap worth
+keeping: `sscanf("begin %o %4999s", ...)` makes **two** conversions and
+returns 2, so testing for 1 silently rejected every payload (found by
+instrumenting, not by reading).
+
+Verified: `LICENCE-uu.shar` extracts 18340 bytes, sha256
+`6c4beace9ad98f65`, matching the `GPLv2-rar4.rar` oracle, in VC6 and
+VC4.  Official still produces nothing.
+
+## PACKZ negatives live outside the all-formats sweep
+
+Official 0.49.17 fills the disk on a junk `.pkz` -- we left a **10.5 GB**
+`packz.pkz.unpack` behind during the audit, while ours produced 0 bytes.
+Any test that runs packz MUST have a hard timeout and a size guard.
+The packz fixtures therefore live in `%TEMP%\packzneg\` and are only
+scanned by the dedicated watchdog tests (`hangprobe.py`,
+`packzgrowth.py`); `%TEMP%\magicprobe\`, which the all-formats routing
+sweep walks, no longer contains them.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).

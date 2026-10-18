@@ -114,3 +114,83 @@ bool CUnixDecoderTool::Extract( const char* fname,const char* ddir )
 	fclose(fp);
 	return true;
 }
+
+// Decode an in-memory uudecode payload straight to a file.
+// The output name comes from the payload's `begin` line, which GNU
+// shar always emits.  Returns 1 on success.  Additive: Extract()
+// above is untouched, so the standalone .uue/.xxe providers behave
+// exactly as before.
+int UnixDecodeUueToFile( const char* data, long len, const char* dir )
+{
+	char table[128];
+	char outname[5000]="";
+	static char line[XACR_BUFSIZE];
+	const char *p = data, *end = data + len;
+	int i, mode, haveName = 0, ok = 0;
+	FILE* op = NULL;
+
+	(void)dir;
+	if( len<=0 )
+		return 0;
+
+	memset( table,0,sizeof(table) );
+	for( i=0; i!=64; i++ )
+		table[ ' '+i ] = (char)i;
+
+	while( p<end )
+	{
+		const char* nl = (const char*)memchr( p,'\n',(size_t)(end-p) );
+		size_t n = nl ? (size_t)(nl-p) : (size_t)(end-p);
+		int cnt;
+		const char* q;
+
+		// leave room for the NUL and the 4-byte groups we read past
+		// the end of a short line.
+		if( n>sizeof(line)-80 )
+			break;
+		memcpy( line, p, n );
+		line[n] = '\0';
+		p = nl ? nl+1 : end;
+		if( n && line[n-1]=='\r' )
+			line[n-1]='\0';
+
+		if( !haveName )
+		{
+			if( 0==strncmp(line,"begin ",6)
+			 // two conversions, so sscanf returns 2, not 1.
+			 && 2==sscanf(line,"begin %o %4999s",&mode,outname)
+			 && *outname )
+			{
+				haveName = 1;
+				kiutil::pathMake83( outname );
+				op = fopen( outname,"wb" );
+				if( op==NULL )
+					return 0;
+			}
+			continue;
+		}
+
+		if( 0==strncmp(line,"end",3) )
+			break;
+		cnt = (unsigned char)table[ (unsigned char)line[0] & 0x7f ];
+		if( cnt==0 )
+			break;				// the '`' terminator
+
+		for( q=line+1 ; cnt>0 ; q+=4, cnt-=3 )
+		{
+			fputc( table[(unsigned char)q[0]&0x7f]<<2
+				      | table[(unsigned char)q[1]&0x7f]>>4 , op );
+			if( cnt==1 ) continue;
+			fputc( table[(unsigned char)q[1]&0x7f]<<4
+				      | table[(unsigned char)q[2]&0x7f]>>2 , op );
+			if( cnt==2 ) continue;
+			fputc( table[(unsigned char)q[2]&0x7f]<<6
+				      | table[(unsigned char)q[3]&0x7f] , op );
+		}
+	}
+
+	if( op )
+		fclose(op);
+	ok = (op!=NULL);
+	return ok;
+}

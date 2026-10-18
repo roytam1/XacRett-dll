@@ -1,6 +1,7 @@
 
 #include "stdafx.h"
 #include "SharTool.h"
+#include "UnixDecoderTool.h"
 
 static bool getline( FILE* in, bool bNoWhite, char* str )
 {
@@ -42,6 +43,29 @@ static void getstring( char* from,char* to )
 		break;
 	}
 	*to='\0';
+}
+
+// Pull the `<< 'TERM'` terminator out of a shell command line.
+// Handles <<'T', <<"T", <<\T and << T.
+static bool getheredoc( const char* str, char* term, int termSize )
+{
+	const char* p = strstr( str, "<<" );
+	int i = 0;
+	if( p==NULL )
+		return false;
+	p += 2;
+	if( *p=='\\' )
+		p++;
+	while( *p==' ' || *p=='\t' )
+		p++;
+	// GNU shar quotes the terminator:  << 'SHAR_EOF'
+	if( *p=='\'' || *p=='"' )
+		p++;
+	while( *p && *p!='\'' && *p!='"' && *p!=' ' && *p!='\t'
+		&& i<termSize-1 )
+		term[i++] = *p++;
+	term[i] = '\0';
+	return i>0;
 }
 
 static void getparameters( char* str,char* lead,char* file,char* word )
@@ -93,9 +117,66 @@ bool CSharTool::Extract( const char* fname,const char* ddir )
 			break;
 
 		// コマンド名が来たらそこから格納ファイルと見なす
-		if( 0==strncmp(line,"sed",3)
-		 || 0==strncmp(line,"gres",4)
-		 || 0==strncmp(line,"cat",3) )
+		if( NULL!=strstr(line,"uudecode") )
+		{
+			// GNU shar stores the payload as a heredoc piped into a
+			// decoder.  The common form is
+			//     sed 's/^X//' << 'SHAR_EOF' | uudecode &&
+			// where the sed strips a defensive 'X' that shar may
+			// prepend to each line.  This archive has none, but honour
+			// it anyway.  The output name comes from the uudecode
+			// `begin` line.  Tested BEFORE the sed branch, because
+			// this line starts with "sed".  Official 0.49.17 does not
+			// support this at all, so it is a deliberate divergence.
+			char term[128];
+			char *buf;
+			long used = 0, cap, n;
+			bool stripX;
+
+			if( !getheredoc( line,term,sizeof(term) ) )
+				continue;
+
+			if (m_Endflg) return true;// append-only flag
+
+			fseek( sh,0,SEEK_END );
+			cap = ftell( sh );
+			fseek( sh,0,SEEK_SET );
+			if( cap<0 )
+				cap = 0;
+			if( cap>16777216L )
+				cap = 16777216L;
+			buf = new char[cap+2];
+
+			stripX = ( NULL!=strstr(line,"s/^X//") );
+			while( true )
+			{
+				if( !getline( sh,false,line ) )
+					break;
+				if( 0==strcmp( line,term ) )
+					break;
+				n = (long)strlen(line);
+				if( stripX && n && *line=='X' )
+				{
+					line++;
+					n--;
+				}
+				if( used+n+2>cap )
+				{
+					used = -1;
+					break;
+				}
+				memcpy( buf+used, line, n );
+				used += n;
+				buf[used++] = '\n';
+			}
+
+			if( used>0 )
+				UnixDecodeUueToFile( buf, used, ddir );
+			delete [] buf;
+		}
+		else if( 0==strncmp(line,"sed",3)
+			 || 0==strncmp(line,"gres",4)
+			 || 0==strncmp(line,"cat",3) )
 		{
 			// ↓こんな感じになっている。
 			// sed "s/^XX//" >'gzip-1.2.4/README' <<'END_OF_FILE'
