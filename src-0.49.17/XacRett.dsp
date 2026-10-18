@@ -1626,7 +1626,6 @@ SOURCE=.\unsqx\crypt\md5c.c
 # PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=.\libbzip2\blocksort.c
 
 !IF  "$(CFG)" == "XacRett - Win32 Release"
 

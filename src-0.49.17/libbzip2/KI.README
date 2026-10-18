@@ -2,6 +2,19 @@
 This directory contains a little bit modified version of
 libbzip2 Version 1.0.8 of 13 July 2019.
 
+- blocksort.c is OMITTED (not merely unbuilt): BZ2_blockSort has
+ no call site anywhere in the tree, and the seven helpers it
+ defines (mainSort/mainQSort3/mainSimpleSort/mainGtU/
+ fallbackSort/fallbackQSort3/fallbackSimpleSort) are referenced
+ only from inside blocksort.c itself.  It was ~11 KB of
+ unreachable code in the DLL.  Defining XACRETT_BZ_COMPRESSION
+ will now fail loudly with LNK2001 instead of silently
+ misbehaving, which is the point.
+
+- randtable.c must STAY: decompress.c expands BZ_RAND_UPD_MASK
+ -> BZ2_rNums for randomised blocks, so it is on the decode
+ path, not the encode path.
+
 - Since the compression stuff is not required for XacRett,
  some files are omitted from original libbzip2 archive and
  some lines of codes are commented by #ifdef XACRETT_BZ_COMPRESSION.

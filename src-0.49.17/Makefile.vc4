@@ -212,7 +212,6 @@ OBJS = \
     $(OBJDIR)\unsqx_crypt_aes_aestab.obj \
     $(OBJDIR)\unsqx_crypt_bf_bf_crypt.obj \
     $(OBJDIR)\unsqx_crypt_md5c.obj \
-    $(OBJDIR)\libbzip2_blocksort.obj \
     $(OBJDIR)\libbzip2_bzlib.obj \
     $(OBJDIR)\libbzip2_crctable.obj \
     $(OBJDIR)\libbzip2_decompress.obj \
@@ -799,9 +798,6 @@ $(OBJDIR)\unsqx_crypt_bf_bf_crypt.obj : unsqx\crypt\bf\bf_crypt.c
 
 $(OBJDIR)\unsqx_crypt_md5c.obj : unsqx\crypt\md5c.c
 	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
-
-$(OBJDIR)\libbzip2_blocksort.obj : libbzip2\blocksort.c
-	$(CC) $(CFLAGS) /Fo$@ $**
 
 $(OBJDIR)\libbzip2_bzlib.obj : libbzip2\bzlib.c
 	$(CC) $(CFLAGS) /Fo$@ $**

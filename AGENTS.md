@@ -63,6 +63,31 @@ call, so keep applying them:
 - Generators (in TEMP, not the repo):
   `C:\Users\Roy\AppData\Local\Temp\opencode\genbuild.ps1` writes
   `%TEMP%\dlbuild\build.bat`; `genlink.ps1` writes `link.bat`.
+- **`genlink.ps1` must run AFTER `build.bat`, never straight after
+  `genbuild.ps1`.**  `genbuild.ps1` begins with
+  `Remove-Item -Recurse -Force $tmp`, so it WIPES
+  `%TEMP%\dlbuild` including the `obj` directory.  Run `genlink`
+  at that point and it globs an EMPTY obj dir and writes a
+  `link.bat` with no objects at all (578 bytes).  The symptom is
+  deeply misleading: the link then fails with
+  `LNK1120: 11 unresolved externals` naming the 11 **exports**,
+  which reads like a missing-exports problem, not a
+  missing-object-list problem -- and it is the SAME symptom as a
+  genuinely broken export table, so it invites the wrong
+  investigation.  Correct order is `genbuild` -> `build.bat` ->
+  `genlink` -> `link.bat`, and the cheap tell is the size of
+  `link.bat`: ~15 KB (224 inputs) when it is right, 578 bytes
+  when the object list is empty.  Always check that count.
+- **Removing an unused object can change the DLL's bytes without
+  changing its size.**  `/OPT:REF` discards unreferenced
+  *functions* but KEEPS external-linkage *data*, and adding or
+  removing an input object shifts the linker's layout and even
+  `e_lfanew` (0x100 vs 0x108).  So a byte-diff of two builds is
+  meaningless unless you first control for it: link the SAME
+  object set twice and diff those (that is only 2 bytes, the PE
+  timestamp) to establish the noise floor, and compare
+  per-section sizes, not file size.  Verify a change by BEHAVIOUR
+  (extract and compare) -- never by size or hash.
 - Compile per file (cmd 8191-char limit forbids batching). Flags:
   `/nologo /MT /W3 /GX /O2 /c /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
   /D _USRDLL /D XACRETT_EXPORTS /D NO_GZCOMPRESS /I"."`,
@@ -452,6 +477,22 @@ call, so keep applying them:
 - bzip2 fixtures: upstream `sample1/2/3.bz2` + `.ref` (in TEMP
   `bz2test/`), plus generated multi-block + ZIP-method-12 fixtures
   (`mkbz2.py`, `runbz2matrix.ps1` — 6/6 MATCH).
+- **Standalone `.bz2` is misrouted to the LZMA provider**
+  (pre-existing; found while dropping blocksort.c, NOT caused by
+  it).  `XacRett.cpp:564` registers `CLzmaTool` BEFORE
+  `CBz2Tool` (`:572`), and `CLzmaTool::Check` accepts
+  `hdr[0] <= 224`.  A bzip2 stream starts `'B'` = 0x42 = 66, so
+  every real `.bz2` file is claimed by LZMA.  Measured on a
+  with-blocksort and a without-blocksort DLL, identically:
+  `dlltest sample1.bz2` gives `type=65` (= ARCHIVETYPE_LZMA)
+  `rc=32787` and produces nothing.  This is exactly the trap
+  already recorded above for `.zst`/`.xz`; BZ2 was just never
+  moved ahead of `CLzmaTool`.  The **library** path is fine --
+  ZIP method 12, 7z BZip2 and the `mixed.zip` matrix case all
+  decode byte-exact (verified 9500 B, hash match) -- only the
+  standalone provider loses the sweep.  Consequently
+  `runbz2matrix.ps1` reports **5 MISSING**; that is the
+  pre-existing baseline, not a regression.
 - ARC fixtures: `opencode\mkarc1/2/3.ps1` generate `%TEMP%\arctest`
   (18 fixtures + manifest + `plain/` originals). `runarcwatch.ps1` runs
   the matrix with a 60s watchdog per case (modal dialogs block headless
