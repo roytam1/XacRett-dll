@@ -1508,6 +1508,36 @@ the "Standalone `.bz2`" note) turns out to be belt-and-braces -- the
 Check tightening alone would have fixed `.bz2` too, since a bzip2
 stream's bytes 1..4 are `Z`,`h`,9,.. and never a power of two.
 
+**Authentic-fixture confirmation.**  Synthetic probes only prove the
+route, so four real files were placed in the workarea root and checked
+against an independent oracle (the `LICENCE` member of
+`GPLv2-rar4.rar`, 18340 bytes, sha256 `6c4beace9ad98f65`, itself proven
+equal to `LICENCE.bel`'s output):
+
+| fixture | before this fix | after | result |
+|---|---|---|---|
+| `LICENCE.uue` | type 65 (LZMA), 0 files | type 40 UUDECODE | 18340 B, MATCH |
+| `LICENCE.xxe` | type 65 (LZMA), 0 files | type 53 XXDECODE | 18340 B, MATCH |
+| `LICENCE-text.shar` | type 65 (LZMA), 0 files | type 37 SHAR | 18340 B, MATCH |
+| `LICENCE-uu.shar` | type 65 (LZMA), 0 files | type 37 SHAR | no output |
+
+All three agree **byte-for-byte in VC6, VC4 and official**.  The
+"before" column is the whole bug in one line each: every one of these
+files used to be claimed by LZMA and yield nothing, and each is now
+byte-identical to the oracle.
+
+`LICENCE-uu.shar` (a shar whose payload is uudecode) yields nothing --
+but **so does official**, in all three builds.  That is a shared
+upstream limitation, not a gap of ours, and matching it is correct;
+supporting it would mean teaching the shar extractor to run uudecode
+payloads, which is a feature, not a defect fix.  Recorded so nobody
+reads the empty output as a regression.
+
+Still routing-only (no authentic sample available anywhere): `JAM`,
+`BOO`, `ASK`.  `AtoB`/`Fish`/`Mime` report UNKNOWN, which matches
+official, so there is nothing to close there.
+
+
 ## PACKZ: unbounded output on malformed input (disk-fill DoS)
 
 `CPackzTool::Extract` looped `while( s=P_read(...) )` with no bound.
