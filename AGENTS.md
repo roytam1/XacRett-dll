@@ -1498,6 +1498,7 @@ before shipping, because over-tightening here would be self-inflicted:
   props`).  Neither path ever reaches `CLzmaTool`.
 - End-to-end against the **authentic xz-5.8.2 test suite** plus our own
   `lzmafix` fixtures and a Python `FORMAT_ALONE` file: 8/8 byte-exact.
+  BEL is verified separately against an authentic sample (below).
   The upstream `good-*` files carry their uncompressed size at bytes
   5..12, which gives a free oracle: every one matched that size exactly.
 
@@ -1528,10 +1529,16 @@ lie.  Deliberate divergence, same class as the ARC and YZ1 fixes.
 Result: `packz.pkz` / `packz_alt.pz` / `xpk3.pk3` now finish in 0.03 s
 with rc=0; official still times out on all three.  VC4 agrees.
 
-Remaining, both pre-existing and NOT regressions:
-- `test.bel` returns 0xC0000005 under **our** build exactly as under
-  official (both crash), so this is shared, not ours -- but it is a real
-  crash and worth an authentic `.bel` sample before anyone trusts it.
+Remaining, pre-existing and NOT regressions:
+- A **synthetic** `.bel` (I wrote `beg^IaGVsbG8=` by hand) returns
+  0xC0000005 under **both** ours and official.  That is my fixture's
+  fault, not a defect: an authentic `LICENCE.bel` in the workarea root
+  extracts cleanly and **byte-identically in all three builds** --
+  ours (VC6 and VC4) and official all give 18340 bytes, sha256
+  `6c4beace9ad98f65...`, matching the `LICENCE` member of
+  `GPLv2-rar4.rar`.  So BEL is now verified end to end against an
+  authentic sample, and it is one of the 12 providers the LZMA
+  `Check` fix brought back; before that it was unreachable.
 - A corrupt `.lzma` (`xz-5.8.2 bad-*`) leaves a 3-13 byte partial file
   behind while returning rc=1.  Byte-identical before and after the
   `Check` change (A/B'd), so it predates it; `CLzmaTool::Extract` has
