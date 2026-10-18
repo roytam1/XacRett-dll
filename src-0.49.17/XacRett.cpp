@@ -561,16 +561,16 @@ void DllSub(void)//ƒ[ƒh‚·‚é
 	o=o->AddTail( new COpenLz);
 	ArchiveListMap[t]=o;
 
+	t=t->AddTail( new CBz2Tool );
+	o=o->AddTail( new COpenBz2);
+	ArchiveListMap[t]=o;
+
 	t=t->AddTail( new CLzmaTool );
 	o=o->AddTail( new COpenLzma);
 	ArchiveListMap[t]=o;
 
 	t=t->AddTail( new CXzTool );
 	o=o->AddTail( new COpenXz);
-	ArchiveListMap[t]=o;
-
-	t=t->AddTail( new CBz2Tool );
-	o=o->AddTail( new COpenBz2);
 	ArchiveListMap[t]=o;
 
 	t=t->AddTail( new CCompressZTool );

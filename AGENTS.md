@@ -477,22 +477,32 @@ call, so keep applying them:
 - bzip2 fixtures: upstream `sample1/2/3.bz2` + `.ref` (in TEMP
   `bz2test/`), plus generated multi-block + ZIP-method-12 fixtures
   (`mkbz2.py`, `runbz2matrix.ps1` — 6/6 MATCH).
-- **Standalone `.bz2` is misrouted to the LZMA provider**
-  (pre-existing; found while dropping blocksort.c, NOT caused by
-  it).  `XacRett.cpp:564` registers `CLzmaTool` BEFORE
-  `CBz2Tool` (`:572`), and `CLzmaTool::Check` accepts
-  `hdr[0] <= 224`.  A bzip2 stream starts `'B'` = 0x42 = 66, so
-  every real `.bz2` file is claimed by LZMA.  Measured on a
-  with-blocksort and a without-blocksort DLL, identically:
-  `dlltest sample1.bz2` gives `type=65` (= ARCHIVETYPE_LZMA)
-  `rc=32787` and produces nothing.  This is exactly the trap
-  already recorded above for `.zst`/`.xz`; BZ2 was just never
-  moved ahead of `CLzmaTool`.  The **library** path is fine --
-  ZIP method 12, 7z BZip2 and the `mixed.zip` matrix case all
-  decode byte-exact (verified 9500 B, hash match) -- only the
-  standalone provider loses the sweep.  Consequently
-  `runbz2matrix.ps1` reports **5 MISSING**; that is the
-  pre-existing baseline, not a regression.
+- Standalone `.bz2` was misrouted to the LZMA provider and is now
+  FIXED (found while dropping blocksort.c; the drop was innocent).
+  The routing logic is worth stating because it is NOT a single
+  sweep: `XacRettGetArchiveType` takes a first pass over the tool
+  list for the first tool whose `IsType(ext)` matches, and
+  **only if that yields nothing** a second pass takes the first
+  tool whose `Check()` passes.  A `.bz2` file got no first-pass
+  candidate at all -- `CBz2Tool` does not override `IsType` and
+  the base returns false, while `CTbzTool::IsType` matches only
+  `"tar"` -- so the answer came from the second pass, where
+  `CLzmaTool::Check` (nothing but `hdr[0] <= 224`) accepted a
+  bzip2 stream's `'B'` = 0x42 = 66.  Fix: register
+  `CBz2Tool`/`COpenBz2` immediately BEFORE `CLzmaTool` in
+  `DllSub`.  `CBz2Tool::Check` is strict (`"BZh"` plus a real
+  `BZ2_bzread`), so registration order was the only thing wrong.
+  Verified: `.bz2` now reports `type=11` and extracts byte-exact;
+  `runbz2matrix.ps1` went 5 MISSING -> **6/6 MATCH**; `.lzma`
+  still routes to 65, `tree.tar.bz2`/`.tbz` to 46, ZIP m12 to
+  43, all unchanged; VC4 (`VC4_RC=0`) agrees byte-for-byte.
+  Known limit: a **multi-stream** `.bz2` (two concatenated
+  streams, legal per bzip2) yields only the first, because
+  `CBz2Tool::Extract` loops on `BZ2_bzread`, which is
+  single-stream.  Real `bzip2` keeps reading past the first
+  stream footer; matching that needs `BZ2_bzReadOpen` /
+  `BZ2_bzReadGetUChar`, or a concatenated-stream loop.  The
+  matrix does not cover it (single-stream fixtures only).
 - ARC fixtures: `opencode\mkarc1/2/3.ps1` generate `%TEMP%\arctest`
   (18 fixtures + manifest + `plain/` originals). `runarcwatch.ps1` runs
   the matrix with a 60s watchdog per case (modal dialogs block headless
