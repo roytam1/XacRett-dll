@@ -1762,15 +1762,26 @@ tab-delimited field) and `-l.txt` gives the uncompressed sizes.  Harness:
 
 Result, ours vs OFFICIAL over all 209 archives:
 
-| | ours | official |
-|---|---|---|
-| identical to official | **196 / 209** | -- |
-| exact member-name match vs lhasa | 137 | 137 |
-| + match ignoring case | **52** | **43** |
-| genuinely different | 13 | 13 |
-| no output at all | **7** | **16** |
+Scores AFTER adding OS/2 LV3 + OS/9 LV2 (see the section below);
+the "before" column is the same `lha_ab.py` run against the HEAD DLL,
+so the delta is like-for-like.
 
-The 13 that differ are all cases where we are **better**:
+| `lhacase.py` | before | after |
+|---|---|---|
+| exact member-name match vs lhasa | 137 | **143** |
+| + match ignoring case | 52 | **53** |
+| genuinely different | 13 | 13 |
+| **no output at all** | **7** | **0** |
+
+| `lha_ab.py` (ours vs OFFICIAL) | before | after |
+|---|---|---|
+| identical to official | 196 / 209 | 189 / 209 |
+| differing | 13 | 20 |
+| ours matches lhasa, official does not | 0 | **6** |
+| **official matches lhasa, ours does not** | **0** | **0** |
+
+The 13 that differ are unchanged by this work, and all of them are
+cases where we are **better**:
 
 - **9 `.pma` archives extract fully for us and produce NOTHING for
   official** (rc=1).  PMA support is ours, not upstream's.
@@ -1780,7 +1791,10 @@ The 13 that differ are all cases where we are **better**:
   lhasa's own expected sizes are 18092 and 1241658, which is exactly
   what we produce.  This is an official silent-corruption bug we fix.
 
-**Zero** cases where official matches lhasa and we do not.
+The 7 that moved from "identical to official" into "differing" are
+exactly the 7 OS/2 LV3 + OS/9 LV2 archives, which official cannot
+open at all.  **Zero** cases where official matches lhasa and we do
+not, before or after.
 
 Two scoring traps, both worth knowing before reading those numbers:
 
@@ -1795,9 +1809,82 @@ Two scoring traps, both worth knowing before reading those numbers:
   materialise the target as a real file; 10 of the 13 "genuinely
   different" are that, and they are identical in ours and official.
 
-The remaining 7 no-output cases are shared gaps: 4 OS/2 level-3
-(`lha_os2_208/h3_*`) and 3 OS/9 level-2 (`lha_os9_211c/h2_*`).  Official
-fails all of these too, plus 9 more.
+The 7 OS/2 level-3 (`lha_os2_208/h3_*`) and OS/9 level-2
+(`lha_os9_211c/h2_*`) no-output cases are now **DONE** -- see below.
+Official still cannot open any of them.
+
+## LZH level-3 (OS/2) and OS/9 level-2 -- DONE
+
+The last 7 corpus gaps.  Both are in `CLzhTool::ReadHeader`
+(`LzhTool.cpp`), which is our own parser -- the vendored `lhasa/` is a
+**decoder-only** subset (no `lha_file_header.c`, no `ext_header.c`), so
+the header layout had to come from the lhasa checkout under TEMP
+`opencode\lhasa\lib`.
+
+Format facts, all verified numerically against the fixtures before a
+line of C was written (`%TEMP\opencode\verify_hdr.py` = 9/9 MATCH):
+
+- **Header CRC = CRC-16/ARC (poly `0xA001`, init `0`) over
+  `raw_data[0:hdrlen]` with the 2 common-CRC bytes zeroed.**  That is
+  lhasa's rule verbatim (`lha_file_header.c:137-144` `check_common_crc`
+  plus `ext_header.c:94-102`).  lhasa's `crc16_table` is bit-identical
+  to our `crctable` in `LzhTool.h:16-25`, and its init is `0` --
+  **`LzhTool.cpp:119` is `sum=0,crc=0`, NOT `crc=0xffffffff`.**  Getting
+  that init wrong makes a correct parser reject everything; it cost real
+  time here.  The zeroing is handled by the existing
+  `crc=tmpcrc; buf[1]=buf[2]=0; UpdateCRC(buf,ehs)` in the `0x00` case.
+- **level 1/2**: `hdrlen` = `LE16(buf[0..1])`, ext chain starts at
+  offset 24 with 16-bit length fields, base header 26 bytes.
+- **level 3 (OS/2)**: `LE16(buf[0..1])` is a *word size* and must be
+  4; base header is **32** bytes; `hdrlen` = `LE32(buf[24..27])`;
+  ext chain starts at offset **28** with **32-bit** length fields
+  (`lha_file_header.c:780-847`, `decode_extended_headers` switches
+  `field_size` on `header_level == 3`).  Method/sizes/timestamp/crc/os
+  sit at the SAME offsets as level 2 (2/7/11/15/21/23), and byte 20 is
+  still the level -- so only the base length, the chain origin, the
+  length-field width and the name/path payload size actually differ.
+  Name/path payload is `ehs-5` for level 3 vs `ehs-3` for level 1/2.
+
+Three traps, all of which cost real debugging time here:
+
+- **The declared `hdrlen` is a WORD at `buf[0..1]` for level 2 ONLY.**
+  In level 0/1, byte 0 is the *base* header size and byte 1 the header
+  *checksum* -- `LE16(buf[0..1])` there is garbage.  The first cut
+  applied it to all levels and **broke every level 0/1 archive in the
+  corpus** (`lhark04d/lh0.lzh`, `maclha_224/l1_lh0.lzh`,
+  `lhmelt_16536/h1_lh5.lzh` all went `type=28` -> `type=0`).  The
+  `hdrlen-consumed` trailing fold then read garbage.  Worth stating
+  plainly: a change that only ever *adds* a format can still break
+  unrelated ones, so the 209-archive corpus -- not the 7 fixtures -- is
+  the acceptance test.
+- **OS/9 headers are one byte longer than their ext chain**, and the
+  extra byte IS counted in `hdrlen` (`h2_lh0`: chain ends at 56,
+  `hdrlen` 57).  The chain walk alone therefore under-reads by one and
+  the header CRC fails.  `Extract` positions with
+  `long base = ftell(lzh)` (`LzhTool.cpp:37`), so this is also a
+  **payload misalignment**, not just a CRC issue -- the fold is
+  required, not cosmetic.
+- **Do not trust C instrumentation read through a truncating stderr
+  pipe.**  Two rounds of trace probes produced confident, completely
+  wrong conclusions here (they appeared to show the tail read failing,
+  and then showed a previously-working archive failing).  PowerShell's
+  `Select-Object -First N` plus `NativeCommandError` text was eating
+  the lines, and one probe crashed the harness (`rc=0xC0000005`) because
+  it passed the not-yet-NUL-terminated `buf[2]` to `%s`.  The decisive
+  move was to reimplement `ReadHeader` exactly in Python
+  (`%TEMP\opencode\lzhmodel.py`) where every byte is visible, and to
+  A/B against a stashed pre-patch DLL before believing anything.
+
+Verified: all 7 extract with the exact sizes lhasa records in
+`test/output/<dir>/*-l.txt` (6829, 18092, 14, 14, 6829, 18092, 12);
+`lhacase.py` no-output 7 -> **0** with no new REAL-DIFF; VC4
+(`Makefile.vc4`, `VC4_RC=0`) agrees byte for byte.  Byte-diff audit
+clean -- the only touched non-ASCII is the pre-existing SJIS comment
+`// LV3 ???` on the `h_Level` line, unchanged.
+
+Note `h3_lh5` scores `ours=DIFF` in `lha_ab.py` purely on the
+case trap below (we write `GPL-2`, lhasa's expected text says
+`gpl-2`); the size and content are right.
 
 Three further cases (`lha_amiga_122/level1.lzh`, `level2.lzh`,
 `sfx.run`) look wrong -- a `-j` flattening artefact produces

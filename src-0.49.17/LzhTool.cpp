@@ -142,12 +142,25 @@ bool CLzhTool::ReadHeader( unsigned char* buf )
 		return false;
 	sum-=(buf[0]+buf[1]);
 
-	if( (h_Level=buf[20])>2 ) // LV3以上未対応
+	if( (h_Level=buf[20])>3 ) // LV3以上未対応
 		return false;
 
-	BYTE bshdr = (h_Level==2)?26:buf[0]+2;
-	if( bshdr<21 || buf[0]==0 )
-		return false;
+	BYTE bshdr;
+	if( h_Level==3 )
+	{
+		// LV3 (OS/2): word size must be 4, base header is 32 bytes.
+		if( ((buf[0])|(buf[1]<<8))!=4 )
+			return false;
+		bshdr=32;
+	}
+	else if( h_Level==2 )
+		bshdr=26;
+	else
+	{
+		bshdr=(BYTE)(buf[0]+2);
+		if( bshdr<21 || buf[0]==0 )
+			return false;
+	}
 	BYTE hdrsum= buf[1];
 	for( int i=0; i!=5; i++ )
 		h_Method[i]=(char)buf[2+i];h_Method[5]=0;
@@ -179,7 +192,7 @@ bool CLzhTool::ReadHeader( unsigned char* buf )
 //
 	if( (bshdr-21)!=fread_crc(buf+21,(bshdr-21)) )
 		return false;
-	if( h_Level!=2 )
+	if( h_Level<2 )
 	{
 		if( sum!=hdrsum || 21+1+buf[21]+2>bshdr )
 			return false;
@@ -202,14 +215,33 @@ bool CLzhTool::ReadHeader( unsigned char* buf )
 		WORD tmpcrc;
 
 		// ここでループって拡張ヘッダ読み込み
-		WORD ehs;
-		ehs = ((buf[bshdr-2])|(buf[bshdr-1]<<8));
+		DWORD ehs;
+		DWORD consumed=(DWORD)bshdr;
+		DWORD hdrlen=consumed;
+		if( h_Level==3 )
+		{
+			ehs=((DWORD)buf[28])|((DWORD)buf[29]<<8)|((DWORD)buf[30]<<16)|((DWORD)buf[31]<<24);
+			hdrlen=((DWORD)buf[24])|((DWORD)buf[25]<<8)|((DWORD)buf[26]<<16)|((DWORD)buf[27]<<24);
+		}
+		else
+		{
+			ehs = ((buf[bshdr-2])|(buf[bshdr-1]<<8));
+			// Only LV2 stores the whole header size as a WORD at 0..1;
+			// in LV0/LV1 byte 0 is the base size and byte 1 a checksum.
+			if( h_Level==2 )
+				hdrlen=((buf[0])|(buf[1]<<8));
+		}
+		if( hdrlen<(DWORD)bshdr )
+			return false;
 
 		while( ehs>2 )
 		{
 			tmpcrc=crc;//CRC自身を読み込んだときに直すため
-			if( ehs!=fread_crc(buf,ehs) )
+			if( ehs>65000 )
 				return false;
+			if( (int)ehs!=fread_crc(buf,(int)ehs) )
+				return false;
+			consumed+=ehs;
 			if( h_Level==1 )
 				h_CompSize-=ehs;
 
@@ -226,12 +258,20 @@ bool CLzhTool::ReadHeader( unsigned char* buf )
 				}
 				break;
 			case 0x01://ファイル名
-				memcpy(h_FileName,buf+1,ehs-3>MAX_PATH?MAX_PATH:ehs-3);
-				h_FileName[ehs-3>MAX_PATH?MAX_PATH:ehs-3]=0;
+				{
+					DWORD n=ehs-(h_Level==3?5:3);
+					if( n>MAX_PATH ) n=MAX_PATH;
+					memcpy(h_FileName,buf+1,n);
+					h_FileName[n]=0;
+				}
 				break;
 			case 0x02://パス名
-				memcpy(PathName,buf+1,ehs-3>MAX_PATH?MAX_PATH:ehs-3);
-				PathName[ehs-3>MAX_PATH?MAX_PATH:ehs-3]=0;
+				{
+					DWORD n=ehs-(h_Level==3?5:3);
+					if( n>MAX_PATH ) n=MAX_PATH;
+					memcpy(PathName,buf+1,n);
+					PathName[n]=0;
+				}
 				break;
 			case 0xff://新属性
 				break;
@@ -244,9 +284,19 @@ bool CLzhTool::ReadHeader( unsigned char* buf )
 				break;
 			}
 
-			ehs = ((buf[ehs-2])|(buf[ehs-1]<<8));
+			if( h_Level==3 )
+				ehs=((DWORD)buf[ehs-4])|((DWORD)buf[ehs-3]<<8)|((DWORD)buf[ehs-2]<<16)|((DWORD)buf[ehs-1]<<24);
+			else
+				ehs = ((buf[ehs-2])|(buf[ehs-1]<<8));
 		}
 
+		if( hdrlen>consumed )
+		{
+			if( hdrlen-consumed>65000 )
+				return false;
+			if( (int)(hdrlen-consumed)!=fread_crc(buf,(int)(hdrlen-consumed)) )
+			return false;
+		}
 		if( hdrcrc!=0xffffffff && crc!=hdrcrc )
 			return false;
 	}
