@@ -1750,6 +1750,62 @@ or `.apk` sample exists anywhere, so this is verified as *no longer
 crashing*, not as *still decoding correctly* -- if one turns up, that is
 the remaining gap.
 
+## LZH: the lhasa upstream corpus (209 archives)
+
+`opencode\lhasa\test\archives\` is the full fragglet/lhasa test corpus
+and it is the real oracle for this decoder -- no hand-made fixtures.
+lhasa records its OWN expected output per archive:
+`test/output/<dir>/<arc>-e.txt` lists the exact member names (first
+tab-delimited field) and `-l.txt` gives the uncompressed sizes.  Harness:
+`%TEMP%\opencode\lhacase.py` (case-sensitive then case-insensitive),
+`lha_ab.py` (ours vs official per case), `lha_size.py` (sizes).
+
+Result, ours vs OFFICIAL over all 209 archives:
+
+| | ours | official |
+|---|---|---|
+| identical to official | **196 / 209** | -- |
+| exact member-name match vs lhasa | 137 | 137 |
+| + match ignoring case | **52** | **43** |
+| genuinely different | 13 | 13 |
+| no output at all | **7** | **16** |
+
+The 13 that differ are all cases where we are **better**:
+
+- **9 `.pma` archives extract fully for us and produce NOTHING for
+  official** (rc=1).  PMA support is ours, not upstream's.
+- **4 LH4/LHX archives (`lha_amiga_122/lh4*.lzh`,
+  `unlha32/*lhx*.lzh`) decode correctly for us and produce 0-BYTE
+  files for official** -- sha `e3b0c442...`, the hash of an empty file.
+  lhasa's own expected sizes are 18092 and 1241658, which is exactly
+  what we produce.  This is an official silent-corruption bug we fix.
+
+**Zero** cases where official matches lhasa and we do not.
+
+Two scoring traps, both worth knowing before reading those numbers:
+
+- **Never compare member names case-sensitively.**  lhasa's expected
+  text is lowercase, but the archives store MS-DOS names UPPERCASE --
+  verified in the raw header of `lha213/lh5.lzh`, which contains
+  `05 47 50 4C 2D 32` (len 5, "GPL-2") and zero lowercase occurrences.
+  That alone accounts for 52 of the apparent mismatches.
+- **lhasa's own harness skips the symlink archives on non-Unix**
+  (`test_extract.sh`: `if [ "$build_arch" != "unix" ] && echo "$1" |
+  grep -q symlink; then return; fi`).  We cannot create symlinks, so we
+  materialise the target as a real file; 10 of the 13 "genuinely
+  different" are that, and they are identical in ours and official.
+
+The remaining 7 no-output cases are shared gaps: 4 OS/2 level-3
+(`lha_os2_208/h3_*`) and 3 OS/9 level-2 (`lha_os9_211c/h2_*`).  Official
+fails all of these too, plus 9 more.
+
+Three further cases (`lha_amiga_122/level1.lzh`, `level2.lzh`,
+`sfx.run`) look wrong -- a `-j` flattening artefact produces
+`subdir2hello.txt`, and `sfx.run` yields `SFXUsage.txt` instead of
+`gpl-2` -- but they are **byte-identical to official**, i.e. shared
+behaviour rather than a regression.  Likely an artifact of the `-j`
+that dlltest bakes in, so don't "fix" it without checking that first.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).
