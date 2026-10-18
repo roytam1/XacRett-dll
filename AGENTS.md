@@ -1666,6 +1666,57 @@ scanned by the dedicated watchdog tests (`hangprobe.py`,
 `packzgrowth.py`); `%TEMP%\magicprobe\`, which the all-formats routing
 sweep walks, no longer contains them.
 
+## ASK/APK: stack overflow and disk fill on malformed input (FIXED)
+
+Fuzzing the three providers the LZMA `Check` fix made reachable found
+that **ASK is a memory-safety hole**, and every one of its failures is
+**shared with official** (identical exit codes).  `JamTool` and
+`BooTool` survived 14 cases each unchanged.
+
+Measured on 42 crafted `.jam`/`.boo`/`.ask`/`.apk` files: **16 problem
+cases before, 0 after** -- 15 crashes (13x `0xC0000005`, one
+`0xC00000FD`, one `0xC00000FD` **stack overflow**) plus one 39 MB
+runaway.  All identical in official except `ask_hdr4.ask`.
+
+The defects, all in `AskTool.cpp`:
+
+- **`Cut()` did `sscanf((char*)(root+p),"%[^\n]",fd_[i].name)` with no
+  width limit, into a `char[30]`, on a buffer that had been `malloc`ed
+  and `fread` with no NUL terminator at all.**  So the scan read off
+  the heap and smashed the stack -- that is the `0xC00000FD`.
+- `Cut()` advances `p` by a file-supplied name length and then by a
+  file-supplied size, never checking either against `file_length`, so
+  every later `root[p]` read is out of bounds.  `fd_` also leaked, and
+  the `m_Endflg` early return leaked both `fd_` and `root`.
+- **`UnPack()` took `length` straight from the first four bytes of the
+  file** and handed it to `malloc`: a **1-byte** `.ask` asked for 4 GB
+  and then wrote 39 MB of output.
+- `UnPack()` wrote `buffer[0..2]` before knowing `length>=3`.
+- `UnPack()` read `root[pr]` with no `file_length` check, let
+  `buffer[pb+j]` run past the end, and let `buffer[pb-d+j]` index
+  *before* the buffer when the back-reference distance exceeded what had
+  been decoded.
+- `UnPack()` called `free(root)` on its own failure path while the
+  caller freed it too: a **double free**, and in `Cut()` a free of the
+  interior pointer `root+p`.
+
+Fix: NUL-terminate `root` (`malloc(file_length+1)`), bound every index,
+give `sscanf` a width and bound the copy by hand, validate the
+back-reference distance, require `file_length>=7`, drop the inner
+`free`, and free `fd_`.  The length is now checked both absolutely
+(`<=256 MB`) and against the input (`file_length*4096`, floor 1 MB) --
+an absolute ceiling alone still let a 2 KB file write 249 MB.  Same
+reasoning as the PACKZ bound.
+
+Also hardened `Extract()`'s extension sniffing, which read
+`buffer[8..11]` regardless of `len`.
+
+Verified: 42/42 fuzz cases clean, VC4 `VC4_RC=0` and the formerly
+crashing cases now return rc=0/1 with no output.  No authentic `.ask`
+or `.apk` sample exists anywhere, so this is verified as *no longer
+crashing*, not as *still decoding correctly* -- if one turns up, that is
+the remaining gap.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).
