@@ -16,6 +16,17 @@ bool CJamTool::Extract( const char* fname, const char* ddir )
 	if( !(jam=fopen( fname,"rb" )) )
 		return false;
 
+	// 3-byte header: flag, then the 16-bit password CRC
+	jam_stored = jam_enc = false;
+	jam_key = NULL;
+	int h0 = fgetc(jam);
+	int h1 = fgetc(jam);
+	int h2 = fgetc(jam);
+	if( h0==EOF ){ fclose(jam); return false; }
+	jam_stored = (h0 & 1) ? true : false;
+	jam_enc    = (h0 & 2) ? true : false;
+	unsigned short want_crc = (unsigned short)( h1 | (h2 << 8) );
+
 	// 出力先
 	char outname[MAX_PATH];
 	kiutil::getOriginalName( outname, fname,
@@ -29,7 +40,27 @@ bool CJamTool::Extract( const char* fname, const char* ddir )
 	kiutil::pathMake83(outname);
 	if( out=fopen( outname,"wb" ) )
 	{
-		if( unjam() ) // Jam32.dll 互換モード
+		if( jam_stored )
+		{
+			int c;
+			while( (c=fgetc(jam))!=EOF ) fputc(c,out);
+			ans = true;
+		}
+		else if( jam_enc )
+		{
+			char* pw = GetPassword();
+			if( !pw || !jam_decrypt( pw, want_crc ) )
+			{
+				fclose(out); out=NULL;
+				jam_enc_free();
+				fclose( jam );
+				DeleteFile(outname);
+				return false;
+			}
+			ans = unjam();
+			jam_enc_free();
+		}
+		else if( unjam() ) // Jam32.dll 互換モード
 			ans = true;
 		else
 		{
@@ -37,7 +68,10 @@ bool CJamTool::Extract( const char* fname, const char* ddir )
 									   // ヘッダ3byteすっ飛ばす。
 			fclose( out );
 			if( out=fopen( outname, "wb" ) )
+			{
+				fseek( jam, 0, SEEK_SET );
 				ans = unjam();
+			}
 		}
 
 		if( out )
@@ -55,6 +89,67 @@ bool CJamTool::Extract( const char* fname, const char* ddir )
 #define jam_fstcode  (257)
 #define jam_base     (256)
 #define jam_unused   (0)
+
+static unsigned short jam_keycrc( const unsigned char* k, int n )
+{ // CRYPTION.DOC: 16-bit CRC of the key string
+	DWORD acc=0;
+	for( int i=0; i<n; i++ )
+	{
+		acc |= k[i];
+		for( int j=0; j<8; j++ )
+		{
+			acc <<= 1;
+			if( acc & 0x01000000 )
+				acc ^= 0x01102100;
+		}
+		acc &= 0x00ffff00;
+	}
+	return (unsigned short)( acc >> 8 );
+}
+
+int CJamTool::jam_getc()
+{ // reads one byte, decrypting it when the stream is encrypted
+	int c = fgetc(jam);
+	if( c==EOF || !jam_enc || !jam_key )
+		return c;
+	unsigned char k = jam_key[jam_enc_i];
+	unsigned char p = (unsigned char)( c ^ jam_prev ^ jam_veil ^ k );
+	jam_key[jam_enc_i] = (unsigned char)( k + (jam_enc_i+1) );
+	jam_enc_i++;
+	if( jam_enc_i >= jam_enc_n ) jam_enc_i = 0;
+	jam_prev = p;
+	return p;
+}
+
+void CJamTool::jam_enc_free()
+{
+	if( jam_key ){ delete [] jam_key; jam_key = NULL; }
+	jam_enc = false;
+}
+
+bool CJamTool::jam_decrypt( const char* pw, unsigned short stored_crc )
+{ // sets up the cipher; refuses a wrong password
+	int n = (int)strlen(pw);
+	if( n<=0 )
+		return false;
+	jam_enc_n = n;
+	jam_enc_i = 0;
+	jam_veil = 0;
+	jam_prev = 0;
+	jam_key = new unsigned char[n];
+	for( int i=0; i<n; i++ )
+	{
+		jam_key[i] = (unsigned char)pw[i];
+		jam_veil ^= jam_key[i];
+	}
+	if( jam_keycrc( jam_key, n ) != stored_crc )
+	{
+		jam_enc_free();
+		return false;
+	}
+	jam_enc = true;
+	return true;
+}
 
 bool CJamTool::unjam()
 {
@@ -181,7 +276,7 @@ int CJamTool::read_bits(int len)
 	int c;
 	while( bits<len )
 	{
-		c = fgetc(jam);
+		c = jam_getc();
 		if( c==EOF )
 			return EOF;
 		bitbuf = (bitbuf<<8)|c;

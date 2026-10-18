@@ -43,6 +43,18 @@ private:
 	// bit-level-io
 	int read_bits(int len);
 	long bitbuf, bits;
+
+	// stored / encrypted (see jam/SOURCE/CRYPTION.DOC)
+	bool jam_stored;
+	bool jam_enc;
+	int  jam_enc_n;
+	int  jam_enc_i;
+	unsigned char jam_veil;
+	unsigned char jam_prev;
+	unsigned char* jam_key;
+	int  jam_getc();
+	bool jam_decrypt( const char* pw, unsigned short stored_crc );
+	void jam_enc_free();
 };
 
 #endif

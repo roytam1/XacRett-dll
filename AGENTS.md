@@ -1893,6 +1893,92 @@ Three further cases (`lha_amiga_122/level1.lzh`, `level2.lzh`,
 behaviour rather than a regression.  Likely an artifact of the `-j`
 that dlltest bakes in, so don't "fix" it without checking that first.
 
+## JAM: stored + encrypted (May/96), and what Aug/96 really is
+
+`CJamTool` was a faithful port of `jam/SOURCE/UNJAM0.C` (May/96).  The
+`jam/` tree in the workarea root is the upstream package: DOS binaries
+in `MAY96/` and `AUG96/`, full C source in `SOURCE/`, the 4k-dictionary
+JAMKIT library, and `JAM.DOC` / `SOURCE.DOC` / `CRYPTION.DOC`.
+
+**The `AUG96/*.lst` files are IDA listings of the UNPACKED programs.**
+The shipped `.COM` files are PKLite-packed, so their bytes do NOT match
+the listing addresses -- searching them for the transform constants
+finds nothing.  The mapping is `segment offset = file offset + 0x100`
+and it checks out exactly (`add di,0x100` sits at file 0xCE7 =
+seg000:0DE7 in `JAM.lst`; `add di,0x101` at file 0xC44 = seg000:0D44 in
+`UNJAM.lst`).  `msdos.exe` in the workarea root runs the DOS binaries,
+which turns them into an oracle.
+
+Authentic fixtures, all round-tripping exactly under the reference
+tools (`%TEMP\jamdos`):
+
+| fixture | made by | header | size |
+|---|---|---|---|
+| `M_PLAIN.JAM` | MAY96/JAM.COM | `00 00 00` | 946 |
+| `M_STORED.JAM` | MAY96/JAM.COM, incompressible input | `01 00 00` | 3003 |
+| `M_ENC.JAM` | MAY96/JAM.COM, key `secretpw` | `02 2a 7f` | 946 |
+| `LICENCE-may96.jam` | shipped sample | `00 00 00` | 8841 |
+| `LICENCE-aug96.jam` | shipped sample | `00 00 00` | 8835 |
+
+**Stored (header bit 0) and encrypted (header bit 1) are now supported.**
+Neither was supported before, in ours or in official 0.49.17, which
+emitted 3 and 2 bytes of garbage respectively -- so this is a
+deliberate divergence.  `CRYPTION.DOC` is exact, and its 16-bit key CRC
+is confirmed by the fixture: `secretpw` yields `0x7f2a`, i.e. bytes
+`2a 7f`, precisely `M_ENC.JAM`'s header.  Encryption is a byte-wise XOR
+over the bytes leaving the code refiner (`veil` = XOR of key bytes;
+per byte `p = ct ^ prev ^ veil ^ key[i]`, then `key[i] += i+1`,
+`i = (i+1) % n`, `prev = p`), so it is applied inside `read_bits`
+through a new `jam_getc()`.  The password comes from
+`CTool::GetPassword()`, so `-p<pw>` works and headless runs do not
+hang.  A wrong password fails on the key CRC and deletes the partial
+output, which matches the reference tool exactly -- `UNJAM.COM` prints
+"Invalid password.", writes nothing, and the key is case-sensitive.
+7/7 cases byte-exact against the real tools' output, VC6 and VC4
+agreeing, with `LICENCE-may96.jam` still 18340 / sha256
+`6c4beace9ad98f65`.  Extract() now parses the 3-byte header instead of
+blindly retrying at offsets 0 and 3, and deletes the output on failure.
+
+**Aug/96 is not May/96-compatible and remains unsupported.**  Both
+official and we silently emitted 19324 bytes of garbage for
+`LICENCE-aug96.jam` while reporting `rc=0`, and that is unchanged: the
+format carries **no checksum and no version tag**, so both variants
+have header `00 00 00` and both decode to a clean EOF under either
+model.  "Fail loudly" is therefore not implementable as a reliable
+per-file detector.  What is established:
+
+- May/96 is exact: `SOURCE/JAM0.C` compiled with VC6 reproduces
+  `LICENCE-may96.jam` **byte for byte**.
+- Aug/96 changes only the LZ78 -> refiner stage; the refiner body is
+  bit-identical to May/96 (the `0xFE01` vs `0xFF01` difference in the
+  listings cancels against the missing `+base`).  The added layer picks
+  a complement using two 32-bit accumulators, both halved when either
+  exceeds `0x1170`.
+- `JAM0.C:20` starts the ENCODER's `available` at `fst_code` (257)
+  while `UNJAM0.C:21` starts the DECODER's at `fst_code-1` (256).  That
+  `+1` is why `JAM.COM` computes `comp = available - code + 0x100` and
+  `UNJAM.COM` computes `available - raw + 0x101`: both are the same
+  quantity, `available_dec + 257 - code` (confirmed in every observable
+  case).
+- Transcribing `sub_10DCA` / `sub_10C1E` faithfully reproduces the
+  first 152 bytes of `LICENCE-aug96.jam` and then diverges by exactly
+  **one** accumulator decision.  Against byte-exact oracles (the real
+  `JAM.COM` and `UNJAM.COM`, plus an oracle-guided decoder that
+  recovers the true code sequence from the known plaintext) no
+  variation of comparison direction, complement base `0x0FC-0x104`,
+  gate, update mode, halving limit `0x200-0x40000`, halving trigger,
+  halving position, or reset policy reproduces it.  Two steps with an
+  identical `acc_code - acc_comp` (both -5, at idx 54 and idx 133)
+  require opposite decisions, so the deciding state is provably not
+  just those two accumulators.  The shipped unpacker *does* read its
+  own packer's output correctly -- `msdos.exe AUG96\UNJAM.COM`
+  reproduces the 18340-byte original -- so the remaining piece is a
+  genuine unknown, not a broken format.
+
+Do not "fix" this by shipping a variant that merely decodes further: a
+partial Aug/96 decode still writes wrong bytes.  Treat it as an open
+gap, like the LBR whole-compressed libraries.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).
