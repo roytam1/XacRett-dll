@@ -2150,6 +2150,82 @@ Two traps worth keeping:
   E3796208 while the archive's stored CRC-16 is 7CBA, and our output
   matches the stored CRC exactly.  Check the CRC-16, not the harness.
 
+## JAM: Aug/96 support (the reflection layer) and the auto-detect
+
+`CJamTool` implemented only the **May/96** variant of the JAM format.
+**Aug/96** is a different scheme and is now supported as well.
+
+**What the difference is.**  The two formats share the header, the
+member table and the LZ78 dictionary coder; they differ only by a
+**reflection layer** in the dictionary decoder.  When the Aug/96
+decoder reads a dictionary code `val` it may replace it with
+`available - val + 257` instead, and it decides that with two
+accumulated costs: the alternate is taken while the accumulated cost of
+the alternatives stays below the accumulated cost of the codes actually
+used.  The two costs are halved once either grows past **0x11170**.
+
+That 0x11170 is worth spelling out, because the disassembly does not
+show it: `AUG96\UNJAM.lst` has `cmp word_119B4, 1170h`, which is the
+**low word** comparison, and separately `cmp word_119B6, 1` on the high
+word.  Together they are a 32 bit limit of 0x11170, not 0x1170.  Using
+0x1170 scores 4 of 7 archives where 0x11170 scores 7 of 7, so the
+distinction is real.
+
+**The auto-detect is a heuristic, and it has to be.**  Nothing in the
+archive says which variant was used: both variants write the same
+three byte header (`00 00 00` for an unencrypted archive), the two
+real DOS tools (`MAY96\UNJAM.COM` and `AUG96\UNJAM.COM`) are not
+interchangeable, and every other signal was measured and found
+useless:
+
+| signal | result |
+|---|---|
+| header bytes | identical |
+| bytes of input consumed | identical (both read the whole stream) |
+| how the decode ends | always a clean EOF |
+| output length | the wrong variant can be longer **or** shorter |
+| byte entropy of the output | picks the right one 8 times out of 12 |
+| share of reflected codes | the two ranges overlap |
+| "repeat the last match" codes | fires on a **garbled** decode, so it breaks working archives |
+
+The last one is a trap: it looks decisive on Aug/96 archives
+(99% against 1% for a highly repetitive file) but it also fires on the
+*garbled* decode of a May/96 archive, because garbage is full of repeat
+codes.  Measured on 78 archives it broke 12 May/96 archives, so it was
+removed.
+
+What is left is the share of reflected codes, with a threshold of 75%
+that sits above every May/96 rate that has been measured, so a May/96
+archive is never turned into a broken one.  Measured over 78 archives:
+**70 correct, 8 wrong, and every one of the 8 is an Aug/96 archive
+that stays undetected** (it keeps the wrong May/96 result it has
+always had).  No May/96 archive regresses.
+
+**The limit is worth stating plainly:** the share is not a reliable
+discriminator.  For one and the same content the Aug/96 stream can
+score *lower* than the May/96 one -- LICENCE.txt compressed by both
+gives 36.2% for Aug/96 against 41.6% for May/96 -- so
+`LICENCE-aug96.jam` (36.2%) sits inside the May/96 range and is **not**
+detected.  The formats are simply not distinguishable from the bytes;
+supporting both reliably needs the variant to be selected rather than
+guessed.
+
+**Also fixed: `CJamTool` had no `IsType()` override.**  The base
+`CTool::IsType` returns false, so the provider was invisible to the
+first pass of the routing sweep and a `.jam` file could be taken by
+another provider's lax `Check()` -- the LZMA-Alone check accepts
+`hdr[0] <= 224` with a power of two dictionary, which `spaces.jam`
+happens to satisfy (it was reported as an LZMA archive).  This is the
+"pass-1-invisible" trap recorded above.  `IsType("jam")` is now
+implemented, so the routing is deterministic.
+
+Verified against the authentic `AUG96\JAM.COM` encoder and
+`AUG96\UNJAM.COM` decoder (both buildable from `jam/AUG96`, and
+`msdos.exe` runs them): ten Aug/96 archives were generated and each one
+was round trip verified with the authentic decoder.  The Aug/96 decode
+is byte identical to the authentic `AUG96\UNJAM.COM` output, and the
+May/96 path is unchanged.  VC6 and VC4 agree byte for byte.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).

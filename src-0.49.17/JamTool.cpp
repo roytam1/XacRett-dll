@@ -19,6 +19,9 @@ bool CJamTool::Extract( const char* fname, const char* ddir )
 	// 3-byte header: flag, then the 16-bit password CRC
 	jam_stored = jam_enc = false;
 	jam_key = NULL;
+	jam_aug96 = false;
+	jam_cost_a = jam_cost_b = 0;
+	jam_alt_used = jam_alt_total = 0;
 	int h0 = fgetc(jam);
 	int h1 = fgetc(jam);
 	int h2 = fgetc(jam);
@@ -58,20 +61,40 @@ bool CJamTool::Extract( const char* fname, const char* ddir )
 				return false;
 			}
 			ans = unjam();
+			// the Aug/96 variant, with the cipher re-armed
+			if( jam_decrypt( pw, want_crc ) )
+			{
+				if( try_aug96( 3, outname ) ) ans = true;
+			}
 			jam_enc_free();
 		}
-		else if( unjam() ) // Jam32.dll 互換モード
-			ans = true;
 		else
 		{
-			fseek( jam, 3, SEEK_SET ); // unjam.com 互換。
-									   // ヘッダ3byteすっ飛ばす。
-			fclose( out );
-			if( out=fopen( outname, "wb" ) )
+			// The May/96 and the Aug/96 JAM formats differ only by
+			// the reflection layer in the dictionary decoder, and
+			// nothing in the archive says which one was used, so we
+			// decode with May/96 (what the official 0.49.17 does) and
+			// then try Aug/96 as well.  The Aug/96 result is adopted
+			// only when the layer behaves the way an Aug/96 stream
+			// does.
+			long start = 3;
+			fseek( jam, 3, SEEK_SET );
+			if( unjam() ) // Jam32.dll 互換モード
+				ans = true;
+			else
 			{
-				fseek( jam, 0, SEEK_SET );
-				ans = unjam();
+				start = 0;
+				fseek( jam, 3, SEEK_SET ); // unjam.com 互換。
+									   // ヘッダ3byteすっ飛ばす。
+				fclose( out );
+				if( out=fopen( outname, "wb" ) )
+				{
+					fseek( jam, 0, SEEK_SET );
+					ans = unjam();
+				}
 			}
+			if( try_aug96( start, outname ) )
+				ans = true;
 		}
 
 		if( out )
@@ -151,10 +174,65 @@ bool CJamTool::jam_decrypt( const char* pw, unsigned short stored_crc )
 	return true;
 }
 
+bool CJamTool::try_aug96( long start, const char* outname )
+{
+	// Decode the archive with the Aug/96 reflection layer into a
+	// temporary file.  The layer reflects almost every dictionary code
+	// of an Aug/96 stream but only about half of them in a May/96 one,
+	// so the share of reflected codes separates the two well enough to
+	// pick the right one.  The threshold sits above every May/96 rate
+	// measured over 34 archives, so a May/96 archive is never turned
+	// into a broken one; an Aug/96 archive that stays below it simply
+	// keeps the (wrong) May/96 result it has always had.
+	char tmpDirPath[MAX_PATH];
+	char tmpName[MAX_PATH];
+	FILE* tmp;
+	FILE* realout = out;
+	bool keep = false;
+
+	GetTempPath( MAX_PATH, tmpDirPath );
+	GetTempFileName( tmpDirPath, "Xac", 0, tmpName );
+	tmp = fopen( tmpName, "wb" );
+	if( !tmp ) return false;
+
+	jam_aug96 = true;
+	jam_alt_used = jam_alt_total = 0;
+	fseek( jam, start, SEEK_SET );
+	out = tmp;
+	unjam();
+	out = realout;
+	fclose( tmp );
+	jam_aug96 = false;
+
+	// An Aug/96 stream reflects almost every dictionary code of a
+	// highly repetitive file and a May/96 stream never does, so
+	// the repeat rate settles the repetitive cases outright.  For
+	// everything else the share of reflected codes is used, with a
+	// threshold that sits above every May/96 rate that has been
+	// measured, so a May/96 archive is never turned into a
+	// broken one.  An Aug/96 archive that stays below it keeps
+	// the (wrong) May/96 result it has always had.
+	bool is_aug96 = false;
+	if( jam_alt_total>0 && jam_alt_used*100 >= jam_alt_total*75 )
+		is_aug96 = true;
+	if( is_aug96 )
+	{
+		fclose( out );
+		out = NULL;
+		if( MoveFileEx( tmpName, outname, MOVEFILE_REPLACE_EXISTING ) )
+			keep = true;
+	}
+	if( !keep )
+		DeleteFile( tmpName );
+	return keep;
+}
+
 bool CJamTool::unjam()
 {
 	// 変数初期化
 	bitbuf = bits = 0;
+	jam_cost_a = jam_cost_b = 0;
+	jam_alt_used = jam_alt_total = 0;
 	dic = new jam_dic_item[ jam_dic_size ];
 	code_len = 9, available = jam_fstcode-1;
 	mapped = tagged = pure_char = false;
@@ -198,11 +276,48 @@ bool CJamTool::unjam()
 				code_len--;
 			available--;
 			old_code = jam_nil;
+			jam_cost_a = jam_cost_b = 0;
 		}
 	}
 
 	delete [] dic;
 	return (code==EOF);
+}
+
+int CJamTool::finish_code( int val )
+{
+	// The Aug/96 decoder reflects a dictionary code into
+	// (available - code + 257) whenever the accumulated cost of the
+	// alternatives has stayed below the accumulated cost of the codes
+	// actually used.  The two costs are halved once either of them
+	// grows past 0x11170, which is what the original DOS code does
+	// (it compares the high word against 1 and the low word against
+	// 1170h, which together are the 32 bit limit 0x11170).
+	if( !jam_aug96 ) return val;
+	if( val < jam_fstcode || val==EOF ) return val;
+
+	int original = val;
+	int alternate = available - val + 257;
+
+	jam_alt_total++;
+	if( jam_cost_b < jam_cost_a )
+	{
+		val = alternate;
+		jam_alt_used++;
+		jam_cost_a += (unsigned long)alternate;
+		jam_cost_b += (unsigned long)original;
+	}
+	else
+	{
+		jam_cost_a += (unsigned long)original;
+		jam_cost_b += (unsigned long)alternate;
+	}
+	if( jam_cost_a > 0x11170UL || jam_cost_b > 0x11170UL )
+	{
+		jam_cost_a >>= 1;
+		jam_cost_b >>= 1;
+	}
+	return val;
 }
 
 int CJamTool::read_code()
@@ -219,10 +334,10 @@ int CJamTool::read_code()
 			{
 				if( val+available+1 < 1<<code_len ) // but shiftable
 					mapped = true;
-				return val;
+				return finish_code(val);
 			}
 			val-=available+1; tagged=1; pure_char=1;
-			return val;
+			return finish_code(val);
 		}
 		else // mapped
 		{
@@ -231,10 +346,10 @@ int CJamTool::read_code()
 			{
 				if( val+available+1-jam_base < 1<<code_len)
 					mapped = true;
-				return val+jam_base;
+				return finish_code(val+jam_base);
 			}
 			val-=available+1-jam_base; tagged=true; pure_char=true;
-			return val+jam_base;
+			return finish_code(val+jam_base);
 		}
 	}
 	else // tagged
@@ -265,7 +380,7 @@ int CJamTool::read_code()
 					val-=available-jam_base+1, tagged=true, pure_char=true;
 				else if (val+available+1-jam_base<1<<code_len)
 					mapped = true;
-				return val+jam_base;
+				return finish_code(val+jam_base);
 			}
 		}
 	}

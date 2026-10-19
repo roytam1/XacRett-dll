@@ -22,6 +22,8 @@ class CJamTool : public CTool
 
 public:
 	CJamTool() : CTool( "Jam May/96 “WŠJ" ){}
+	bool IsType( const char* ext )
+		{return 0==stricmp(ext,"jam");}
 
 	bool Check( const char* fname, unsigned long fsize );
 	bool Extract( const char* fname, const char* ddir );
@@ -43,6 +45,13 @@ private:
 	// bit-level-io
 	int read_bits(int len);
 	long bitbuf, bits;
+	// Aug/96 reflection layer (see jam/AUG96/UNJAM.lst)
+	bool jam_aug96;			// enable the layer
+	long jam_cost_a, jam_cost_b;	// the accumulated reflection costs
+	long jam_alt_used, jam_alt_total;	// how often the layer reflected
+	long jam_rep, jam_codes;		// "repeat the last match" codes
+	int finish_code( int val );
+	bool try_aug96( long start, const char* outname );
 
 	// stored / encrypted (see jam/SOURCE/CRYPTION.DOC)
 	bool jam_stored;
