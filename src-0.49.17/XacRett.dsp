@@ -343,6 +343,10 @@ SOURCE=.\LbrTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\LzDecode.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\LzhDecoder2.cpp
 # End Source File
 # Begin Source File
@@ -360,6 +364,10 @@ SOURCE=.\LzmaTool.cpp
 # Begin Source File
 
 SOURCE=.\LzmaTool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\LzTool.cpp
 # End Source File
 # Begin Source File
 
@@ -435,11 +443,11 @@ SOURCE=.\SplTool.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\SqxTool.cpp
+SOURCE=.\SqxPpmd.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\SqxPpmd.cpp
+SOURCE=.\SqxTool.cpp
 # End Source File
 # Begin Source File
 
@@ -505,9 +513,6 @@ SOURCE=.\ZooTool.cpp
 # Begin Source File
 
 SOURCE=.\ZstdTool.cpp
-SOURCE=.\LzTool.cpp
-SOURCE=.\LzDecode.cpp
-SOURCE=.\OpenArchive\OpenLz.cpp
 # End Source File
 # Begin Source File
 
@@ -679,11 +684,19 @@ SOURCE=.\LbrTool.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\LzDecode.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\LzhDecoder2.h
 # End Source File
 # Begin Source File
 
 SOURCE=.\LzhTool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\LzTool.h
 # End Source File
 # Begin Source File
 
@@ -739,11 +752,11 @@ SOURCE=.\SplTool.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\SqxTool.h
+SOURCE=.\SqxPpmd.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\SqxPpmd.h
+SOURCE=.\SqxTool.h
 # End Source File
 # Begin Source File
 
@@ -1044,6 +1057,10 @@ SOURCE=.\OpenArchive\OpenLbr.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\OpenArchive\OpenLz.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\OpenArchive\OpenLzh.cpp
 # End Source File
 # Begin Source File
@@ -1305,6 +1322,10 @@ SOURCE=.\OpenArchive\OpenJc1.h
 # Begin Source File
 
 SOURCE=.\OpenArchive\OpenLbr.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenLz.h
 # End Source File
 # Begin Source File
 
@@ -1626,18 +1647,6 @@ SOURCE=.\unsqx\crypt\md5c.c
 # PROP Default_Filter ""
 # Begin Source File
 
-
-!IF  "$(CFG)" == "XacRett - Win32 Release"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
-
-!ENDIF 
-
-# End Source File
-# Begin Source File
-
 SOURCE=.\libbzip2\bzlib.c
 
 !IF  "$(CFG)" == "XacRett - Win32 Release"
@@ -1924,6 +1933,7 @@ SOURCE=.\sevenz\Bcj2.c
 SOURCE=.\sevenz\Bcj2.h
 # End Source File
 # Begin Source File
+
 SOURCE=.\sevenz\Bra.c
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
@@ -1960,10 +1970,6 @@ SOURCE=.\sevenz\Delta.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\sevenz\Precomp.h
-# End Source File
-# Begin Source File
-
 SOURCE=.\sevenz\Ppmd.h
 # End Source File
 # Begin Source File
@@ -1979,6 +1985,10 @@ SOURCE=.\sevenz\Ppmd7.h
 
 SOURCE=.\sevenz\Ppmd7Dec.c
 # SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\sevenz\Precomp.h
 # End Source File
 # Begin Source File
 
