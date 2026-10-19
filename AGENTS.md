@@ -1979,6 +1979,50 @@ Do not "fix" this by shipping a variant that merely decodes further: a
 partial Aug/96 decode still writes wrong bytes.  Treat it as an open
 gap, like the LBR whole-compressed libraries.
 
+## UI strings: ARCEXTRACT_WRITEFILE_OPEN moved to a resource
+
+The overwrite prompt in `XacRett.cpp`'s `ARCEXTRACT_WRITEFILE_OPEN`
+handler had its message and caption as inline SJIS literals.  They now
+live in `XacRett.rc` as a dual-language STRINGTABLE, loaded with
+`LoadString(Instance, ...)` -- `Instance` being the `DllMain` global the
+tree already uses for dialogs, NOT `AfxGetResourceHandle`.
+
+    IDS_OVERWRITE_MSG      106   "%s\n<jp>"      "%s\nAlready exists. Overwrite?"
+    IDS_OVERWRITE_CAPTION  107   "<jp>"          "Overwrite"
+
+Both language blocks carry the same IDs, so Windows resolves per the
+user's UI language and falls back to the other.  Measured with a probe
+(`TEMP\opencode\strprobe.c`, TEMP only): a 0404 / Traditional Chinese
+box resolves to 0409 and `LoadStringA` returns
+`"%s\nAlready exists. Overwrite?"` / `"Overwrite"` byte-clean; forcing
+`SetThreadUILanguage(0x0411)` resolves to 0411 and returns the Japanese
+text.  VC6 and VC4 `rc` invocations are byte-identical
+(`/l 0x411 /d NDEBUG` in both), verified by SHA256 of the loaded
+resource data.  If `LoadString` returns 0 both call sites fall back to
+`"%s"` / `"XacRett"` rather than showing an empty box.
+
+Four traps, all of them real:
+
+- **`resource.h` is included at `XacRett.rc:3`, but the APS "next value"
+  defines live inside `#ifdef APSTUDIO_INVOKED`**, which is never
+  defined in a build.  Adding an ID next to `_APS_NEXT_RESOURCE_VALUE`
+  therefore compiles in Resource Editor and then fails the real build
+  with `RC2104: undefined keyword`.  New IDs must go ABOVE that block.
+- **A `STRINGTABLE` cannot be named.**  `STRINGTABLE DISCARDABLE "X"`
+  is rejected with `RC2105: BEGIN expected in string table`, so the two
+  language blocks MUST both be unnamed and be told apart by `LANGUAGE`
+  alone.
+- **RC stores STRINGTABLEs as Unicode** (length in characters, `len*2`
+  bytes), even when every character is ASCII.  Read them as ANSI and the
+  first NUL high byte truncates the string to one character.
+- **`LoadStringA` converts the Unicode table through the SYSTEM ACP.**
+  On a Japanese ACP (932) that is lossless and byte-identical to the old
+  SJIS literals, so nothing changes on the intended platform; on a
+  non-Japanese ACP the Japanese variant degrades to `?`.  Accepted
+  deliberately: the caller is `MessageBoxA` in an MBCS build, and the
+  old inline literals were equally unreadable under a non-Japanese ACP
+  (as raw mojibake rather than `?`).
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).

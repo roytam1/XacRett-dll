@@ -332,9 +332,15 @@ public:
 							else
 							{
 								char msg[MAX_PATH*2];
-								wsprintf(msg,"%s\nは既に存在します。上書きしますか？",info->szSourceFileName);
+								char fmt[MAX_PATH*2];
+								if(0==LoadString(Instance,IDS_OVERWRITE_MSG,fmt,sizeof(fmt)))
+									lstrcpy(fmt,"%s");
+								wsprintf(msg,fmt,info->szSourceFileName);
 								EnableWindow(hWnd,FALSE);
-								bool ret=MessageBox(hWnd,msg,"上書き確認",MB_YESNO)!=IDYES;
+								char cap[MAX_PATH];
+								if(0==LoadString(Instance,IDS_OVERWRITE_CAPTION,cap,sizeof(cap)))
+									lstrcpy(cap,"XacRett");
+								bool ret=MessageBox(hWnd,msg,cap,MB_YESNO)!=IDYES;
 								EnableWindow(hWnd,TRUE);
 								BringWindowToTop(hWnd);
 								if(ret)

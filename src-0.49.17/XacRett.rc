@@ -120,6 +120,18 @@ END
 #endif    // APSTUDIO_INVOKED
 
 
+/////////////////////////////////////////////////////////////////////////////
+//
+// StringTable
+//
+
+STRINGTABLE DISCARDABLE
+BEGIN
+    IDS_OVERWRITE_MSG        "%s\nは既に存在します。上書きしますか？"
+    IDS_OVERWRITE_CAPTION    "上書き確認"
+END
+
+
 #ifndef _MAC
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -166,6 +178,26 @@ END
 #endif    // !_MAC
 
 #endif    // 日本語 resources
+/////////////////////////////////////////////////////////////////////////////
+//
+// StringTable (English)
+//
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+#ifdef _WIN32
+LANGUAGE LANG_ENGLISH, SUBLANG_DEFAULT
+#pragma code_page(1252)
+#endif //_WIN32
+
+STRINGTABLE DISCARDABLE
+BEGIN
+    IDS_OVERWRITE_MSG        "%s\nAlready exists. Overwrite?"
+    IDS_OVERWRITE_CAPTION    "Overwrite"
+END
+
+#endif
+
+
 /////////////////////////////////////////////////////////////////////////////
 
 
