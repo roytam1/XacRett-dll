@@ -23,7 +23,7 @@ class CJamTool : public CTool
 public:
 	CJamTool() : CTool( "Jam May/96 “WŠJ" ){}
 	bool IsType( const char* ext )
-		{return 0==stricmp(ext,"jam");}
+		{return ( 0==stricmp(ext,"jam") || 0==stricmp(ext,"jam5") || 0==stricmp(ext,"jam8") );}
 
 	bool Check( const char* fname, unsigned long fsize );
 	bool Extract( const char* fname, const char* ddir );

@@ -5,7 +5,8 @@
 bool CJamTool::Check( const char* fname, unsigned long fsize )
 {
 	// 拡張子チェック
-	return ( 0==stricmp( kiutil::pathExt(fname),"jam" ) );
+	const char* ext = kiutil::pathExt(fname);
+	return ( 0==stricmp(ext,"jam") || 0==stricmp(ext,"jam5") || 0==stricmp(ext,"jam8") );
 }
 
 bool CJamTool::Extract( const char* fname, const char* ddir )
@@ -22,6 +23,13 @@ bool CJamTool::Extract( const char* fname, const char* ddir )
 	jam_aug96 = false;
 	jam_cost_a = jam_cost_b = 0;
 	jam_alt_used = jam_alt_total = 0;
+	// the extension selects the variant: ".jam" detects it,
+	// ".jam5" forces May/96 and ".jam8" forces Aug/96
+	const char* jext = kiutil::pathExt(fname);
+	int force = 0;
+	if( 0==stricmp(jext,"jam5") ) force = 1;
+	else if( 0==stricmp(jext,"jam8") ) force = 2;
+	bool isjam = ( 0==stricmp(jext,"jam") || force!=0 );
 	int h0 = fgetc(jam);
 	int h1 = fgetc(jam);
 	int h2 = fgetc(jam);
@@ -33,7 +41,7 @@ bool CJamTool::Extract( const char* fname, const char* ddir )
 	// 出力先
 	char outname[MAX_PATH];
 	kiutil::getOriginalName( outname, fname,
-		0==stricmp(kiutil::pathExt(fname),"jam") ? NULL : "unjam" );
+		isjam ? NULL : "unjam" );
 
 	if (m_Endflg) return true;//追加 By Bonty
 	//ワイルドカード処理
@@ -60,9 +68,10 @@ bool CJamTool::Extract( const char* fname, const char* ddir )
 				DeleteFile(outname);
 				return false;
 			}
+			jam_aug96 = ( 2==force );
 			ans = unjam();
 			// the Aug/96 variant, with the cipher re-armed
-			if( jam_decrypt( pw, want_crc ) )
+			if( 0==force && jam_decrypt( pw, want_crc ) )
 			{
 				if( try_aug96( 3, outname ) ) ans = true;
 			}
@@ -78,6 +87,7 @@ bool CJamTool::Extract( const char* fname, const char* ddir )
 			// only when the layer behaves the way an Aug/96 stream
 			// does.
 			long start = 3;
+			jam_aug96 = ( 2==force );
 			fseek( jam, 3, SEEK_SET );
 			if( unjam() ) // Jam32.dll 互換モード
 				ans = true;
@@ -89,11 +99,12 @@ bool CJamTool::Extract( const char* fname, const char* ddir )
 				fclose( out );
 				if( out=fopen( outname, "wb" ) )
 				{
+					jam_aug96 = ( 2==force );
 					fseek( jam, 0, SEEK_SET );
 					ans = unjam();
 				}
 			}
-			if( try_aug96( start, outname ) )
+			if( 0==force && try_aug96( start, outname ) )
 				ans = true;
 		}
 

@@ -2226,6 +2226,55 @@ was round trip verified with the authentic decoder.  The Aug/96 decode
 is byte identical to the authentic `AUG96\UNJAM.COM` output, and the
 May/96 path is unchanged.  VC6 and VC4 agree byte for byte.
 
+## JAM: picking the variant with the file extension
+
+The two JAM variants are mutually incompatible and nothing in the
+archive says which one was used, so the variant has to be **selected**
+rather than guessed.  A library user cannot pass a switch, but a file
+can be renamed, so the extension carries the choice:
+
+| extension | meaning |
+|---|---|
+| `.jam`  | detect it (May/96 first, then the Aug/96 layer) |
+| `.jam5` | force **May/96** |
+| `.jam8` | force **Aug/96** |
+
+The digit is the month of the JAM release.  `jam/JAM.DOC` gives the
+release history and says so in as many words:
+
+    Feb/96:  The debut of jam/unjam. ... Not compatible with the
+              previous release.
+    May/96:  First public, independent release. ...
+    Aug/96:  Slightly better compression rate. Not compatible with
+              previous releases.
+
+So the three variants are Feb/96, May/96 and Aug/96, and `.jam2`,
+`.jam5` and `.jam8` name them.  Only May/96 and Aug/96 are supported:
+the Feb/96 release was "designated to use within its host system,
+CCDB", there is no reference implementation of it in `jam/`, and
+nothing in the tree claims the extension, so a `.jam2` archive is left
+unclaimed rather than mis-decoded.
+
+**The output name does not change when the archive is renamed**, so
+`LICENCE-aug96.jam` and `LICENCE-aug96.jam8` both extract to
+`LICENCE-aug96`.  `kiutil::getOriginalName` is called with a NULL
+extension for the three JAM extensions, which strips the whole
+suffix; anything else keeps the old `.unjam` fallback.
+
+Verified on the shipped samples and on the generated corpus:
+
+| archive | `.jam` | `.jam5` | `.jam8` |
+|---|---|---|---|
+| `LICENCE-may96.jam` | match | match | 19058 (forced, as asked) |
+| `LICENCE-aug96.jam` | 19324 | 19324 | **match** (18340) |
+
+`.jam8` reproduces all seven compressed Aug/96 archives byte for byte,
+including `text1k`, which the automatic detection misses.  The stored
+archives (the Aug/96 encoder stores small and incompressible files
+rather than compressing them) are the same under all three
+extensions, because the stored flag is variant independent.  VC6 and
+VC4 agree byte for byte.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).
