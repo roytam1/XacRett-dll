@@ -72,8 +72,19 @@ void CLzhDecoder2::Decode( lzh_method mhd,FILE* infile,DWORD insize,
 		init_getbits();
 	else if( mhd==LZ5 )
 	{
+		// The -lz5- history buffer starts with a fixed pattern
+		// that archives in the wild copy from.  The reference
+		// decoder fills its 4096 byte ring buffer with 13 copies
+		// of each byte value, then all values ascending, then all
+		// descending, then 128 zeros, then 110 spaces and finally
+		// 18 zeros.  This decoder uses a linear window that is
+		// rotated by START_OFFSET (18) relative to that ring
+		// buffer, so the trailing 18 zeros belong at the FRONT of
+		// the window.  Leaving spaces there breaks archives that
+		// copy from the start of the history buffer.
 		flagcnt = 0;
 		int i;
+		memset( text, 0, 18 );
 		for( i=0; i<256; i++ )	memset(&text[i * 13 + 18], i, 13);
 		for( i=0; i<256; i++ )	text[256 * 13 + 18 + i] = i;
 		for( i=0; i<256; i++ )	text[256 * 13 + 256 + 18 + i] = 255 - i;

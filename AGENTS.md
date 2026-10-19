@@ -2099,6 +2099,57 @@ only, magic only, bad version byte, `buffer_bits` overflow (refused
 before any big allocation), a flipped payload bit (caught by the CRC),
 trailing garbage (ignored, as the reference does).
 
+## LZH: the -lz5- initial history buffer (upstream lhasa 37a20c6)
+
+`CLzhDecoder2` (our own port of "LHa for UNIX 1.14d") handles -lz5-,
+and it fills the 4 KB history window with a fixed pattern that archives
+in the wild copy from.  The pattern was **almost** right: the first 18
+bytes were left as spaces instead of zeros, so any archive that copies
+from the very start of the history decoded wrongly.
+
+The reference decoder (lhasa, commit 37a20c6 "lz5: Fill initial
+history buffer correctly", upstream issue #13) fills its 4096 byte
+**ring buffer** as: 13 copies of each byte value, then all values
+ascending, then all descending, then 128 zeros, then 110 spaces, then
+**18 zeros**.  Our decoder uses a **linear** window that is rotated by
+`START_OFFSET` (18) relative to that ring buffer, so the ring buffer's
+trailing 18 zeros belong at the **FRONT** of our window -- the port
+left them as spaces.  Proven exactly: with that one line the window
+becomes byte-identical to lhasa's ring buffer (0 differing bytes out
+of 4096; before, exactly 18 differed, at indices 0..17, 0x20 vs
+0x00).
+
+Verified against lhasa's own crafted test archive
+`test/archives/larc333/initial.lzs`, which exists precisely to dump
+the initial history buffer (lhasa's expected CRC is 6005):
+
+| fixture | before | after | expected |
+|---|---|---|---|
+| `larc333/initial.lzs` | C81A | **6005** | 6005 |
+| `larc333/lz5.lzs` | A33A | A33A | A33A |
+| `larc333/long.lzs` | 6A7C | 6A7C | 6A7C |
+| `larc333/lz4.lzs`, `sfx.com` | B6D5 | B6D5 | B6D5 |
+
+The 209 archive corpus is unchanged (`lhacase.py`: 143 exact / 53
+case-insensitive / 13 different / **0** no-output) and so is the
+ours-vs-official comparison (`lha_ab.py`: 189 identical / 20 differing,
+and still **0** cases where official matches lhasa and ours does not).
+VC6 and VC4 agree byte for byte.
+
+Two traps worth keeping:
+
+- **The -lzs- sibling really is all spaces.**  lhasa's `lha_lzs_init`
+  does `memset(ringbuf, ' ', RING_BUFFER_SIZE)` with no pattern, so
+  the blanket `memset(text,' ',dicsiz)` in our port is correct there.
+  Only -lz5- has a pattern, and only its trailing 18 zeros were wrong.
+  Do not "fix" -lzs- on the strength of the -lz5- finding.
+- **The LZH header CRC is 16 bits (CRC-16/ARC), but `dlltest` compares
+  a 32-bit zlib CRC.**  So `dlltest` reports FAIL for *every* LZH
+  member, including ones that decode perfectly: for
+  `lzsfx33.lzs`/`LZSFX.PAS` the extracted file's zlib crc32 is
+  E3796208 while the archive's stored CRC-16 is 7CBA, and our output
+  matches the stored CRC exactly.  Check the CRC-16, not the harness.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).
