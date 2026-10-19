@@ -23,6 +23,7 @@ public:
 
 private:
 	bool expand_data( FILE* in, FILE* out, unsigned long len );
+	bool Extract20( FILE* asd );
 	void init_expander( int x );
 	int wptr, xptr, verylong;
 };

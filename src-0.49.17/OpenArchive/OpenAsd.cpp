@@ -5,14 +5,35 @@ bool COpenAsd::FindFirst(INDIVIDUALINFO *lpSubInfo)
 {
 	unsigned char buf[300];
 
-	fseek( COpenAsd::fp, 6, SEEK_CUR );
-
-	// 格納されているファイル数
-	if( 2!=fread( buf, 1, 2, COpenAsd::fp ) )
+	// the version byte follows the "ASD" magic: '1' = 0.1.x,
+	// '2' = 0.2.x
+	unsigned char hd[6];
+	if( 6!=fread( hd, 1, 6, COpenAsd::fp ) )
 	{
 		return false;
 	}
-	num_of_files = (buf[0]) + (buf[1]<<8);
+	m_ver = hd[4];
+
+	// 格納されているファイル数
+	if( '2'==m_ver )
+	{
+		if( 3!=fread( buf, 1, 3, COpenAsd::fp ) )
+		{
+			return false;
+		}
+		num_of_files = (buf[0]) + (buf[1]<<8) + (buf[2]<<16);
+		m_hdrpos = 9;
+	}
+	else
+	{
+		if( 2!=fread( buf, 1, 2, COpenAsd::fp ) )
+		{
+			return false;
+		}
+		num_of_files = (buf[0]) + (buf[1]<<8);
+		m_hdrpos = 8;
+	}
+	m_idx = 0;
 
 	return COpenAsd::FindSub(lpSubInfo);
 }
@@ -23,18 +44,16 @@ bool COpenAsd::FindNext(INDIVIDUALINFO *lpSubInfo)
 }
 bool COpenAsd::FindSub(INDIVIDUALINFO *lpSubInfo)
 {
-	static int i=0;
-	static long header_pos = 8;
 	unsigned char buf[300];
 
-	if (i++==num_of_files)
+	if (m_idx++==num_of_files)
 	{
-		i=0;
-		header_pos = 8;
+		m_idx=0;
+		m_hdrpos = ( '2'==m_ver ) ? 9 : 8;
 		return false;
 	}
 	// 次のファイルの情報格納位置へ
-	fseek( COpenAsd::fp, header_pos, SEEK_SET );
+	fseek( COpenAsd::fp, m_hdrpos, SEEK_SET );
 	// ヘッダ解析
 	int c = fgetc(COpenAsd::fp);
 	fread( buf, 1, c+14, COpenAsd::fp );
@@ -66,7 +85,7 @@ bool COpenAsd::FindSub(INDIVIDUALINFO *lpSubInfo)
 	lpSubInfo->wTime=(WORD)uptime;
 
 	// ヘッダ位置ポインタを進めておく
-	header_pos += (1+c+14);
+	m_hdrpos += (1+c+14);
 
 	return true;
 }

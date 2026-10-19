@@ -9,6 +9,9 @@ class COpenAsd : public COpenArchive
 private:
 	bool FindSub(INDIVIDUALINFO *lpSubInfo);
 	int num_of_files;
+	int m_ver;		// '1' = ASD 0.1.x, '2' = ASD 0.2.x
+	long m_hdrpos;	// offset of the first member header
+	int m_idx;		// current member index
 
 public: //-- COpenArchive 共通インターフェイス -----------
 

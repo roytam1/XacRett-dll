@@ -2023,6 +2023,82 @@ Four traps, all of them real:
   old inline literals were equally unreadable under a non-Japanese ACP
   (as raw mojibake rather than `?`).
 
+## ASD 0.2.0 support (LZ77 + dual adaptive Huffman) -- DONE
+
+`CAsdTool` used to handle **only** ASD 0.1.x, and 0.1.x turned out to
+be plain LZSS.  ASD 0.2.0 uses a completely different scheme, so this
+was a new decoder, not a tweak.
+
+**Format.**  Header is `"ASD"` + two version bytes (`"01"` / `"02"`) +
+`0x1A`.  The **member count is 2 bytes wide in 0.1.x and 3 bytes wide
+in 0.2.x** (`asd.c:316`, `unasd.c:121`); that shifts every member
+header by one byte, so both the extractor and the lister are
+version-aware now.  A member header is `name_len(1) + name +
+size(4) + crc(4) + time(4) + attributes(2)`, all little endian.
+
+**0.2.x compression** is LZ77 with a window plus TWO adaptive
+Huffman trees (one for literals, one for offsets), not LZSS:
+
+    bit-packed parameter block, MSB first:
+      window_bits(4) buffer_bits(5)
+      offset_huff_rescale(7) offset_huff_rehuff(7)
+      literal_huff_rescale(7) literal_huff_rehuff(7)
+    LITERAL_NUM_CODES = 256 + (window_bits-1)*4
+    OFFSET_NUM_CODES  = buffer_bits*2
+    minhit = 2   (0.1.x uses 3)
+
+The Huffman code is the reference's own two-tree layout: counts start
+at 1, the tree is rebuilt by repeatedly merging the two smallest
+counts, and the decoder walks down from node `2*NUM_CODES-2` choosing
+`high_tree`/`low_tree` on each bit.  A literal code > 255 is a match:
+`256..263` give the length directly, `> 263` means a 2-bit selector
+plus extra bits; the offset code gives the distance the same way.
+`window_bits` and `buffer_bits` are **clamped** (1..15 and 2..24) --
+the format allows `buffer_bits` up to 31, which would ask for a 2 GB
+window, so a hostile file is refused instead.
+
+**The 0.2.x path verifies every member CRC** (zlib's `crc32`, the same
+function the reference uses) and fails loudly on a mismatch, so a
+corrupted payload no longer produces silently wrong bytes.  The 0.1.x
+path still does not verify -- pre-existing, and it matches official.
+
+Traps, all real:
+
+- **`fread(buf, 1, n, f)` returns the number of ITEMS read, not 1.**
+  A guard written as `1!=fread(...)` therefore always fires; it has to
+  be `n!=fread(...)`.  This one cost the most time here: the first
+  build failed with no output at all and the header parse looked
+  perfect.
+- **The `version` byte is read at offset 4 but the member count is at
+  offset 6**, so the sniff must not consume the 6 header bytes twice --
+  the 0.1.x path then has to seek with `SEEK_SET`, not `SEEK_CUR`.
+- **`#pragma code_page` / RC are irrelevant here; the ASD streams are
+  byte oriented**, but the *0.2.x* stream is bit packed, so the file
+  position after a member is NOT byte aligned and the members cannot
+  be located by seeking: the whole stream has to be decoded in one
+  pass, switching output files at the member boundaries.  The 0.1.x
+  path can seek per member because its stream is byte aligned.
+- `kiutil::pathMake` rewrites the name buffer IN PLACE, so each member
+  needs its own copy of the name.
+
+**Verified** against the reference `unasd.exe` 0.2.0 (built from
+`asd_src/`, untracked) and the archiver `asd.exe` 0.2.0:
+
+| fixture | ours | reference |
+|---|---|---|
+| `LICENCE-015.asd` (0.1.5) | 18340 B, sha `6c4beace` | identical |
+| `LICENCE-020.asd` (0.2.0) | 18340 B, sha `6c4beace` | identical |
+| `multi.asd` (0.2.0, 5 members) | 480/256/200000/1/700 B | identical, all 5 sha256 match |
+
+The listing matches the reference member for member (names, sizes and
+CRCs, e.g. `C60F157A / 29058C73 / 42C68D3F / 8CDC1683 / 098DB714`).
+VC6 and VC4 agree byte for byte.
+
+Negatives (all fail, none hang, none crash): truncated archive, header
+only, magic only, bad version byte, `buffer_bits` overflow (refused
+before any big allocation), a flipped payload bit (caught by the CRC),
+trailing garbage (ignored, as the reference does).
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).
