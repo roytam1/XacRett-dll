@@ -161,9 +161,6 @@ using namespace std;   //こいつを入れないと使えません。
 #if !defined(_MSC_VER) || (_MSC_VER >= 1200)
 #include <shlwapi.h>
 #endif
-#if !defined(_MSC_VER) || (_MSC_VER >= 1200)
-#pragma comment( lib , "shlwapi.lib" )
-#endif
 
 // グローバル変数
 static CTool* g_pToolList = NULL;
