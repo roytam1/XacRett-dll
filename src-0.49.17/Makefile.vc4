@@ -88,6 +88,7 @@ OBJS = \
     $(OBJDIR)\MacBinTool.obj \
     $(OBJDIR)\MimeTool.obj \
     $(OBJDIR)\MSCompressTool.obj \
+    $(OBJDIR)\MsCompress.obj \
     $(OBJDIR)\PackzTool.obj \
     $(OBJDIR)\PitTool.obj \
     $(OBJDIR)\QPakTool.obj \
@@ -425,6 +426,9 @@ $(OBJDIR)\MimeTool.obj : MimeTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\MSCompressTool.obj : MSCompressTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\MsCompress.obj : MsCompress.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\PackzTool.obj : PackzTool.cpp
@@ -1164,7 +1168,7 @@ $(UNRARLIB) : dirs $(UNRAR_OBJS)
 $(OUTDIR)\XacRett.dll : dirs $(OBJS) $(OBJDIR)\XacRett.res $(UNRARLIB)
 	@echo.>$(LINK_RSP)
 	@for %%f in ($(OBJDIR)\*.obj) do @echo %%f>>$(LINK_RSP)
-	link /nologo /dll /machine:I386 /incremental:no /out:"$(OUTDIR)\XacRett.dll" /def:"XacRett.def" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib lz32.lib $(UNRARLIB) @$(LINK_RSP) "$(OBJDIR)\XacRett.res"
+	link /nologo /dll /machine:I386 /incremental:no /out:"$(OUTDIR)\XacRett.dll" /def:"XacRett.def" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib $(UNRARLIB) @$(LINK_RSP) "$(OBJDIR)\XacRett.res"
 # `link` is the explicit spelling of the same thing.
 link : $(OUTDIR)\XacRett.dll
 

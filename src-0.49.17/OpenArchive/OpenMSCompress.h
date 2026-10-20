@@ -14,6 +14,7 @@ public: //-- COpenArchive 共通インターフェイス -----------
 	bool FindNext(INDIVIDUALINFO *lpSubInfo);
 private:
 	bool GetLzFileName(LPSTR buf);
+	char m_missingchar;	// the character COMPRESS.EXE replaced
 	void lower(char *c) ;
 };
 

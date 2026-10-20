@@ -2379,8 +2379,9 @@ only implements the LZ/SZDD variant.  Handed a KWAJ file it does
 bytes straight through, so the "extracted" file was the *compressed*
 data and the extraction still reported success.  `MSCompressTool` now
 checks the `LZCopy` result and refuses the KWAJ signature outright,
-so the failure is honest instead of a corrupt file.  KWAJ is still
-unimplemented -- it is the next piece of work.
+so the failure is honest instead of a corrupt file.  KWAJ is now
+implemented as well: see "MSCompress: our own COMPRESS.EXE decoder"
+below.
 
 **SZDD fixtures, cross-validated.**  There were none in the tree, so
 five were generated from the format description (COMPRESS.EXE's SZDD
@@ -2423,6 +2424,115 @@ description, and confirmed by the fixtures):
     and XORed with 0xFF, 2 the QBasic LZSS, 3 the LZ+Huffman scheme
     and 4 MS-ZIP, which is DEFLATE in 32 KB blocks with a shared
     history -- and therefore zlib's problem, not ours.
+
+## MSCompress: our own COMPRESS.EXE decoder (no lz32.dll)
+
+`lz32.dll` is gone from the import table: the SZDD and KWAJ formats
+are now decoded by `src-0.49.17/MsCompress.cpp` (with the header in
+`MsCompress.h`), a clean-room engine written from the published format
+description.  It is used by both the extract path
+(`MSCompressTool.cpp`) and the listing path
+(`OpenArchive/OpenMSCompress.cpp`), so the two can never disagree.
+
+Why: `lz32.dll` only implements the LZ/SZDD variant, is missing on
+the retro targets (NT 3.51 has neither `cabinet.dll` nor `FDI.DLL`
+either), and copies unknown input through unchanged -- so a KWAJ file
+used to be "extracted" to the *compressed* bytes with a success code.
+
+**The formats.**
+
+    SZDD header (14 bytes)
+      0..7    "SZDD" signature 53 5A 44 44 88 F0 27 33
+      8       compression mode, only "A" (0x41) is valid
+      9       the character missing from the end of the file name
+      10..13  the length of the file when unpacked (32 bit LE)
+
+    SZDD QBasic variant (12 bytes)
+      0..7    53 5A 20 88 F0 27 33 D1
+      8..11   the length of the file when unpacked (32 bit LE)
+
+    KWAJ header (14 bytes)
+      0..7    "KWAJ" signature 4B 57 41 4A 88 F0 27 D1
+      8..9    the compression method (0-4)
+      10..11  the offset of the compressed data
+      12..13  the header extension flags
+      the extensions follow in the order the flags give: the unpacked
+      length (4 bytes), an unknown field (2 bytes), a length + data
+      block, the file name (8 characters), the file extension (3
+      characters) and a second length + data block.
+      Methods: 0 stored, 1 stored and XORed with 0xFF, 2 the QBasic
+      LZSS, 3 the LZ+Huffman scheme, 4 MS-ZIP (DEFLATE in 32 KB
+      blocks with a shared history, which is zlib's problem).
+
+**KWAJ method 3** is the hard one, and two things about it are worth
+writing down because both cost real time:
+
+- The data starts with **six nybbles**; the first five are the
+  encoding type of the five Huffman length lists and the sixth is
+  padding.  **All six have to be read**, even though only five are
+  used -- reading five leaves the whole stream misaligned by four
+  bits, which shows up as a plausible looking length list and then
+  nothing at all.
+- The nybbles all come **before** the length lists, not one nybble
+  per list.
+
+The five trees, in order, are 16 match run lengths, 16 match run
+lengths after a short literal run, 32 literal run lengths, 64
+offsets and 256 literals.  Each length list is encoded in one of four
+ways (the "type" nybble): type 0 is a fixed length for every symbol,
+type 1 is a one bit selector with a delta of 0 or +1, type 2 is a two
+bit selector with a delta of -1, 0 or +1, and type 3 is four bits per
+symbol.  The first length of a type 1/2/3 list is always four bits.
+
+A match length symbol of 0 means "a literal run follows": the next
+symbol from the literal run length tree gives the number of literals
+(plus one), and a run of 32 ends the run.  A match is the offset
+symbol (six bits) shifted left by six and ORed with six more bits,
+and the length is the match length symbol plus two.
+
+**Traps, all of them real:**
+
+- The name derivation had an **off by one on the extension**: `ext`
+  points at the dot, so the two characters of the extension are
+  `ext[1]` and `ext[2]` and the name ends at `ext[3]`.  The check
+  `!ext[2]` therefore tested the *second* extension character against
+  zero and the two character extension table never fired: `SMALL.TX_`
+  listed as `SMALL.TX` while the extract produced `SMALL.TXT`.  The
+  listing and the extract now share one function
+  (`MsCompressMakeName`), so they cannot drift apart again.
+- **The QBasic header also starts with 'S'**, so the old code
+  (`if( head[0]=='S' )` -> append the missing character) appended a
+  byte of the *length* as a file name character.  The missing
+  character now comes from the header parser, which only sets it for
+  the real SZDD signature.
+- `MsCompressReadHeader` leaves the file positioned at the
+  compressed data and the extract path uses that position instead of
+  re-reading the file.
+
+**Verified** against real files, in both VC6 and VC4, byte for byte:
+
+| fixture | format | result |
+|---|---|---|
+| `licence-szdd.tx_` | SZDD | 18340 B, sha `6C4BEACE9AD98F65` |
+| `LICENCE-kwaj2.tx_` | KWAJ method 2 | 18340 B, sha `6C4BEACE9AD98F65` |
+| `LICENCE-kwaj3.tx_` | KWAJ method 3 | 18340 B, sha `6C4BEACE9AD98F65` |
+| `SMALL/TEXT/DATA/REPEAT/ONE/EMPTY.TX_` | SZDD | match |
+
+The oracle is the `LICENCE` member of `GPLv2-rar4.rar` (18340 bytes,
+sha `6C4BEACE9AD98F65`), so all three real formats are decoded
+against a file this tree has already proven.  The SZDD fixtures were
+additionally decoded through Microsoft's own `lz32.dll`.
+
+`szMode` is now the real thing: `SZDD`, `SZDD-QB`, `KWAJ-STO`,
+`KWAJ-XOR`, `KWAJ-LZ`, `KWAJ-HUF`, `KWAJ-ZIP` (it has to fit in the
+eight bytes `INDIVIDUALINFO::szMode` has).
+
+**Still open:** KWAJ method 4 (MS-ZIP) is implemented with zlib but
+there is no fixture for it, and the **Cabinet** format is still read
+through the `FDI` shim, so `.cab` does not work on a target that has
+neither `cabinet.dll` nor `FDI.DLL` (NT 3.51).  That needs a
+clean-room Cabinet decoder: the container plus MSZIP via zlib, and
+then Quantum and LZX.
 
 ## Pre-commit checklist
 

@@ -1,13 +1,27 @@
 #include "stdafx.h"
 #include "OpenMSCompress.h"
+#include "MsCompress.h"
 #include <lzexpand.h>
 
 bool COpenMSCompress::FindFirst(INDIVIDUALINFO *lpSubInfo)
 {
 	int original_size = 0;
-	fseek(COpenMSCompress::fp,10,SEEK_SET );
-	fread(&original_size,4,1,COpenMSCompress::fp );
+	const char *mode = "";
+	{
+		// the header knows the format, the length of the unpacked
+		// file and the character that COMPRESS.EXE replaced
+		MsCompressHeader hdr;
+		COpenMSCompress::m_missingchar = 0;
+		fseek(COpenMSCompress::fp,0,SEEK_SET );
+		if( MSCOMPRESS_OK==MsCompressReadHeader( COpenMSCompress::fp, &hdr ) )
+		{
+			original_size = (int)hdr.origsize;
+			COpenMSCompress::m_missingchar = hdr.missingchar;
+			mode = MsCompressModeName( &hdr );
+		}
+	}
 	fseek(COpenMSCompress::fp,0,SEEK_SET );
+
 
 	lpSubInfo->dwCompressedSize = (DWORD)filelength(fileno(COpenMSCompress::fp));
 	lpSubInfo->dwOriginalSize = (DWORD)original_size;
@@ -29,7 +43,7 @@ bool COpenMSCompress::FindFirst(INDIVIDUALINFO *lpSubInfo)
 	::FileTimeToDosDateTime(&find_f.ftLastWriteTime,&lpSubInfo->wDate,&lpSubInfo->wTime);
 
 	lstrcpy(lpSubInfo->szAttribute ,"A---W");
-	lstrcpy(lpSubInfo->szMode,"SZDD");
+	lstrcpy(lpSubInfo->szMode,mode);
 	//lstrcpy(lpSubInfo->szMode,"");
 
 	return true;
@@ -46,10 +60,9 @@ bool COpenMSCompress::GetLzFileName(LPSTR buf)
 	char buf2[FNAME_MAX32 + 1];
 	lstrcpy(str,COpenMSCompress::szArcFileName);
 
-	if (GetExpandedName(str,buf2))//¬Œ÷‚µ‚½‚ÆŒ¾‚¤‚±‚Æ
+	if( MsCompressMakeName(str,COpenMSCompress::m_missingchar,buf2,(int)sizeof(buf2))>0 )//¬Œ÷‚µ‚½‚ÆŒ¾‚¤‚±‚Æ
 	{
-		for(int i = FNAME_MAX32 + 1;buf2[i]!=0x5C;--i);
-		lstrcpy(buf,&buf2[i+1]);
+		lstrcpy(buf,buf2);
 		return true;
 	}
 	//¸”s‚µ‚½‚È‚ç©•ª‚Å‚â‚ç‚È‚«‚á¥¥¥0x5C='\'
