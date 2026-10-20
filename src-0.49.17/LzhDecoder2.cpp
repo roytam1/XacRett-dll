@@ -54,6 +54,7 @@ void CLzhDecoder2::Decode( lzh_method mhd,FILE* infile,DWORD insize,
 
 	case LZ5:	dicbit=12,dicsiz=(1<<dicbit);break;
 	case LZS:	dicbit=11,dicsiz=(1<<dicbit);break;
+	case LZS2:	dicsiz=(DWORD)lzs_size;break;
 
 	case LH1:	np=(1<<6),dicbit=12,dicsiz=(1<<dicbit);break;
 	case LH2:	dicbit=13,dicsiz=(1<<dicbit);break;
@@ -68,7 +69,7 @@ void CLzhDecoder2::Decode( lzh_method mhd,FILE* infile,DWORD insize,
 		init_getbits();
 		blocksize = 0;
 	}
-	else if( mhd==LZS )
+	else if( mhd==LZS || mhd==LZS2 )
 		init_getbits();
 	else if( mhd==LZ5 )
 	{
@@ -181,7 +182,11 @@ void CLzhDecoder2::Decode( lzh_method mhd,FILE* infile,DWORD insize,
 	// デコード
 	DWORD count=0;
 	loc=0;
-	int offset=(mhd==LZS)?(0x0100-2):(0x0100-3);
+	int offset;
+	if( mhd==LZS ) offset=0x0100-2;
+	else if( mhd==LZS2 )
+		offset=0x0100-lzs_threshold;
+	else offset=0x0100-3;
 	while( count<orisize )
 	{
 		int c = Decode_C(mhd);
@@ -456,6 +461,45 @@ WORD CLzhDecoder2::decode_p_lzs()
 {
 #define MAGIC0		18
 	return (WORD)((loc-matchpos-MAGIC0)&0x7ff);
+}
+
+bool CLzhDecoder2::SetLzsParams( int pos_bits, int len_bits )
+{
+	// The LArc 7 methods -lz1-, -lz2- and -lz3- take the number of
+	// bits used for the position and the length of a copy operation
+	// from the header, so that a different window size can be used.
+	// The classic -lzs- is the pos_bits=11, len_bits=4 case.
+	if( pos_bits<1 || pos_bits>13 || len_bits<1 || len_bits>13 )
+		return false;
+	int size = 1 << pos_bits;
+	int ce2 = (pos_bits + len_bits + 1) / 9;
+	// the copy length has to fit inside the window
+	if( (1 << len_bits) + ce2 > size )
+		return false;
+	lzs_pos_bits = pos_bits;
+	lzs_len_bits = len_bits;
+	lzs_size = size;
+	lzs_ce2 = ce2;
+	lzs_threshold = ce2 + 1;
+	lzs_rotation = (1 << len_bits) + ce2;
+	return true;
+}
+
+// The bit oriented LZSS algorithm, parameterised by the header.
+WORD CLzhDecoder2::decode_c_lzs2()
+{
+	if( getbits(1) )
+		return getbits(8);
+	else
+	{
+		matchpos = getbits( lzs_pos_bits );
+		return getbits( lzs_len_bits ) + 0x100;
+	}
+}
+
+WORD CLzhDecoder2::decode_p_lzs2()
+{
+	return (WORD)((loc-matchpos-(lzs_rotation+1)) & (lzs_size-1));
 }
 
 WORD CLzhDecoder2::decode_c_lz5()

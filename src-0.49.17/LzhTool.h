@@ -56,6 +56,7 @@ private:
 	DWORD h_OrigSize;				// 元のサイズ
 	WORD  h_Attrib;					// 属性
 	DWORD h_Update;					// 更新日時(h0,h1:ftime  h2:time_t)
+	WORD  h_LvlField;					// LArc 7 level field
 };
 
 #endif

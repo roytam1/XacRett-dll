@@ -192,6 +192,12 @@ bool COpenLzh::ReadHeader( unsigned char* buf )
 		memcpy( h_FileName,buf+22,buf[21] );
 		h_FileName[buf[21]]=0;
 		h_filecrc = (buf[22+buf[21]])+(buf[23+buf[21]]<<8);
+		// LArc 7 stores a two byte level field where the
+		// CRC-16 normally is, and does not store a CRC-16
+		// for those methods.
+		if( 0==strcmp(h_Method,"-lz1-") || 0==strcmp(h_Method,"-lz2-") ||
+			0==strcmp(h_Method,"-lz3-") || 0==strcmp(h_Method,"-lz8-") )
+			h_filecrc = 0;
 		if( h_Level==1 )
 			h_OS = buf[24+buf[21]];
 	}

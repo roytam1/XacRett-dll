@@ -59,11 +59,31 @@ bool CLzhTool::Extract( const char* fname,const char* ddir )
 			else if( 0==strcmp(h_Method,"-lzs-") )mhd=LZS;
 			else if( 0==strcmp(h_Method,"-lz4-") )mhd=LZ4;
 			else if( 0==strcmp(h_Method,"-lz5-") )mhd=LZ5;
+		// -lz8- uses the same algorithm as -lz5-
+		else if( 0==strcmp(h_Method,"-lz8-") )mhd=LZ5;
+		// the LArc 7 bit oriented LZSS methods; the
+		// parameters come from the level field, not the name
+		else if( 0==strcmp(h_Method,"-lz1-") )mhd=LZS2;
+		else if( 0==strcmp(h_Method,"-lz2-") )mhd=LZS2;
+		else if( 0==strcmp(h_Method,"-lz3-") )mhd=LZS2;
 			if( 0==strcmp(h_Method,"-lh4-") || 0==strcmp(h_Method,"-lhx-") || 0==strcmp(h_Method,"-lk7-") ||
 				0==strcmp(h_Method,"-pm0-") || 0==strcmp(h_Method,"-pm1-") || 0==strcmp(h_Method,"-pm2-") )
 				LhasaDecode(h_Method, lzh, h_CompSize, out, h_OrigSize);
 			else
+			{
+				// the LArc 7 level field holds the parameters
+				// of the bit oriented LZSS methods
+				if( (mhd==LZS2) &&
+					!dec.SetLzsParams( h_LvlField & 0xff, (h_LvlField>>8) & 0xff ) )
+				{
+					fclose( out );
+					out = NULL;
+					DeleteFile( name );
+					fclose( lzh );
+					return false;
+				}
 				dec.Decode( mhd, lzh, h_CompSize, out, h_OrigSize );
+			}
 
 			// ëÆê´Ç»Ç«ê›íË
 			fclose( out );
@@ -198,6 +218,17 @@ bool CLzhTool::ReadHeader( unsigned char* buf )
 			return false;
 		memcpy( h_FileName,buf+22,buf[21] );
 		h_FileName[buf[21]]=0;
+		// LArc 7 stores a two byte "level field" where the
+		// CRC-16 normally is, and does not store a CRC-16
+		// for those methods.
+		if( h_Level==0 )
+		{
+			if( 0==strcmp(h_Method,"-lz1-") || 0==strcmp(h_Method,"-lz2-") ||
+				0==strcmp(h_Method,"-lz3-") || 0==strcmp(h_Method,"-lz8-") )
+			{
+				h_LvlField = (WORD)((buf[22+buf[21]])|(buf[23+buf[21]]<<8));
+			}
+		}
 	}
 
 // ägí£ÉwÉbÉ_( h1/h2 )

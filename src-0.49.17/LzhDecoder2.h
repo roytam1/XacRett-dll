@@ -17,7 +17,7 @@
 #define ROOT_C      0
 #define ROOT_P      TREESIZE_C
 
-enum lzh_method{ LZS,LZ4,LZ5,LH0,LH1,LH2,LH3,LH4,LH5,LH6,LH7,ARJ,UNKNOWN };
+enum lzh_method{ LZS,LZ4,LZ5,LH0,LH1,LH2,LH3,LH4,LH5,LH6,LH7,ARJ,LZS2,UNKNOWN };
 
 class CLzhDecoder2  
 {
@@ -31,6 +31,9 @@ class CLzhDecoder2
 //
 
 public:
+	// set the LArc 7 level field parameters for the bit
+	// oriented LZSS methods; must be called before Decode()
+	bool SetLzsParams( int pos_bits, int len_bits );
 	void Decode( lzh_method mhd,FILE* infile,DWORD insize,
 								FILE* outfile,DWORD outsize );
 
@@ -43,6 +46,7 @@ private:
 		case LH3:return decode_c_st0();
 		case LZS:return decode_c_lzs();
 		case LZ5:return decode_c_lz5();
+		case LZS2:return decode_c_lzs2();
 		case ARJ:
 		case LH4:
 		case LH5:
@@ -56,6 +60,7 @@ private:
 		case LH3:return decode_p_st0();
 		case LZS:return decode_p_lzs();
 		case LZ5:return decode_p_lz5();
+		case LZS2:return decode_p_lzs2();
 		case ARJ:
 		case LH4:
 		case LH5:
@@ -77,6 +82,11 @@ private:
 	int flag,flagcnt;
 	WORD decode_c_lz5();
 	WORD decode_p_lz5();
+	// parameterised bit oriented LZSS (LArc 7 -lz1-/-lz2-/-lz3-)
+	WORD decode_c_lzs2();
+	WORD decode_p_lzs2();
+	int lzs_pos_bits, lzs_len_bits;
+	int lzs_size, lzs_ce2, lzs_threshold, lzs_rotation;
 
 	// lh1-lh3
 	void ready_made(int method);
