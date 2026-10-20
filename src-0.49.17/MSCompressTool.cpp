@@ -67,6 +67,15 @@ bool CMSCompressTool::Extract( const char* fname, const char* ddir )
 		*(p-1)='\0';
 
 	// ver 5 ƒwƒbƒ_‚È‚ç‚R•¶Žš–Ú‚ð•t‰Á
+	// The KWAJ variant is not the LZ format that lz32.dll
+	// implements: handed one it does not fail, it copies the input
+	// through unchanged, so the "extracted" file would be the
+	// compressed data.  Refuse it until KWAJ is implemented.
+	if( head[0]=='K' )
+	{
+		return false;
+	}
+
 	if( head[0]=='S' )
 	{
 		char ext[2]={ (char)head[9],'\0' };
@@ -130,10 +139,29 @@ bool CMSCompressTool::Extract( const char* fname, const char* ddir )
 	OFSTRUCT of;
 	of.cBytes = sizeof(of);
 	int FROM = LZOpenFile( const_cast<char*>(fname),&of,OF_READ );
+	if( FROM<0 )
+	{
+		// not a file the LZ decompressor understands
+		return false;
+	}
 	int  TO  = LZOpenFile( oname,&of,OF_WRITE|OF_CREATE );
-	LZCopy( FROM , TO );
+	if( TO<0 )
+	{
+		LZClose( FROM );
+		return false;
+	}
+	// LZCopy reports LZERROR_UNKNOWNALG for a format it does not
+	// implement (the KWAJ variant, for one), so the result has to be
+	// checked: otherwise a zero byte file is left behind and the
+	// extraction looks like it succeeded.
+	int ret = LZCopy( FROM , TO );
 	LZClose( FROM );
 	LZClose( TO );
+	if( ret<0 )
+	{
+		DeleteFile( oname );
+		return false;
+	}
 
 	//“ú•t‚ð‘ŒÉ‚É‡‚í‚¹‚é
 	WIN32_FIND_DATA find_f;

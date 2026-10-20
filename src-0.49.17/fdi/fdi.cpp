@@ -8,9 +8,11 @@
 // was not redistributable with the 0.49.11 source drop, and cabinet.lib
 // is not present on this machine either.
 //
-// The FDI implementation itself is exported by %SystemRoot%\system32\
-// cabinet.dll on every supported Windows version, so this shim resolves
-// the entry points at run time and forwards to them. Linking fdi.lib
+// The FDI implementation is exported by %SystemRoot%\system32\
+// cabinet.dll on the later Windows versions and by FDI.DLL on the
+// Windows 95 era ones, and both export the same FDI* entry points, so
+// this shim resolves them at run time and forwards to them. Linking
+// fdi.lib
 // therefore keeps CabTool.cpp completely unchanged -- it still uses
 // FDICreate/FDICopy through "#pragma comment(lib, "fdi/fdi.lib")".
 //////////////////////////////////////////////////////////////////////
@@ -37,7 +39,11 @@ static HMODULE FDI_Load(void)
 	if (!g_tried) {
 		g_tried = TRUE;
 		UINT oldErrMode = SetErrorMode(SEM_NOOPENFILEERRORBOX);
+		// the retro targets have no cabinet.dll, so fall back to
+		// the Windows 95 era name for the same interface
 		g_cabinet = LoadLibraryA("cabinet.dll");
+		if( !g_cabinet )
+			g_cabinet = LoadLibraryA("FDI.DLL");
 		SetErrorMode(oldErrMode);
 	}
 	return g_cabinet;

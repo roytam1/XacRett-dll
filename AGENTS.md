@@ -2358,6 +2358,72 @@ Two traps, both real:
   compressed data two bytes early, gives a decode that is the right
   length and completely wrong content -- no error, no crash.
 
+## MSCompress (SZDD/KWAJ) and the Cabinet FDI shim
+
+Two independent things were sorted out here, both about the formats
+that used to be handed to a system DLL.
+
+**The Cabinet shim now also tries FDI.DLL.**  `fdi/fdi.cpp` is a
+runtime shim: it resolves the `FDI*` entry points at run time so that
+`CabTool.cpp` stays written against the FDI interface and nothing is
+imported statically.  It used to load **`cabinet.dll` only**, but the
+Cabinet interface was first shipped as **`FDI.DLL`** (the Windows 95
+era name) and later renamed `cabinet.dll`; both export the same entry
+points.  The retro targets have no `cabinet.dll`, so the shim found
+nothing there and `.cab` support was dead on them.  It now falls back
+to `FDI.DLL`.
+
+**The KWAJ variant was being silently mis-extracted.**  `lz32.dll`
+only implements the LZ/SZDD variant.  Handed a KWAJ file it does
+*not* fail: `LZCopy` treats the input as uncompressed and copies the
+bytes straight through, so the "extracted" file was the *compressed*
+data and the extraction still reported success.  `MSCompressTool` now
+checks the `LZCopy` result and refuses the KWAJ signature outright,
+so the failure is honest instead of a corrupt file.  KWAJ is still
+unimplemented -- it is the next piece of work.
+
+**SZDD fixtures, cross-validated.**  There were none in the tree, so
+five were generated from the format description (COMPRESS.EXE's SZDD
+and KWAJ formats) and then decoded through **Microsoft's own
+`lz32.dll`**, which makes them an independent oracle rather than a
+self-made fixture:
+
+| fixture | raw | packed | result |
+|---|---|---|---|
+| `SMALL.TX_` | 26 | 44 | match |
+| `TEXT.TX_` | 672 | 195 | match |
+| `DATA.BI_` | 1500 | 1511 | match |
+| `REPEAT.TX_` | 6000 | 728 | match |
+| `ONE.TX_` / `EMPTY.TX_` | 1 / 0 | 16 / 14 | match |
+
+They are untracked files in the workarea root, each with a
+`.expected` file holding the original bytes.  The name derivation works
+too: `SMALL.TX_` extracts to `SMALL.TXT`, because the character
+missing from the compressed name is stored in the header.
+
+**The format facts the clean-room work needs** (from the format
+description, and confirmed by the fixtures):
+
+    SZDD header (14 bytes)
+      0..7    "SZDD" signature 53 5A 44 44 88 F0 27 33
+      8       compression mode, only "A" (0x41) is valid
+      9       the character missing from the end of the file name
+      10..13  the length of the file when unpacked (32 bit LE)
+
+    the data is LZSS: a control byte with eight flags, LSB first;
+    a set flag is a literal byte, a clear flag is a two byte match
+    (absolute window position, 4 bit length).  The window is 4096
+    bytes of spaces and the write position starts at 4096-16 (4096-18
+    for the QBasic variant).  A match is encoded as
+    pos low byte then (pos high nibble << 4) | (length - 3).
+
+    KWAJ header: the same 8 byte "KWAJ" signature, then the
+    compression method (0-4), the offset of the compressed data and
+    the header extension flags.  The methods are: 0 stored, 1 stored
+    and XORed with 0xFF, 2 the QBasic LZSS, 3 the LZ+Huffman scheme
+    and 4 MS-ZIP, which is DEFLATE in 32 KB blocks with a shared
+    history -- and therefore zlib's problem, not ours.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).
