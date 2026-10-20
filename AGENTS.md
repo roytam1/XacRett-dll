@@ -2534,6 +2534,76 @@ neither `cabinet.dll` nor `FDI.DLL` (NT 3.51).  That needs a
 clean-room Cabinet decoder: the container plus MSZIP via zlib, and
 then Quantum and LZX.
 
+## Cabinet: our own decoder (the container, and the none and the MSZIP methods)
+
+`src-0.49.17/CabDecode.cpp` (with the header in `CabDecode.h`) is a
+clean-room decoder for the Microsoft Cabinet format, so that a cabinet
+can be opened on the targets that have neither `cabinet.dll` nor
+`FDI.DLL` (NT 3.51 has neither).  The container, the `none` method and
+the MSZIP method are done; the Quantum and the LZX methods are not yet,
+so a cabinet that uses one of them is still left to the system decoder
+when the target has one at all.
+
+**The container.**  All the multibyte fields are little-endian:
+
+    CFHEADER   the fixed part (36 bytes), then, when the reserve flag
+               is set, the sizes of the three reserve areas and the
+               header reserve area itself, then the names of the
+               previous and of the next cabinet of the set
+    CFFOLDER   coffCabStart(4), cCFData(2), typeCompress(2) and the
+               reserve area of the folder
+    CFFILE     cbFile(4), uoffFolderStart(4), iFolder(2), date(2),
+               time(2), attribs(2) and the NUL terminated name
+    CFDATA     csum(4), cbData(2), cbUncomp(2), the reserve area of
+               the block and the data
+
+The header flags are 1 (the previous cabinet of the set is named), 2
+(the next one is) and 4 (the reserve areas are there).  The names come
+**after** the header reserve area, not inside it -- a cabinet with the
+reserve flag set and no names in the set is the normal case, and the
+reserve area is then just vendor data.
+
+**The checksum of a data block** is not a CRC: the 32 bit words of the
+data are XORed together, the bytes that are left over are packed into
+the last word, and the four bytes of the block header that hold the
+two sizes are XORed in as well.
+
+**MSZIP** is a raw deflate stream per block, with the two byte "CK"
+signature in front of it, and **the window is shared by the blocks of
+a folder** -- that is the whole point of the method, and it is where
+the first attempt failed:
+
+- **zlib's `inflateReset` drops the window.**  In zlib 1.2.13 it
+  clears `wsize`, `whave` and `wnext`, so the second block of a
+  folder cannot reach back into the first one and the decoder stops
+  with "invalid distance too far back".  `inflateResetKeep` is the
+  one that keeps the history, and that is the one to use.
+- Every block is a **complete deflate stream of its own**, so the
+  state is reset between the blocks but the window is kept.  (Python's
+  `zlib.decompressobj` cannot be used to look at this: it cannot be
+  reused after a stream has ended, so it returns nothing at all for
+  the second block, which is a property of the Python class and not
+  of the format.)
+
+**The system decoder is kept as a fallback** for the Quantum and the
+LZX methods, so nothing that worked before stops working.  It is only
+reached when our own decoder refuses the cabinet.
+
+Verified against Microsoft's own decoder and against the files that
+`makecab.exe` produced:
+
+| cabinet | method | result |
+|---|---|---|
+| `CbsPersist_20261014113909.cab` (Windows) | MSZIP | 20746185 B, byte for byte the same as `expand.exe` |
+| `Appraiser_AlternateData.cab` (Windows) | MSZIP | three files, byte for byte the same as Microsoft's `cabinet.dll` |
+| `test_MSZIP.cab` (`makecab`) | MSZIP | three files, byte for byte the originals |
+| `test_LZX.cab` (`makecab`) | LZX | three files, byte for byte the originals (the system decoder still does this one) |
+
+**Still open:** the LZX and the Quantum methods.  LZX is the one that
+matters -- the Windows servicing cabinets use it -- and Quantum is
+rare and has no fixture here, so it would stay with the system
+decoder.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).

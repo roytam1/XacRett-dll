@@ -2,6 +2,7 @@
 #include "stdafx.h"
 #include "CabTool.h"
 #include "fdi/fdi.h"
+#include "CabDecode.h"
 // fdi.cpp is compiled straight into XacRett.dll (see XacRett.dsp), so the
 // prebuilt fdi/fdi.lib is neither shipped nor needed. The original pragma is
 // dropped so the linker does not try to pull the binary in.
@@ -146,25 +147,101 @@ int CCabTool::FindHeader( const char* fname, const BYTE* hdr, DWORD siz )
 
 bool CCabTool::Check( const char* fname, unsigned long fsize )
 {
-	const unsigned char* hdr = CTool::common_buf;
-	unsigned long siz = (fsize>XACR_BUFSIZE ? XACR_BUFSIZE : fsize);
 //--------------------------------------------------------------------//
 
+	// the signature and the header are what decide, and our own
+	// reader does that without any system DLL
+	FILE* fp = fopen( fname, "rb" );
+	CabArchive cab;
+	long base;
+	bool ok = false;
+
+	if( !fp )
+		return false;
+	if( fsize==0 ) {
+		fseek( fp, 0, SEEK_END );
+		fsize = (unsigned long)ftell(fp);
+	}
+	base = CabFindHeader( fp, fsize );
+	if( base>=0 && CabReadHeader( fp, base, &cab ) ) {
+		ok = true;
+		CabFreeHeader( &cab );
+	}
+	fclose( fp );
+
 	seeker = 0;
-	return (-1!=FindHeader(fname,hdr,siz>150*1024?150*1024:siz));
+	return ok;
+}
+
+// The files of a cabinet are unpacked by our own decoder, so that no
+// system DLL is needed.  The name of the file is worked out here, the
+// same way the old code did it with the system decoder.
+static bool cabWriteFile( void *user, const CabFileEntry *entry,
+						  char *path, int pathSize )
+{
+	CCabTool* tool = (CCabTool*)user;
+	char* name;
+	int n = lstrlen( entry->name );
+
+	if( n<1 || n>=pathSize ) return false;
+	lstrcpy( path, entry->name );
+
+	if( tool->m_Endflg ) return false;
+	if( !tool->CheckStr(path) ) return false;
+	if( tool->arcproc )
+	{
+		static EXTRACTINGINFO info;
+		::memset(&info,0,sizeof(EXTRACTINGINFO));
+		lstrcpy(info.szSourceFileName,path);
+		if( tool->arcproc(tool->hWnd,tool->Msg,ARCEXTRACT_WRITEFILE_OPEN,(WPARAM)&info) )
+			return false;
+	}
+	// the directories of the name are made, and a name that is too
+	// long for the file system is shortened
+	name = kiutil::pathMake( path );
+	if( !name ) return false;
+	if( name!=path ) lstrcpy( path, name );
+	return true;
 }
 
 bool CCabTool::Extract( const char* fname,const char* ddir )
 {
-	unsigned char* buf = CTool::common_buf;
+	FILE* fp = fopen( fname,"rb" );
+	CabArchive cab;
+	long base;
+	bool ok = false;
+
 //--------------------------------------------------------------------//
 
-	// ƒwƒbƒ_‚ð’T‚·
-	FILE* fp = fopen( fname,"rb" );
 	if( !fp )
 		return false;
-	DWORD siz = fread( buf, 1, XACR_BUFSIZE, fp );
+	fseek( fp, 0, SEEK_END );
+	base = CabFindHeader( fp, (unsigned long)ftell(fp) );
+	if( base>=0 && CabReadHeader( fp, base, &cab ) )
+	{
+		if( CabCanDecode( &cab ) )
+			ok = CabExtractAll( fp, &cab, this, cabWriteFile );
+		CabFreeHeader( &cab );
+	}
 	fclose( fp );
+	if( ok )
+		return true;
+
+	// the Quantum and the LZX methods are not decoded here, so a
+	// cabinet that uses one of them is left to the system, when the
+	// target has one at all
+	// ƒwƒbƒ_‚ð’T‚·
+	unsigned char* buf = CTool::common_buf;
+	unsigned long siz;
+
+	// the system decoder wants the head of the file in one piece
+	{
+		FILE* fp2 = fopen( fname,"rb" );
+		if( !fp2 ) return false;
+		siz = fread( buf, 1, XACR_BUFSIZE, fp2 );
+		fclose( fp2 );
+	}
+	siz = (siz>150*1024 ? 150*1024 : siz);
 
 	seeker = 0;
 	seeker = FindHeader( fname,buf,siz );

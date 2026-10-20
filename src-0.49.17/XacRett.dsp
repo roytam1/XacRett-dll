@@ -167,6 +167,12 @@ SOURCE=.\Bz2Tool.cpp
 SOURCE=.\CabTool.cpp
 # End Source File
 # Begin Source File
+SOURCE=.\CabDecode.cpp
+# End Source File
+# Begin Source File
+SOURCE=.\CabDecode.h
+# End Source File
+# Begin Source File
 
 SOURCE=.\CompactCTool.cpp
 # End Source File
