@@ -106,15 +106,16 @@ static int MsLzssDecode( FILE *in, FILE *out, unsigned long origsize,
 // KWAJ method 4, MS-ZIP: every block of up to 32768 bytes is a raw
 // DEFLATE stream of its own, but the history window is shared between
 // the blocks, so they have to be unpacked in order.
+// KWAJ method 4: the data is a deflate stream in blocks of 32 KB
+// that share their history.  Every block starts with its length in
+// two bytes and the "CK" signature, and the length is the number of
+// deflate bytes that follow.
 static int MsMszipDecode( FILE *in, FILE *out, unsigned long origsize )
 {
-	unsigned char history[32768];
-	unsigned long histlen = 0;
 	unsigned long written = 0;
 	z_stream s;
 	int err = MSCOMPRESS_OK;
 
-	memset( history, 0, sizeof(history) );
 	memset( &s, 0, sizeof(s) );
 	if( inflateInit2( &s, -MAX_WBITS )!=Z_OK ) return MSCOMPRESS_ERR_DATA;
 
@@ -136,39 +137,31 @@ static int MsMszipDecode( FILE *in, FILE *out, unsigned long origsize )
 		if( !inbuf || !outbuf ) {
 			free(inbuf); free(outbuf); err = MSCOMPRESS_ERR_DATA; break;
 		}
-		if( fread(inbuf,1,clen-2,in)!=clen-2 ) {
+		if( fread(inbuf,1,clen,in)!=clen ) {
 			free(inbuf); free(outbuf); err = MSCOMPRESS_ERR_READ; break;
 		}
 
-		/* restart the inflater; the window it keeps is the history
-		   of the blocks that came before this one */
-		inflateReset( &s );
+		/* the window of the block before is kept, which is what
+		   makes the blocks of a folder better than plain deflate.
+		   inflateReset would drop it, so the "keep" version is the
+		   one that is wanted here. */
+		inflateResetKeep( &s );
 		s.next_in = inbuf;
-		s.avail_in = clen-2;
+		s.avail_in = clen;
 		s.next_out = outbuf;
 		s.avail_out = 32768+64;
-		err = inflate( &s, Z_FINISH );
-		outlen = (32768+64) - s.avail_out;
-		free(inbuf);
-		if( err!=Z_STREAM_END ) { free(outbuf); err = MSCOMPRESS_ERR_DATA; break; }
+		/* the result of the inflater is not the error code: it is
+		   Z_STREAM_END when the block was read to the end */
+		{
+			int zret = inflate( &s, Z_FINISH );
+			outlen = (32768+64) - s.avail_out;
+			free(inbuf);
+			if( zret!=Z_STREAM_END ) { free(outbuf); err = MSCOMPRESS_ERR_DATA; break; }
+		}
 		if( fwrite(outbuf,1,outlen,out)!=outlen ) { free(outbuf); err = MSCOMPRESS_ERR_WRITE; break; }
 
 		written += outlen;
 		if( origsize && written>origsize ) { free(outbuf); err = MSCOMPRESS_ERR_DATA; break; }
-
-		/* keep the history for the next block */
-		if( outlen>=32768 ) {
-			memcpy( history, outbuf+outlen-32768, 32768 );
-			histlen = 32768;
-		} else {
-			unsigned long keep = 32768 - outlen;
-			if( histlen>keep ) {
-				memmove( history, history+(histlen-keep), keep );
-				histlen = keep;
-			}
-			memcpy( history+histlen, outbuf, outlen );
-			histlen += outlen;
-		}
 		free(outbuf);
 	}
 
