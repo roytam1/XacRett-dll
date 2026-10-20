@@ -54,6 +54,8 @@ OBJS = \
     $(OBJDIR)\Bz2Tool.obj \
     $(OBJDIR)\CabTool.obj \
     $(OBJDIR)\CabDecode.obj \
+    $(OBJDIR)\CabLzx.obj \
+    $(OBJDIR)\CabQuantum.obj \
     $(OBJDIR)\CompactCTool.obj \
     $(OBJDIR)\complib.obj \
     $(OBJDIR)\CompressZTool.obj \
@@ -325,6 +327,12 @@ $(OBJDIR)\CabTool.obj : CabTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\CabDecode.obj : CabDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\CabLzx.obj : CabLzx.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\CabQuantum.obj : CabQuantum.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\CompactCTool.obj : CompactCTool.cpp

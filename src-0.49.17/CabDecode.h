@@ -26,8 +26,8 @@
 // All the multibyte fields are little-endian.
 //
 // The compression methods are 0 (none), 1 (MSZIP), 2 (Quantum) and
-// 3 (LZX).  The none and the MSZIP methods are done here; the other two
-// are refused loudly rather than silently mangled.
+// 3 (LZX).  The none, the MSZIP and the LZX methods are done here;
+// the Quantum method is refused loudly rather than silently mangled.
 
 #define CAB_MAX_NAME	300
 
@@ -92,9 +92,9 @@ void CabFreeHeader( CabArchive *cab );
 // The name of the compression method, for the listing.
 const char *CabCompName( unsigned int typeCompress );
 
-// Can this cabinet be unpacked by the code in here?  The Quantum and
-// the LZX methods are not done yet, so a cabinet that uses one of them
-// has to be left to the system.
+// Can this cabinet be unpacked by the code in here?  The Quantum
+// method is not done yet, so a cabinet that uses it has to be left to
+// the system.
 bool CabCanDecode( const CabArchive *cab );
 
 // The callback is called for every file of the cabinet.  It has to put

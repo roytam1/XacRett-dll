@@ -2585,9 +2585,9 @@ the first attempt failed:
   the second block, which is a property of the Python class and not
   of the format.)
 
-**The system decoder is kept as a fallback** for the Quantum and the
-LZX methods, so nothing that worked before stops working.  It is only
-reached when our own decoder refuses the cabinet.
+**The system decoder is kept as a fallback**, so nothing that worked
+before stops working.  It is only reached when our own decoder refuses
+the cabinet.
 
 Verified against Microsoft's own decoder and against the files that
 `makecab.exe` produced:
@@ -2599,10 +2599,86 @@ Verified against Microsoft's own decoder and against the files that
 | `test_MSZIP.cab` (`makecab`) | MSZIP | three files, byte for byte the originals |
 | `test_LZX.cab` (`makecab`) | LZX | three files, byte for byte the originals (the system decoder still does this one) |
 
-**Still open:** the LZX and the Quantum methods.  LZX is the one that
-matters -- the Windows servicing cabinets use it -- and Quantum is
-rare and has no fixture here, so it would stay with the system
-decoder.
+**Still open:** nothing.  All four methods (none, MSZIP, LZX and
+Quantum) are decoded by our own code now; see the two sections below.
+
+## Cabinet: the LZX method (our own decoder)
+
+`src-0.49.17/CabLzx.cpp` (with the header in `CabLzx.h`) is a
+clean-room decoder for the LZX method of the Cabinet format.  The
+stream is a bit stream divided into frames of 32 KB, and each frame is
+divided into blocks, and every block starts with its type (1 is the
+plain one, 2 is the one with its own little tree for the offsets and 3
+is the one that is stored as it is) and its length.
+
+The trees are read with a "pre tree", whose twenty code lengths are
+stored in four bits each, and which then says how the code lengths of
+the real tree are coded: a symbol of 17 is a run of zeros, 18 a longer
+run of zeros and 19 a run of the length of the symbol before.
+
+Match offsets are not coded as they are: a "position slot" and a few
+extra bits give the offset, and the three offsets that were used last
+are kept for the three first slots.  The base of every slot is worked
+out from the rule in the reference, so the table of 290 numbers does
+not have to be a list.
+
+The "intel" translation of the x86 call instructions is undone a frame
+at a time, and the last ten bytes of a frame are left alone.
+
+**Two traps, and both of them cost real debugging time:**
+
+- **The bits of the stream come from the top of sixteen bit words, and
+  the two bytes of a word are in the file in the other order.**  The
+  first byte of the file is the LOW byte of the word, so the word has
+  to be put together as `(second << 8) | first`.  Reading the bytes
+  as they are shifts the whole stream by eight bits, and then every
+  block header reads as a type that does not exist (5) with a length
+  of twelve million.  The Quantum method reads its words the other way
+  round, so the two methods cannot share the reader.
+- **The window position has to be moved on by the length of the
+  match, and the copy loop has to use a copy of that length.**  Using
+  the length after the copy loop has counted it down to zero makes
+  every match produce nothing, and the frame then comes out far too
+  short.
+
+Verified against Microsoft's own decoder and against the files that
+`makecab.exe` produced:
+
+| cabinet | result |
+|---|---|
+| `LICENCE-lzx.cab` | 18340 bytes, the same as the `LICENCE` member of `GPLv2-rar4.rar` |
+| `DesktopTargetCompDB_Neutral.xml.cab` (Windows) | 422698 bytes, the same as Microsoft's `cabinet.dll` |
+| `FoDMetadata_Client.cab` (Windows) | 338 files, 2677274 bytes, the same as Microsoft's `cabinet.dll` |
+| `test_LZX.cab` (`makecab`) | three files, the same as the originals |
+
+## Cabinet: the Quantum method (our own decoder)
+
+`src-0.49.17/CabQuantum.cpp` (with the header in `CabQuantum.h`) is a
+clean-room decoder for the Quantum method, the last of the four.
+
+Quantum is an arithmetic coder: a symbol is read from one of eight
+models, and the models are kept up to date as the symbols come.  A
+literal is coded with one of four models of 64 symbols each, and a
+match with one of three models, the last of which codes the length as
+well.  The models are halved and put in order again when their
+frequencies have grown too big, which is the part that has to be done
+exactly the same way as the writer did it, or the stream goes out of
+step.
+
+The bits come from the top of sixteen bit words here too, but the two
+bytes of a word are in the file in the same order, so a word is read
+as they are.
+
+The data of a folder is a series of frames of 32 KB.  At the end of a
+frame the bits are put back in line with the bytes, and the padding
+that follows is skipped by looking for the byte 0xFF, which the writer
+puts at the end of every block.  That is why the Quantum path of the
+folder reader has to hand the decoder that byte.
+
+| cabinet | result |
+|---|---|
+| `LICENCE-quantum.cab` | 18340 bytes, the same as the `LICENCE` member of `GPLv2-rar4.rar` |
+| `LICENCE-mzsip.cab` | 18340 bytes, the same |
 
 ## Pre-commit checklist
 

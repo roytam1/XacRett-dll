@@ -173,6 +173,18 @@ SOURCE=.\CabDecode.cpp
 SOURCE=.\CabDecode.h
 # End Source File
 # Begin Source File
+SOURCE=.\CabLzx.cpp
+# End Source File
+# Begin Source File
+SOURCE=.\CabLzx.h
+# End Source File
+# Begin Source File
+SOURCE=.\CabQuantum.cpp
+# End Source File
+# Begin Source File
+SOURCE=.\CabQuantum.h
+# End Source File
+# Begin Source File
 
 SOURCE=.\CompactCTool.cpp
 # End Source File
