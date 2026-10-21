@@ -86,6 +86,13 @@ bool CMSCompressTool::Extract( const char* fname, const char* ddir )
 	// so that no system DLL is needed: lz32.dll only implements the
 	// LZ/SZDD variant, is not present on the older Windows targets
 	// and copies unknown input through unchanged.
+	// The name is built here, so the 8.3 fallback has to be applied
+	// to it as well: on a file system without long names a name like
+	// "LONGNAME.DATA.ungzip" cannot be created.  This has to happen
+	// after the extension table above, because that is what makes the
+	// name too long in the first place.
+	kiutil::pathMake83( oname );
+
 	{
 		FILE* op = fopen( oname, "wb" );
 		int ret = MSCOMPRESS_ERR_WRITE;

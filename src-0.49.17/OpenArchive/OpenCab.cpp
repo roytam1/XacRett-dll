@@ -1,153 +1,61 @@
 #include "stdafx.h"
 #include "OpenCab.h"
 
+// The listing uses the same parser as the extraction, so the two can
+// never disagree about what is in the archive.  The old code had a
+// parser of its own, and it only accepted an archive whose cbCabinet
+// field was exactly the size of the file, so most real cabinets
+// listed as empty.
 bool COpenCab::FindFirst(INDIVIDUALINFO *lpSubInfo)
 {
+	long base;
+	long len;
+
+	fseek(COpenCab::fp,0,SEEK_END);
+	len = ftell(COpenCab::fp);
 	fseek(COpenCab::fp,0,SEEK_SET);
-	CAB_ENTRY hdr;
-
-	if (!doHeader(COpenArchive::common_buf ))
+	base = CabFindHeader( COpenCab::fp, (unsigned long)len );
+	if( base<0 )
+		return false;
+	if( !CabReadHeader( COpenCab::fp, base, &m_cab ) )
 		return false;
 
-	if (!read_header(hdr,COpenArchive::common_buf))
-		return false;
-
-	lstrcpy(lpSubInfo->szFileName,hdr.fnm);
-	lpSubInfo->dwCRC = 0;
-	lpSubInfo->dwCompressedSize = 0;
-	lpSubInfo->dwOriginalSize = hdr.cbFile;
-
-	lstrcpy(lpSubInfo->szAttribute ,"----");
-	if (hdr.attribs & FILE_ATTRIBUTE_READONLY)
-		lpSubInfo->szAttribute[2] = 'R';
-	if (hdr.attribs & FILE_ATTRIBUTE_HIDDEN)
-		lpSubInfo->szAttribute[1] = 'H';
-	if (hdr.attribs & FILE_ATTRIBUTE_SYSTEM)
-		lpSubInfo->szAttribute[0] = 'S';
-	if (hdr.attribs & FILE_ATTRIBUTE_DIRECTORY)
-		lpSubInfo->szAttribute[3] = 'D';
-	if (hdr.attribs & FILE_ATTRIBUTE_ARCHIVE)
-		lpSubInfo->szAttribute[3] = 'A';
-
-	{ WORD tc=0xFFFF;
-	  if(hdr.iFolder<COpenCab::folderComp.size())
-		tc=COpenCab::folderComp[hdr.iFolder]&0x000F;
-	  switch(tc){
-	  case 0: lstrcpy(lpSubInfo->szMode,"stored"); break;
-	  case 1: lstrcpy(lpSubInfo->szMode,"MSZIP"); break;
-	  case 2: lstrcpy(lpSubInfo->szMode,"Quantm"); break;
-	  case 3: lstrcpy(lpSubInfo->szMode,"LZX"); break;
-	  default: lstrcpy(lpSubInfo->szMode,"?"); break;
-	  } }
-
-	lpSubInfo->wDate = hdr.date;
-	lpSubInfo->wRatio = 0;
-	lpSubInfo->wTime = hdr.time;
-	
-	return true;
+	m_index = 0;
+	return FindNext( lpSubInfo );
 }
 
 bool COpenCab::FindNext(INDIVIDUALINFO *lpSubInfo)
 {
-	CAB_ENTRY hdr;
+	const CabFileEntry* f;
 
-	if (!read_header(hdr,COpenArchive::common_buf))
+	if( m_index >= m_cab.nFiles )
+	{
+		CabFreeHeader( &m_cab );
 		return false;
+	}
+	f = &m_cab.files[m_index++];
 
-	lstrcpy(lpSubInfo->szFileName,hdr.fnm);
-	lpSubInfo->dwCRC = 0;
+	lstrcpy( lpSubInfo->szFileName, f->name );
+	lpSubInfo->dwOriginalSize = f->size;
 	lpSubInfo->dwCompressedSize = 0;
-	lpSubInfo->dwOriginalSize = hdr.cbFile;
-
-	lstrcpy(lpSubInfo->szAttribute ,"----");
-	if (hdr.attribs & FILE_ATTRIBUTE_READONLY)
-		lpSubInfo->szAttribute[2] = 'R';
-	if (hdr.attribs & FILE_ATTRIBUTE_HIDDEN)
-		lpSubInfo->szAttribute[1] = 'H';
-	if (hdr.attribs & FILE_ATTRIBUTE_SYSTEM)
-		lpSubInfo->szAttribute[0] = 'S';
-	if (hdr.attribs & FILE_ATTRIBUTE_DIRECTORY)
-		lpSubInfo->szAttribute[3] = 'D';
-	if (hdr.attribs & FILE_ATTRIBUTE_ARCHIVE)
-		lpSubInfo->szAttribute[3] = 'A';
-
-	{ WORD tc=0xFFFF;
-	  if(hdr.iFolder<COpenCab::folderComp.size())
-		tc=COpenCab::folderComp[hdr.iFolder]&0x000F;
-	  switch(tc){
-	  case 0: lstrcpy(lpSubInfo->szMode,"stored"); break;
-	  case 1: lstrcpy(lpSubInfo->szMode,"MSZIP"); break;
-	  case 2: lstrcpy(lpSubInfo->szMode,"Quantm"); break;
-	  case 3: lstrcpy(lpSubInfo->szMode,"LZX"); break;
-	  default: lstrcpy(lpSubInfo->szMode,"?"); break;
-	  } }
-
-	lpSubInfo->wDate = hdr.date;
+	lpSubInfo->dwCRC = 0;
+	lpSubInfo->wDate = f->date;
+	lpSubInfo->wTime = f->time;
 	lpSubInfo->wRatio = 0;
-	lpSubInfo->wTime = hdr.time;
-	
-	return true;
-}
 
-bool COpenCab::read_header( CAB_ENTRY &hdr,unsigned char* buf )
-{
-	static int readedfilenum = 0;
-	
-	long n = ftell(COpenCab::fp);//元々いたところ
-	fread(&hdr,sizeof(CAB_ENTRY),1,COpenCab::fp);
-	for (int i = 0;hdr.fnm[i]!='\0';i++);//ファイル名の長さを得る
+	lstrcpy( lpSubInfo->szAttribute, "----" );
+	if( f->attribs & CAB_ATTRIB_READONLY ) lpSubInfo->szAttribute[2] = 'R';
+	if( f->attribs & CAB_ATTRIB_HIDDEN )   lpSubInfo->szAttribute[1] = 'H';
+	if( f->attribs & CAB_ATTRIB_SYSTEM )   lpSubInfo->szAttribute[0] = 'S';
+	if( f->attribs & CAB_ATTRIB_DIRECTORY ) lpSubInfo->szAttribute[3] = 'D';
+	else if( f->attribs & CAB_ATTRIB_ARCHIVE ) lpSubInfo->szAttribute[3] = 'A';
 
-	if (readedfilenum++ == COpenCab::iFiles)
+	// the compression method of the folder the member is in
 	{
-		readedfilenum = 0;
-		return false;
+		WORD tc = 0xFFFF;
+		if( (int)f->folder < m_cab.nFolders )
+			tc = m_cab.folders[f->folder].typeCompress;
+		lstrcpy( lpSubInfo->szMode, CabCompName( tc ) );
 	}
-	fseek(COpenCab::fp,n+i+17,SEEK_SET);
 	return true;
-	
-}
-bool COpenCab::doHeader(unsigned char* buf )
-{ 
-	CAB_HEADER hdr;
-	int c, stage=0;
-	while( EOF != (c=fgetc(COpenCab::fp)) )
-	{
-			 if( c=='M'             ) stage++;
-		else if( c=='S' && stage==1 ) stage++;
-		else if( c=='C' && stage==2 ) stage++;
-		else if( c=='F' && stage==3 )
-		{
-			stage++;
-			int x=ftell(COpenCab::fp);
-			fseek(COpenCab::fp,x-4,SEEK_SET);
-			fread(&hdr,sizeof(CAB_HEADER),1,COpenCab::fp);
-			int t =filelength(fileno(COpenCab::fp))-x+4;
-			if (hdr.cbCabinet == (DWORD) t )
-			{
-				COpenCab::iFiles = hdr.cFiles;
-				// remember per-folder compression types for szMode
-				COpenCab::folderComp.clear();
-				long folderPos = x-4+36;
-				if(hdr.flags & 0x0004)
-				{
-					BYTE res[4];
-					fseek(COpenCab::fp,x-4+36,SEEK_SET);
-					if(4==fread(res,1,4,COpenCab::fp))
-						folderPos += 4+res[0]+(res[1]<<8);
-				}
-				fseek(COpenCab::fp,folderPos,SEEK_SET);
-				for(int f=0;f<hdr.cFolders;f++)
-				{
-					BYTE fb[8];
-					if(8!=fread(fb,1,8,COpenCab::fp)) break;
-					COpenCab::folderComp.push_back((WORD)(fb[6]|(fb[7]<<8)));
-				}
-				fseek(COpenCab::fp,hdr.coffFiles+x-4,SEEK_SET);
-				return true;
-			}
-		}
-		else stage=0;
-	}
-
-	return false;
 }

@@ -826,8 +826,9 @@ call, so keep applying them:
     has nowhere to go. Same for `-j`, which still runs last.
   - Call sites: `pathMake` covers ~45 providers. The 12 single-file tools
     that build the name themselves (AtoB, Bel, Blz, Bz2, CompactC,
-    CompressZ, Frz, Gz, Jam, Mime, Packz, UnixDecoder) get an explicit
-    `kiutil::pathMake83()` before their `fopen`; the derived-name branch
+    CompressZ, Frz, Gz, Jam, Mime, Packz, UnixDecoder, and the
+    COMPRESS.EXE provider) get an explicit `kiutil::pathMake83()` before
+    their `fopen`; the derived-name branch
     matters there because `.gz`->`""` etc. still leaves things like
     `LONGNAME.DATA.ungzip`, which is not 8.3 either.
   - **RAR**: `CRar3Tool` (unrar 7.2.7) IS the registered provider -
@@ -2621,6 +2622,19 @@ Verified against Microsoft's own decoder and against the files that
 
 **Still open:** nothing.  All four methods (none, MSZIP, LZX and
 Quantum) are decoded by our own code now; see the two sections below.
+
+**The listing had a parser of its own**, and it only accepted an
+archive whose `cbCabinet` field was exactly the size of the file, so
+every cabinet that is not exactly one cabinet long listed as empty:
+the `Appraiser`, the `DesktopTargetCompDB` and the `FoDMetadata`
+cabinets of this machine all listed 0 members while the extraction
+worked.  The listing now uses the same parser as the extraction
+(`CabReadHeader`), so the two can never disagree.
+
+The window sizes are covered by the fixtures: `fixtures/cab/` has one
+cabinet per LZX window size (15 to 21) and one per Quantum window size
+(15 to 21), and all of them give the same 18340 bytes as the `LICENCE`
+member of `GPLv2-rar4.rar`.
 
 ## Cabinet: the LZX method (our own decoder)
 

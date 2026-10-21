@@ -3,7 +3,7 @@
 
 
 #include "OpenArchive.h"
-#include <vector>
+#include "../CabDecode.h"
 
 #define CAB_ATTRIB_READONLY  0x0001
 #define CAB_ATTRIB_HIDDEN    0x0002
@@ -21,44 +21,13 @@ public: //-- COpenArchive 共通インターフェイス -----------
 	bool FindFirst(INDIVIDUALINFO *lpSubInfo);
 	bool FindNext(INDIVIDUALINFO *lpSubInfo);
 private:
-	struct CAB_HEADER
-	{
-		DWORD sig;              // file signature 'MSCF' (CAB_SIGNATURE)
-		DWORD csumHeader;       // header checksum (0 if not used)
-		DWORD cbCabinet;        // cabinet file size
-		DWORD csumFolders;      // folders checksum (0 if not used)
-		DWORD coffFiles;        // offset of first CAB_ENTRY
-		DWORD csumFiles;        // files checksum (0 if not used)
-		WORD  version;          // cabinet version (CAB_VERSION)
-		WORD  cFolders;         // number of folders
-		WORD  cFiles;           // number of files
-		WORD  flags;            // cabinet flags (CAB_FLAG_*)
-		WORD  setID;            // cabinet set id
-		WORD  iCabinet;         // zero-based cabinet number
-	};
-	struct CAB_FOLDER
-	{
-		DWORD coffCabStart;     // offset of folder data
-		WORD  cCFData;          // ???
-		WORD  typeCompress;     // compression type (tcomp* in FDI.h)
-	};
-	struct CAB_ENTRY
-	{
-		DWORD cbFile;           // uncompressed file size
-		DWORD uoffFolderStart;  // file offset after decompression
-		WORD  iFolder;          // file control id (CAB_FILE_*)
-		WORD  date;             // file date stamp, as used by DOS
-		WORD  time;             // file time stamp, as used by DOS
-		WORD  attribs;          // file attributes (CAB_ATTRIB_*)
-
-		char fnm[MAX_PATH];
-	};
-
-	bool doHeader(unsigned char* buf );
-	bool read_header( CAB_ENTRY &hdr,unsigned char* buf );
-
-	int iFiles;
-	std::vector<WORD> folderComp;// per-folder compression types (tcompTYPE_*)
+	// The listing uses the same parser as the extraction, so the two
+	// can never disagree about what is in the archive.  The old code
+	// had a parser of its own, and it only accepted an archive whose
+	// cbCabinet field was exactly the size of the file, so most real
+	// cabinets listed as empty.
+	CabArchive	m_cab;			// the header as the engine read it
+	int			m_index;		// the member being listed
 };
 
 #endif
