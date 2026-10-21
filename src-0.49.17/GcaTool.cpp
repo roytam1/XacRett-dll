@@ -107,20 +107,7 @@ bool CGcaTool::Extract( const char* fname,const char* ddir )
 	gca.SetMessageProc( dummy_msg_proc );
 	gca.SetUser( (DWORD)this );
 
-	// an encrypted archive cannot be read before the password is
-	// known, and the SDK does not ask for it: it reports that the
-	// archive needs a key and stops.  So the password is taken here,
-	// which opens the dialog when there is no -p on the command
-	// line, just like the other providers that need one.
 	m_cryptoError = false;
-	{
-		string spell = GcaSpellFromArg( pwd() );
-		if( !spell.empty() )
-		{
-			gca.SetSpell( spell );
-			gca.SetCrypto( TRUE );
-		}
-	}
 
 	/*if(strcmp(wildcard[1],"")==0)
 	{
@@ -132,8 +119,40 @@ bool CGcaTool::Extract( const char* fname,const char* ddir )
 	}
 	else*/
 	{
+		// the first read is without a password: a plain archive has to
+		// work without ever opening the password dialog
 		int filenum =gca.GetNumFiles();
 		string filename;
+
+		if( !filenum )
+		{
+			// an encrypted archive cannot be read before the password
+			// is known, and the SDK does not ask for it: it reports
+			// that the archive needs a key and stops.  So the password
+			// is taken here, but only now, when the archive has shown
+			// that it needs one.  The one from the command line is used
+			// first (it never opens the dialog), and only when that is
+			// missing or wrong is the user asked -- the same order the
+			// YZ1 provider uses.
+			string spell = GcaSpellFromArg( CTool::m_pPassArg );
+			if( !spell.empty() )
+			{
+				gca.SetSpell( spell );
+				gca.SetCrypto( TRUE );
+				filenum = gca.GetNumFiles();
+			}
+			if( !filenum )
+			{
+				spell = GcaSpellFromArg( pwd() );
+				if( !spell.empty() )
+				{
+					gca.SetSpell( spell );
+					gca.SetCrypto( TRUE );
+					filenum = gca.GetNumFiles();
+				}
+			}
+		}
+
 		if( !filenum && m_cryptoError )
 		{
 			// the archive is encrypted and the password did not open it

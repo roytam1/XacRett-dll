@@ -2720,11 +2720,19 @@ password, which is exactly what `gcac.exe`'s `-k` switch does;
 
 The SDK does **not** ask for the password: it reports that the archive
 needs a key and stops, so the provider has to hand the password over
-*before* the archive is read.  The check that decides whether a file is
-a GCA archive at all therefore uses only the password that came in on
-the command line (never the dialog, because the check runs while the
-archive is being routed) and falls back to the signature, since an
-encrypted archive has no readable file list at all.
+*before* the archive is read.  The order is the same as the YZ1
+provider uses, and it matters: the archive is first read **without** a
+password, so that a plain archive never opens the password dialog; only
+when it turns out to be encrypted is the password that came in on the
+command line tried (it never opens the dialog either), and only when
+that is missing or wrong is the user asked.
+
+The check that decides whether a file is a GCA archive at all uses only
+the password that came in on the command line (never the dialog,
+because the check runs while the archive is being routed) and falls
+back to the signature, since an encrypted archive has no readable file
+list at all.  The listing behaves like the YZ1 one: it never asks for
+a password, so an encrypted archive lists as 0 members.
 
 A wrong password fails loudly: the provider remembers that the archive
 was encrypted and the extraction returns false instead of quietly
