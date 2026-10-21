@@ -23,6 +23,13 @@ public:
 	static void SetPasswordArg(const char* pw);
 	static char* m_pPassArg;
 
+	// The password that was handed in on the command line (-p), or
+	// NULL when there is none.  It never opens the dialog, so it is
+	// safe to call while an archive is being listed: the listing
+	// paths use it to show the members of an encrypted archive
+	// without ever blocking on a prompt.
+	static char* GetPasswordArg() { return (m_pPassArg && *m_pPassArg) ? m_pPassArg : 0; }
+
 ////////////////////////////////////////////////
 // ”h¶ƒNƒ‰ƒXì¬‚É‚Â‚¢‚ÄMEMO
 //

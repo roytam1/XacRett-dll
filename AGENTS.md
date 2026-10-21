@@ -2731,8 +2731,10 @@ The check that decides whether a file is a GCA archive at all uses only
 the password that came in on the command line (never the dialog,
 because the check runs while the archive is being routed) and falls
 back to the signature, since an encrypted archive has no readable file
-list at all.  The listing behaves like the YZ1 one: it never asks for
-a password, so an encrypted archive lists as 0 members.
+list at all.  The listing behaves like the YZ1 one: it uses the
+password that came in on the command line and never asks, so an
+encrypted archive lists as 0 members unless the password was given
+with -p.
 
 A wrong password fails loudly: the provider remembers that the archive
 was encrypted and the extraction returns false instead of quietly
@@ -2751,6 +2753,21 @@ Verified: the plain, the password and the key file archives of the
 `ctest` corpus give the same 2537600 bytes in the VC6 and the VC4
 build, and the whole corpus of 145 archives shows 0 regressions against
 the old SDK.
+
+## The command line password, and the listings
+
+`-p<password>` on the command line sets one static,
+`CTool::m_pPassArg`, and `CTool::GetPassword()` returns it without
+opening the modal dialog, so a batch or headless run works for every
+provider that asks for a password.
+
+`CTool::GetPasswordArg()` is the same thing without the dialog: it
+returns the command line password or NULL, and it never prompts.  The
+listing paths use it, because a listing must never block on a dialog:
+the YZ1 listing hands it to the engine's `MessINPUT` hook and the GCA
+listing hands it to the SDK as the archive password.  So an encrypted
+archive lists as 0 members when no password was given, and lists its
+members when one was -- with no prompt either way.
 
 ## Pre-commit checklist
 

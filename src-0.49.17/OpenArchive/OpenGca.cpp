@@ -1,11 +1,19 @@
 #include "stdafx.h"
 #include "OpenGca.h"
+#include "../Tool.h"
+#include "../GcaTool.h"
 
 //sing namespace std;
 //using namespace nsGcaSDK;
 
 bool COpenGca::FindFirst(INDIVIDUALINFO *lpSubInfo)
 {
+	// A password that came in on the command line is used here, so
+	// that the members of an encrypted archive are listed.  The
+	// listing never opens the password dialog, exactly like the YZ1
+	// one: without a password an encrypted archive lists as empty.
+	gca.SetSpell( GcaSpellFromArg( CTool::GetPasswordArg() ) );
+	gca.SetCrypto( TRUE );
 	gca.SetArcFilePath(COpenGca::szArcFileName);
 	COpenGca::FileNum = gca.GetNumFiles();
 

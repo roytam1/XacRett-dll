@@ -3,6 +3,7 @@
 
 
 #include "OpenArchive.h"
+#include "../Tool.h"
 #include "../yz32lib/yz32lib.h"
 #include "../yz32lib/yzFileDe.cxx"
 
@@ -23,7 +24,13 @@ private:
 		void MessEX   ( const char*, const int& ) {}
 		void MessINF  ( const char*, const int& ) {}
 		int MessYN   ( const char*, const int& ) {return 0;}
-		char* MessINPUT( const char*, const int& ) {return "";}
+		// The listing never opens the password dialog, but a password
+		// that came in on the command line is used, so that the members
+		// of an encrypted archive are listed instead of nothing.
+		char* MessINPUT( const char*, const int& ) {
+			char* p = CTool::GetPasswordArg();
+			return p ? p : (char*)"";
+		}
 		int gauge_EncodeInit( const char*, FileName&, FileTbl&, FileTbl& ) {return 0;}
 		int gauge_DecodeInit( const char*, const yzDecodeHeader& ) {return 0;}
 		int gauge_String( const char* ) {return 0;}
