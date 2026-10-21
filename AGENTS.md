@@ -717,8 +717,10 @@ call, so keep applying them:
     It uses the `MessINPUT` hook the engine already declared but never
     called, so no new plumbing: extraction reaches `CTool::GetPassword()`
     (so `-p<pw>` works and headless runs do not hang), while
-    `COpenYz1::CYzEv::MessINPUT` returns "" so **listing never prompts** and
-    a password archive simply lists as 0 members.
+    `COpenYz1::CYzEv::MessINPUT` returns the password that came in on
+    the command line (and "" when there is none) so **listing never
+    prompts**, and a password archive lists as 0 members unless the
+    password was given with -p.
   - **The password is asked exactly ONCE per extraction.**
     `yzFileDecode::DecodeFile` parses the header and then extracts, and each
     step runs its own `LoadArchive` -> `YzApplyPassword`, so an unguarded
