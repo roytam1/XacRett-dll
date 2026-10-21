@@ -557,24 +557,30 @@ int gcaParse(const unsigned char* base, unsigned long len,
         }
         delete [] hw.hist; delete [] hw.bufA;
         delete [] hw.bufB; delete [] hw.btwTmp;
-        /* entries from dec1 */
+        /* entries from dec1.
+         *
+         * The decoded table holds `cnt` full 32 byte records:
+         *   +0x00 attributes   +0x04 CRC-32 of the content
+         *   +0x08 (zero)       +0x0C the stored size
+         *   +0x10 the original size   +0x14 32 (the entry size)
+         *   +0x18 FILETIME (low, high)
+         * Verified against a GCA1 archive written by the GCA SDK 0.9d.
+         */
         {
             const unsigned char* d =
                 (const unsigned char*)dec1.data();
-            unsigned long eoff = 20;
-            for (k2 = 0; k2 < (int)cnt - 1; k2++) {
+            unsigned long eoff = 0;
+            for (k2 = 0; k2 < (int)cnt; k2++) {
                 GcaRawEnt e;
-                e.ftlo = rd32(d + eoff + 4);
-                e.fthi = rd32(d + eoff + 8);
-                e.attr = rd32(d + eoff + 12);
-                e.crc = rd32(d + eoff + 16);
-                e.comp = rd32(d + eoff + 24);
-                e.exp = rd32(d + eoff + 28);
+                e.attr = rd32(d + eoff + 0x00);
+                e.crc  = rd32(d + eoff + 0x04);
+                e.comp = rd32(d + eoff + 0x0C);
+                e.exp  = rd32(d + eoff + 0x10);
+                e.ftlo = rd32(d + eoff + 0x18);
+                e.fthi = rd32(d + eoff + 0x1C);
                 ents.push_back(e);
                 eoff += 32;
             }
-            f0lo = rd32(d + eoff + 4);
-            f0hi = rd32(d + eoff + 8);
             /* names from dec2 pool */
             p = 0;
             for (k = 0; k < (int)cnt; k++) {
@@ -587,26 +593,17 @@ int gcaParse(const unsigned char* base, unsigned long len,
                 names.push_back(std::string(dec2.data() + p, ln));
                 p += ln;
             }
-            /* file#1 (decompressed slots; solid comp via EOF) */
-            {
-                GcaFileEntry fe;
-                unsigned long comp0 = rd32(d + 12);
-                if (arc.arcType == 1)
-                    comp0 = len - (startOff + hdr);
-                fe.name = names[0];
-                fe.expSize = rd32(d + 16);
-                fe.compSize = comp0;
-                fe.ftimeLo = f0lo; fe.ftimeHi = f0hi; fe.hasTime = 1;
-                fe.crc = rd32(d + 4);
-                fe.attr = 0;
-                fe.dataOff = 0;
-                arc.files.push_back(fe);
-            }
+            /* the members */
             for (k = 0; k < (int)ents.size(); k++) {
                 GcaFileEntry fe;
-                fe.name = names[k + 1];
+                fe.name = names[k];
                 fe.expSize = ents[k].exp;
                 fe.compSize = ents[k].comp;
+                /* a solid archive holds one shared stream: it is
+                   accounted to the first member only, the others report
+                   a stored size of 0 */
+                if (arc.arcType == 1 && k == 0)
+                    fe.compSize = len - (startOff + hdr);
                 fe.ftimeLo = ents[k].ftlo; fe.ftimeHi = ents[k].fthi;
                 fe.hasTime = 1;
                 fe.crc = ents[k].crc;
