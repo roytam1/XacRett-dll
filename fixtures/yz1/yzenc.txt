@@ -1,0 +1,12 @@
+
+ yzenc : YamazakiZipper Encode Program for Windows95/NT Console
+       : Version 1.05 (Jun 30 1998)
+       : Copyright(c) Binary Technology 1997,1998. All Rights Reserved.
+
+ usage : A> yzenc [-d|-dOutDirName] [-p|-pPassWord] <FileName.txt|DirName>
+       : A> yzenc FileName.txt           (ファイル'FileName.txt'を圧縮)
+       : A> yzenc DirName                (ディレクトリ'DirName'を圧縮)
+       : A> yzenc -d FileName.txt        (圧縮して選択ディレクトリに出力)
+       : A> yzenc -dC:\TMP\ FileName.txt (圧縮してディレクトリ'C:\TMP\'に出力)
+       : A> yzenc -p FileName.txt        (その都度パスワードを指定して圧縮)
+       : A> yzenc -pPASSWD FileName.txt  (パスワードに'PASSWD'を指定して圧縮)

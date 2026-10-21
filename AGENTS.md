@@ -54,6 +54,10 @@ call, so keep applying them:
   links and extracts correctly (measured, not guessed - see
   "MSVC4 compatibility" below).
 - Workarea root (also the git repo): `\\Roy-xp\c\devel\XacRett-dll`.
+- The sample archives the providers are verified against are tracked
+  under `fixtures/` (one directory per format, with a README that
+  says where each one came from).  The harnesses that drive them
+  are in TEMP, not in the tree.
 - Git: pass `-c user.name=roytam1 -c user.email=roytam@gmail.com` on every
   command. Never touch git config. Never push unless asked. Commit per
   logical part with short messages (see `git log --oneline` for style).
@@ -144,9 +148,15 @@ call, so keep applying them:
 - `hyc/arc` mirror (`opencode\arc-ref`): authoritative for ARC methods
   1-9 (`arclzw.c` crunch/compress, `arcusq.c` squeeze, `arcunp.c`
   dispatch, `arcpack.c` encoder side).
-- LZH samples: `opencode\lhasa\test\archives` (all methods incl. pm0-2).
+- LZH samples: `fixtures/lzh/archives` (all methods incl. pm0-2), with
+  the oracle's own expected output in `fixtures/lzh/output`.
   CAB: `opencode\cabtest`, `opencode\isbisect`. SQX: `opencode\sqxtest`.
-  ZIP: `opencode\ismedia`. `LIBCMT.LIB` + `cpmshar.lbr` in workarea root.
+  ZIP: `opencode\ismedia`.  (`LIBCMT.LIB` and `cpmshar.lbr` are
+  referenced by older notes but are not in the tree any more.)
+- The fixture files are named by their bare name in the notes below;
+  they live under `fixtures/`, one directory per format, and
+  `fixtures/README.md` says where each one came from and what it
+  proves.
 - Vendored sources and their commits: `unrar-7.2.7`, `yz32lib`,
   `ZData-recon`, `src-0.49.17/lhasa`, `src-0.49.17/unsqx`,
   `src-0.49.17/fdi`, `src-0.49.17/jcalg1lib`, `src-0.49.17/ZData`.
@@ -170,7 +180,7 @@ call, so keep applying them:
   verified on authentic PKZIP fixtures: `PKZ080.ZIP` 10/10 CRC-OK
   (method 6 implode, incl. binaries), `pkz090.zip` 10/10 CRC-OK
   (method 1 shrink x5 + method 4 reduce x5). Reduce factors 1-3 and
-  higher members untested; fixtures untracked in workarea root.
+  higher members untested; the fixtures are in `fixtures/zip/`.
   ZIP fixes (vs Xtro-ZIP unzip60 comparison): small-file ZIP64 via
   0x0001 extra parse in both `read_header` copies (refuse >2GB-1 instead
   of hanging); bit-11 UTF-8 names convert via hand-rolled decoder +
@@ -424,8 +434,9 @@ call, so keep applying them:
   RAR5 list+extract PASS (same bytes via unpack50), RAR 1.5/2.0/2.9
   list+extract PASS (same 48959-byte RAR.DOC, CRC 0753067E, identical
   across all three; official PASSes 2.0/2.9 identically but fails 1.5).
-  Fixtures: `GPLv2-rar4/5.rar` + `rar15/20/29.rar` workarea root
-  (all untracked, like `LIBCMT.LIB`).
+  Fixtures: `fixtures/rar/GPLv2-rar4.rar`, `fixtures/rar/GPLv2-rar5.rar`
+  and `fixtures/rar/rar15.rar`, `fixtures/rar/rar20.rar`,
+  `fixtures/rar/rar29.rar` (all tracked).
   Retro-Windows load safety (95/NT4 floor = official's import table):
   post-95 static imports converted to GetProcAddress with fallbacks
   (`CreateHardLinkW`, `GetLongPathNameW`, `SetThreadExecutionState`,
@@ -560,7 +571,7 @@ call, so keep applying them:
   code else v1 12-bit, both via d_code/d_len tables, MSB-first).
   `76 FD` used to be misrouted to the crunch path (always failed
   loudly); it is now exclusive to CrLZH, `76 FE` to crunch.
-  `crlzh20.lbr` (workarea root, untracked): 30/30 members
+  `fixtures/lbr/crlzh20.lbr`: 30/30 members
   (26 v2 CrLZH + 4 stored) list and extract byte-exact vs the
   80un oracle; v1 path proven by 21/21 on TEMP `crlzh11.lbr`
   plus a 3/3 v2-crunch synthetic-LBR regression (authentic 80un
@@ -659,7 +670,7 @@ call, so keep applying them:
   ppmd, bcj, bcj2, aes, hdr on/off, non-solid, bigdict, mx0/mx9,
   multi-solid) + 8 py7zr-written zstd fixtures (level 1/3/19, 3-byte
   and 5-byte props, zstd+bzip2, zstd+copy, x86+zstd, arm+zstd) + the
-  authentic 7-Zip 19.00+zstd archive in the workarea root (BCJ +
+  authentic 7-Zip 19.00+zstd archive in `fixtures/7z/7z-zstd.7z` (BCJ +
   ZSTD, `7z.exe` byte-exact vs py7zr). Five corruption negatives
   (payload byte, zstd magic, truncated pack, deep entropy bit, header
   CRC) all fail loudly and fast; a corrupt 7z is then claimed by the
@@ -1509,17 +1520,17 @@ Check tightening alone would have fixed `.bz2` too, since a bzip2
 stream's bytes 1..4 are `Z`,`h`,9,.. and never a power of two.
 
 **Authentic-fixture confirmation.**  Synthetic probes only prove the
-route, so four real files were placed in the workarea root and checked
+route, so four real files were placed under `fixtures/` and checked
 against an independent oracle (the `LICENCE` member of
 `GPLv2-rar4.rar`, 18340 bytes, sha256 `6c4beace9ad98f65`, itself proven
 equal to `LICENCE.bel`'s output):
 
 | fixture | before this fix | after | result |
 |---|---|---|---|
-| `LICENCE.uue` | type 65 (LZMA), 0 files | type 40 UUDECODE | 18340 B, MATCH |
-| `LICENCE.xxe` | type 65 (LZMA), 0 files | type 53 XXDECODE | 18340 B, MATCH |
-| `LICENCE-text.shar` | type 65 (LZMA), 0 files | type 37 SHAR | 18340 B, MATCH |
-| `LICENCE-uu.shar` | type 65 (LZMA), 0 files | type 37 SHAR | no output |
+| `fixtures/uu/LICENCE.uue` | type 65 (LZMA), 0 files | type 40 UUDECODE | 18340 B, MATCH |
+| `fixtures/uu/LICENCE.xxe` | type 65 (LZMA), 0 files | type 53 XXDECODE | 18340 B, MATCH |
+| `fixtures/shar/LICENCE-text.shar` | type 65 (LZMA), 0 files | type 37 SHAR | 18340 B, MATCH |
+| `fixtures/shar/LICENCE-uu.shar` | type 65 (LZMA), 0 files | type 37 SHAR | no output |
 
 All three agree **byte-for-byte in VC6, VC4 and official**.  The
 "before" column is the whole bug in one line each: every one of these
@@ -1527,20 +1538,20 @@ files used to be claimed by LZMA and yield nothing, and each is now
 byte-identical to the oracle.
 
 `LICENCE-uu.shar` (a shar whose payload is uudecode) yields nothing --
-but **so does official**, in all three builds.  That is a shared
-upstream limitation, not a gap of ours, and matching it is correct;
-supporting it would mean teaching the shar extractor to run uudecode
-payloads, which is a feature, not a defect fix.  Recorded so nobody
-reads the empty output as a regression.
+but **so does official**, in all three builds.  We decode it anyway
+(see the shar section below), which is a deliberate divergence: it is
+a feature rather than a defect fix, and the official still produces
+nothing.  Recorded so nobody reads the empty official output as the
+expected behaviour.
 
 **A second batch of authentic fixtures closed three more.**  Same
 oracle (the `LICENCE` member of `GPLv2-rar4.rar`), same three builds:
 
 | fixture | made by | route | result |
 |---|---|---|---|
-| `LICENCE1.jak` / `LICENCE2.jak` | Jack32 | 26 JAK | 18340 B, MATCH |
-| `LICENCE.B2A` | `BTOA.EXE` | 39 ATOB | 18340 B, MATCH |
-| `LICENCE.BOO` | `MSBMKB.COM` | 10 BOO | 18342 B, 18340 exact + 2 |
+| `fixtures/jak/LICENCE1.jak` / `fixtures/jak/LICENCE2.jak` | Jack32 | 26 JAK | 18340 B, MATCH |
+| `fixtures/b2a/LICENCE.B2A` | `BTOA.EXE` | 39 ATOB | 18340 B, MATCH |
+| `fixtures/boo/LICENCE.BOO` | `MSBMKB.COM` | 10 BOO | 18342 B, 18340 exact + 2 |
 
 `LICENCE.B2A` matters more than it looks: it starts `xbtoa Begin`, which
 is exactly the marker `CAtoBTool` looks for, so **ATOB is verified
@@ -1595,7 +1606,7 @@ with rc=0; official still times out on all three.  VC4 agrees.
 Remaining, pre-existing and NOT regressions:
 - A **synthetic** `.bel` (I wrote `beg^IaGVsbG8=` by hand) returns
   0xC0000005 under **both** ours and official.  That is my fixture's
-  fault, not a defect: an authentic `LICENCE.bel` in the workarea root
+  fault, not a defect: an authentic `fixtures/bel/LICENCE.bel`
   extracts cleanly and **byte-identically in all three builds** --
   ours (VC6 and VC4) and official all give 18340 bytes, sha256
   `6c4beace9ad98f65...`, matching the `LICENCE` member of
@@ -1752,7 +1763,7 @@ the remaining gap.
 
 ## LZH: the lhasa upstream corpus (209 archives)
 
-`opencode\lhasa\test\archives\` is the full fragglet/lhasa test corpus
+`fixtures/lzh/archives\` is the full fragglet/lhasa test corpus
 and it is the real oracle for this decoder -- no hand-made fixtures.
 lhasa records its OWN expected output per archive:
 `test/output/<dir>/<arc>-e.txt` lists the exact member names (first
@@ -1819,7 +1830,7 @@ The last 7 corpus gaps.  Both are in `CLzhTool::ReadHeader`
 (`LzhTool.cpp`), which is our own parser -- the vendored `lhasa/` is a
 **decoder-only** subset (no `lha_file_header.c`, no `ext_header.c`), so
 the header layout had to come from the lhasa checkout under TEMP
-`opencode\lhasa\lib`.
+`lhasa/lib` (the upstream checkout in the workarea root).
 
 Format facts, all verified numerically against the fixtures before a
 line of C was written (`%TEMP\opencode\verify_hdr.py` = 9/9 MATCH):
@@ -1917,8 +1928,8 @@ tools (`%TEMP\jamdos`):
 | `M_PLAIN.JAM` | MAY96/JAM.COM | `00 00 00` | 946 |
 | `M_STORED.JAM` | MAY96/JAM.COM, incompressible input | `01 00 00` | 3003 |
 | `M_ENC.JAM` | MAY96/JAM.COM, key `secretpw` | `02 2a 7f` | 946 |
-| `LICENCE-may96.jam` | shipped sample | `00 00 00` | 8841 |
-| `LICENCE-aug96.jam` | shipped sample | `00 00 00` | 8835 |
+| `fixtures/jam/LICENCE-may96.jam` | shipped sample | `00 00 00` | 8841 |
+| `fixtures/jam/LICENCE-aug96.jam` | shipped sample | `00 00 00` | 8835 |
 
 **Stored (header bit 0) and encrypted (header bit 1) are now supported.**
 Neither was supported before, in ours or in official 0.49.17, which
@@ -2086,9 +2097,9 @@ Traps, all real:
 
 | fixture | ours | reference |
 |---|---|---|
-| `LICENCE-015.asd` (0.1.5) | 18340 B, sha `6c4beace` | identical |
-| `LICENCE-020.asd` (0.2.0) | 18340 B, sha `6c4beace` | identical |
-| `multi.asd` (0.2.0, 5 members) | 480/256/200000/1/700 B | identical, all 5 sha256 match |
+| `fixtures/asd/LICENCE-015.asd` (0.1.5) | 18340 B, sha `6c4beace` | identical |
+| `fixtures/asd/LICENCE-020.asd` (0.2.0) | 18340 B, sha `6c4beace` | identical |
+| `fixtures/asd/multi.asd` (0.2.0, 5 members) | 480/256/200000/1/700 B | identical, all 5 sha256 match |
 
 The listing matches the reference member for member (names, sizes and
 CRCs, e.g. `C60F157A / 29058C73 / 42C68D3F / 8CDC1683 / 098DB714`).
@@ -2265,8 +2276,8 @@ Verified on the shipped samples and on the generated corpus:
 
 | archive | `.jam` | `.jam5` | `.jam8` |
 |---|---|---|---|
-| `LICENCE-may96.jam` | match | match | 19058 (forced, as asked) |
-| `LICENCE-aug96.jam` | 19324 | 19324 | **match** (18340) |
+| `fixtures/jam/LICENCE-may96.jam` | match | match | 19058 (forced, as asked) |
+| `fixtures/jam/LICENCE-aug96.jam` | 19324 | 19324 | **match** (18340) |
 
 `.jam8` reproduces all seven compressed Aug/96 archives byte for byte,
 including `text1k`, which the automatic detection misses.  The stored
@@ -2391,13 +2402,13 @@ self-made fixture:
 
 | fixture | raw | packed | result |
 |---|---|---|---|
-| `SMALL.TX_` | 26 | 44 | match |
-| `TEXT.TX_` | 672 | 195 | match |
+| `fixtures/mscompress/SMALL.TX_` | 26 | 44 | match |
+| `fixtures/mscompress/TEXT.TX_` | 672 | 195 | match |
 | `DATA.BI_` | 1500 | 1511 | match |
-| `REPEAT.TX_` | 6000 | 728 | match |
-| `ONE.TX_` / `EMPTY.TX_` | 1 / 0 | 16 / 14 | match |
+| `fixtures/mscompress/REPEAT.TX_` | 6000 | 728 | match |
+| `fixtures/mscompress/ONE.TX_` / `fixtures/mscompress/EMPTY.TX_` | 1 / 0 | 16 / 14 | match |
 
-They are untracked files in the workarea root, each with a
+They are tracked under `fixtures/mscompress/`, each with a
 `.expected` file holding the original bytes.  The name derivation works
 too: `SMALL.TX_` extracts to `SMALL.TXT`, because the character
 missing from the compressed name is stored in the header.
@@ -2513,9 +2524,9 @@ and the length is the match length symbol plus two.
 
 | fixture | format | result |
 |---|---|---|
-| `licence-szdd.tx_` | SZDD | 18340 B, sha `6C4BEACE9AD98F65` |
-| `LICENCE-kwaj2.tx_` | KWAJ method 2 | 18340 B, sha `6C4BEACE9AD98F65` |
-| `LICENCE-kwaj3.tx_` | KWAJ method 3 | 18340 B, sha `6C4BEACE9AD98F65` |
+| `fixtures/mscompress/licence-szdd.tx_` | SZDD | 18340 B, sha `6C4BEACE9AD98F65` |
+| `fixtures/mscompress/LICENCE-kwaj2.tx_` | KWAJ method 2 | 18340 B, sha `6C4BEACE9AD98F65` |
+| `fixtures/mscompress/LICENCE-kwaj3.tx_` | KWAJ method 3 | 18340 B, sha `6C4BEACE9AD98F65` |
 | `SMALL/TEXT/DATA/REPEAT/ONE/EMPTY.TX_` | SZDD | match |
 
 The oracle is the `LICENCE` member of `GPLv2-rar4.rar` (18340 bytes,
@@ -2527,12 +2538,12 @@ additionally decoded through Microsoft's own `lz32.dll`.
 `KWAJ-XOR`, `KWAJ-LZ`, `KWAJ-HUF`, `KWAJ-ZIP` (it has to fit in the
 eight bytes `INDIVIDUALINFO::szMode` has).
 
-**Still open:** KWAJ method 4 (MS-ZIP) is implemented with zlib but
-there is no fixture for it, and the **Cabinet** format is still read
-through the `FDI` shim, so `.cab` does not work on a target that has
-neither `cabinet.dll` nor `FDI.DLL` (NT 3.51).  That needs a
-clean-room Cabinet decoder: the container plus MSZIP via zlib, and
-then Quantum and LZX.
+**Still open:** nothing.  All four KWAJ methods and both SZDD
+variants are decoded, and there is a fixture for each of them under
+`fixtures/mscompress/` (the KWAJ method 4 one is `LICENCE-kwaj4.tx_`).
+The Cabinet format is decoded by our own code as well, so a `.cab`
+also works on a target that has neither `cabinet.dll` nor `FDI.DLL`
+(NT 3.51); see the Cabinet sections below.
 
 ## Cabinet: our own decoder (the container, and the none and the MSZIP methods)
 
@@ -2646,7 +2657,7 @@ Verified against Microsoft's own decoder and against the files that
 
 | cabinet | result |
 |---|---|
-| `LICENCE-lzx.cab` | 18340 bytes, the same as the `LICENCE` member of `GPLv2-rar4.rar` |
+| `fixtures/cab/LICENCE-lzx.cab` | 18340 bytes, the same as the `LICENCE` member of `fixtures/rar/GPLv2-rar4.rar` |
 | `DesktopTargetCompDB_Neutral.xml.cab` (Windows) | 422698 bytes, the same as Microsoft's `cabinet.dll` |
 | `FoDMetadata_Client.cab` (Windows) | 338 files, 2677274 bytes, the same as Microsoft's `cabinet.dll` |
 | `test_LZX.cab` (`makecab`) | three files, the same as the originals |
@@ -2677,8 +2688,8 @@ folder reader has to hand the decoder that byte.
 
 | cabinet | result |
 |---|---|
-| `LICENCE-quantum.cab` | 18340 bytes, the same as the `LICENCE` member of `GPLv2-rar4.rar` |
-| `LICENCE-mzsip.cab` | 18340 bytes, the same |
+| `fixtures/cab/LICENCE-quantum.cab` | 18340 bytes, the same as the `LICENCE` member of `fixtures/rar/GPLv2-rar4.rar` |
+| `fixtures/cab/LICENCE-mzsip.cab` | 18340 bytes, the same |
 
 ## Pre-commit checklist
 

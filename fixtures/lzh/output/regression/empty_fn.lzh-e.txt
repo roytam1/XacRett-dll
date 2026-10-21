@@ -1,0 +1,4 @@
+Picasso96Install/Picasso96/P96Speed/catalogs/deutsch/P96Speed.catalog	- Melting  :  .Picasso96Install/Picasso96/P96Speed/catalogs/deutsch/P96Speed.catalog	- Melting  :  oPicasso96Install/Picasso96/P96Speed/catalogs/deutsch/P96Speed.catalog	- Melted  
+LHa: Skipping extract of 3158 byte file with empty filename.
+LHa: Skipping extract of 3052 byte file with empty filename.
+Picasso96Install/Picasso96/P96Speed/Compare.dat	- Melting  :  .Picasso96Install/Picasso96/P96Speed/Compare.dat	- Melting  :  oPicasso96Install/Picasso96/P96Speed/Compare.dat	- Melted  

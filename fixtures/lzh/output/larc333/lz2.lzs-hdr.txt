@@ -1,0 +1,18 @@
+filename: hello.txt
+compress_method: -lz2-
+compressed_length: 82
+length: 79
+header_level: 0
+os_type: 0
+crc: 0000
+timestamp: 1262779200
+--
+filename: data.bin
+compress_method: -lz2-
+compressed_length: 1497
+length: 1500
+header_level: 0
+os_type: 0
+crc: 0000
+timestamp: 1262779200
+--

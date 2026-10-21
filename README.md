@@ -153,6 +153,10 @@ to the `.dsp`. Result: `XacRett.dll`, i386, `FileVersion 0.49.17`,
 
 ## References and provenance
 
+The sample archives that the verification is done against are tracked
+under `fixtures/`, one directory per format; `fixtures/README.md` says
+where each one came from and what it proves.
+
 - `XacRett.lst` (disassembly), `XacRett.c` (decompiler output),
   official `XacRett.dll` 0.49.17 — comparison targets, not sources.
 - Vendored decode sources live in-tree (`unrar-7.2.7`, `yz32lib`,

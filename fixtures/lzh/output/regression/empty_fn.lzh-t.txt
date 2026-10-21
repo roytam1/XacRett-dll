@@ -1,0 +1,4 @@
+Picasso96Install/Picasso96/P96Speed/catalogs/deutsch/P96Speed.catalog	- Testing  :  .Picasso96Install/Picasso96/P96Speed/catalogs/deutsch/P96Speed.catalog	- Testing  :  oPicasso96Install/Picasso96/P96Speed/catalogs/deutsch/P96Speed.catalog	- Tested  
+__unknown	- Testing  :  .__unknown	- Testing  :  o__unknown	- Tested  
+__unknown	- Testing  :  .__unknown	- Testing  :  o__unknown	- Tested  
+Picasso96Install/Picasso96/P96Speed/Compare.dat	- Testing  :  .Picasso96Install/Picasso96/P96Speed/Compare.dat	- Testing  :  oPicasso96Install/Picasso96/P96Speed/Compare.dat	- Tested  

@@ -1,0 +1,12 @@
+ PERMSSN    UID  GID    PACKED    SIZE  RATIO METHOD CRC     STAMP            LV
+---------- ----------- ------- ------- ------ ---------- ------------------- ---
+Picasso96Install/Picasso96/P96Speed/catalogs/deutsch/P96Speed.catalog
+[generic]  *****/*****    1479    3056  48.4% -lh5- 3ac8 1999-02-06 15:06:26 [0]
+[zero-length-filename]
+[generic]  *****/*****    1531    3158  48.5% -lh5- d7f4 1999-02-06 15:06:26 [0]
+[zero-length-filename]
+[generic]  *****/*****    1628    3052  53.4% -lh5- 615c 1999-02-06 15:06:26 [0]
+Picasso96Install/Picasso96/P96Speed/Compare.dat
+[generic]  *****/*****    1265    3552  35.7% -lh5- fd82 1999-02-06 14:13:40 [0]
+---------- ----------- ------- ------- ------ ---------- ------------------- ---
+ Total         4 files    5903   12818  46.1%            2000-01-01 00:00:00

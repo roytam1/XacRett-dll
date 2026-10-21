@@ -1,0 +1,8 @@
+ PERMSSN    UID  GID      SIZE  RATIO     STAMP           NAME
+---------- ----------- ------- ------ ------------ --------------------
+[generic]  *****/*****    3056  48.4% Feb  6  1999 Picasso96Install/Picasso96/P96Speed/catalogs/deutsch/P96Speed.catalog
+[generic]  *****/*****    3158  48.5% Feb  6  1999 [zero-length-filename]
+[generic]  *****/*****    3052  53.4% Feb  6  1999 [zero-length-filename]
+[generic]  *****/*****    3552  35.7% Feb  6  1999 Picasso96Install/Picasso96/P96Speed/Compare.dat
+---------- ----------- ------- ------ ------------ --------------------
+ Total         4 files   12818  46.1% Jan  1  2000

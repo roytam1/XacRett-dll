@@ -1,0 +1,40 @@
+path: Picasso96Install/Picasso96/P96Speed/catalogs/deutsch/
+filename: P96Speed.catalog
+compress_method: -lh5-
+compressed_length: 1479
+length: 3056
+header_level: 0
+os_type: 0
+crc: 3ac8
+timestamp: 918313586
+--
+filename: __unknown
+fake_filename: true
+compress_method: -lh5-
+compressed_length: 1531
+length: 3158
+header_level: 0
+os_type: 0
+crc: d7f4
+timestamp: 918313586
+--
+filename: __unknown
+fake_filename: true
+compress_method: -lh5-
+compressed_length: 1628
+length: 3052
+header_level: 0
+os_type: 0
+crc: 615c
+timestamp: 918313586
+--
+path: Picasso96Install/Picasso96/P96Speed/
+filename: Compare.dat
+compress_method: -lh5-
+compressed_length: 1265
+length: 3552
+header_level: 0
+os_type: 0
+crc: fd82
+timestamp: 918310420
+--
