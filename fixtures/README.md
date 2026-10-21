@@ -26,6 +26,7 @@ in `AGENTS.md`.  What is here is the input side of those checks.
 | `ain/` | `LICENCE.ARG` | the AIN archiver | the AIN provider |
 | `lbr/` | `crlzh20.lbr` | the 80un CP/M tools | the CP/M LBR provider, the CrLZH variant |
 | `jcalg1/` | `jcalg1_test.jc1` | the jcalg1 reference compressor | the JCALG1 provider |
+| `gca/` | the plain, the password and the key file archives of the `ctest` corpus, plus the `key.bin` the key archives need | `gcac.exe` 0.9k | the GCA provider, the `GCA3` container and the encrypted archives: `-p secret123` and `-p#key.bin` |
 | `yz1/` | `yzenc.yz1`, `yzencpw.yz1` and `lib.yz1` | the `yzenc.exe` in the workarea root | the YZ1 provider, plain and with a password |
 | `lzip/` | `nicfix.tar.lz` and `lzsfx33.lzs` | an upstream lzip file and the lhasa corpus | the lzip provider |
 
@@ -50,3 +51,8 @@ that format.
 * The things that are gone.  `LIBCMT.LIB`, `cpmshar.lbr` and
   `jcalg1_test.exe` are referenced by older notes in `AGENTS.md` but
   are not in the tree any more.
+* The rest of the GCA corpus.  The `gca/` directory holds the small
+  members of the `ctest` corpus, which is what covers the plain, the
+  password and the key file cases; the big ones (the same cases with a
+  2.5 MB payload) and the wider corpus stay with the project that
+  reverse engineered the format, together with its own test driver.
