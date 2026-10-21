@@ -66,6 +66,8 @@ OBJS = \
     $(OBJDIR)\FishTool.obj \
     $(OBJDIR)\FrzTool.obj \
     $(OBJDIR)\GcaSDK_gca_api.obj \
+    $(OBJDIR)\GcaSDK_gca_crypt.obj \
+    $(OBJDIR)\GcaSDK_gca_sha1.obj \
     $(OBJDIR)\GcaSDK_gca_arc.obj \
     $(OBJDIR)\GcaSDK_gca_bwt.obj \
     $(OBJDIR)\GcaSDK_gca_cod.obj \
@@ -363,6 +365,12 @@ $(OBJDIR)\FrzTool.obj : FrzTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\GcaSDK_gca_api.obj : GcaSDK\gca_api.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\GcaSDK_gca_crypt.obj : GcaSDK\gca_crypt.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\GcaSDK_gca_sha1.obj : GcaSDK\gca_sha1.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\GcaSDK_gca_arc.obj : GcaSDK\gca_arc.cpp

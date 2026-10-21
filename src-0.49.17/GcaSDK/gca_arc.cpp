@@ -3,6 +3,7 @@
 ///////////////////////////////////////////////////////////////////
 #include "gca_arc.h"
 #include "gca_bwt.h"
+#include "gca_crypt.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -32,21 +33,26 @@ static int decodePayload(const unsigned char* p, unsigned long compLen,
  *
  *   +0x00 "GCAX"
  *   +0x04 0
- *   +0x08 dirOffset   absolute offset of the GCA3 directory block
- *   +0x0C 0
+ *   +0x08 dirOffset   64 bit, RELATIVE to the start of this header
+ *   +0x0C (high dword of dirOffset)
  *   +0x10 .. dirOffset   one payload frame per entry, in entry order,
  *                         entry.storedLen bytes each (GCF0/GCF1/GCF2)
- *   dirOffset: GCA3 directory
+ *   dirOffset: GCA3 directory block
  *        +0x00 "GCA3"   +0x04 flags (0x10 raw blocks / 0x11 GCF1 framed)
  *        +0x08 blockSize  +0x14 CRC32  +0x18 numFiles
  *        +0x20 entry table, numFiles*32 bytes  [raw or GCF1]
  *              names block, u16 len + name * numFiles [raw or GCF1]
  *
  *   32-byte entry:
- *        +0x00 content CRC32      +0x04 32 (entry size)
+ *        +0x00 content CRC32      +0x04 dwFileAttributes
  *        +0x08 FILETIME low       +0x0C FILETIME high
- *        +0x10 original size      +0x14 0
- *        +0x18 stored length      +0x1C 0
+ *        +0x10 original size      +0x14 (high dword of the original size)
+ *        +0x18 stored length      +0x1C (high dword of the stored length)
+ *
+ * NOTE: dirOffset is relative, not absolute.  gcac.exe writes
+ * (directory position - header position) and its own reader adds the
+ * archive start back on; verified by prefixing an archive with a
+ * filler blob and re-parsing it.
  * ------------------------------------------------------------------ */
 
 /* Read a directory block that is GCF0/GCF1/GCF2 framed or stored raw.
@@ -86,14 +92,43 @@ static int gcaReadBlock(const unsigned char* base, unsigned long len,
     return GCA_PARSE_OK;
 }
 
-static int gcaParseGcax(const unsigned char* base, unsigned long len,
-                        unsigned long startOff, GcaParsed& arc)
+/* Locate the GCA3 directory of a GCAX container.
+ *
+ * dirOffset lives at GCAX+0x08 as a 64 bit value and is RELATIVE to
+ * the start of the GCAX header (gcac.exe writes
+ * "directory position - header position" and its own reader adds the
+ * archive start back on).  Only the low 32 bits are honoured here:
+ * the SDK caps archives at 256 MB, so a non-zero high dword means the
+ * container is out of range.
+ */
+static int gcaLocateDir(const unsigned char* base, unsigned long len,
+                        unsigned long startOff, unsigned long* dirAbsOut)
 {
-    unsigned long dirOff, d, numFiles, i, pos, entsUsed = 0;
+    unsigned long dirLo, dirHi, dirOff;
+    if (startOff + 16 > len)
+        return GCA_PARSE_ERROR;
+    dirLo = rd32(base + startOff + 8);
+    dirHi = rd32(base + startOff + 12);
+    if (dirHi != 0)
+        return GCA_PARSE_ERROR;
+    dirOff = dirLo;
+    if (dirOff < 16)
+        return GCA_PARSE_ERROR;
+    if (startOff + dirOff + 0x20 > len)
+        return GCA_PARSE_ERROR;
+    *dirAbsOut = startOff + dirOff;
+    return GCA_PARSE_OK;
+}
+
+/* Parse a GCAX container whose payload and directory are plaintext. */
+static int gcaParseGcaxPlain(const unsigned char* base, unsigned long len,
+                              unsigned long startOff, GcaParsed& arc)
+{
+    unsigned long d, dirAbs, numFiles, i, pos, entsUsed = 0;
     unsigned long pos2, flags = 0, hdr = 0x20;
+    unsigned long firstFrameOff;
     std::string ents, names;
     GcaWork w;
-    unsigned long firstFrameOff = startOff + 0x10;
     int solid = 0;
 
     memset(&w, 0, sizeof(w));
@@ -101,10 +136,10 @@ static int gcaParseGcax(const unsigned char* base, unsigned long len,
     if (!w.hist)
         return GCA_PARSE_ERROR;
 
-    if (startOff + 16 > len) goto fail;
-    dirOff = rd32(base + startOff + 8);
-    if (dirOff < startOff + 16 || dirOff + 0x20 > len) goto fail;
-    d = dirOff;
+    if (gcaLocateDir(base, len, startOff, &dirAbs) != GCA_PARSE_OK)
+        goto fail;
+    d = dirAbs;
+    firstFrameOff = startOff + 0x10;
     if (memcmp(base + d, "GCA3", 4) != 0) goto fail;
 
     numFiles = rd32(base + d + 0x18);
@@ -116,7 +151,7 @@ static int gcaParseGcax(const unsigned char* base, unsigned long len,
        raw  = 0x20 + entries + names
        frame= 0x28 + frame(entries) + frame(names) */
     flags = rd32(base + d + 4);
-    hdr = (flags & 1) ? 0x28u : 0x20u;
+    hdr = (flags & GCA_DIRF_COMPRESSED) ? 0x28u : 0x20u;
 
     /* entry table */
     if (gcaReadBlock(base, len, d + hdr, numFiles * 32, w, ents, &entsUsed) != 0)
@@ -135,15 +170,18 @@ static int gcaParseGcax(const unsigned char* base, unsigned long len,
     }
 
     /* Solid archives store one concatenated stream shared by every member, so
-   all per-entry stored lengths are 0. Sequential archives sum exactly to
-   the data region (dirOff - 0x10). Verified against gcac output for both
-   modes, compressed and stored, small and chunked. */
+       all per-entry stored lengths are 0. Sequential archives sum exactly to
+       the data region (dirOff - 0x10). Verified against gcac output for both
+       modes, compressed and stored, small and chunked.  The SOLID flag is
+       authoritative when it is present; the sum is only a fallback. */
     solid = 0;
-    {
+    if (flags & GCA_DIRF_SOLID) {
+        solid = 1;
+    } else {
         unsigned long sum = 0;
         for (i = 0; i < numFiles; i++)
             sum += rd32((const unsigned char*)ents.data() + i * 32 + 0x18);
-        if (sum == 0 && dirOff > firstFrameOff + 8)
+        if (sum == 0 && dirAbs > firstFrameOff + 8)
             solid = 1;
     }
     pos = firstFrameOff;
@@ -152,18 +190,18 @@ static int gcaParseGcax(const unsigned char* base, unsigned long len,
            length is 0, so the extent is the whole data region (it may
            itself be several GCF2 chunks). */
         unsigned long flen;
-        if (firstFrameOff + 28 > len || dirOff < firstFrameOff + 28) goto fail;
-        flen = dirOff - firstFrameOff;
+        if (firstFrameOff + 28 > len || dirAbs < firstFrameOff + 28) goto fail;
+        flen = dirAbs - firstFrameOff;
         for (i = 0; i < numFiles; i++) {
             const unsigned char* e = (const unsigned char*)ents.data() + i * 32;
             GcaFileEntry fe;
             fe.crc     = rd32(e + 0x00);
+            fe.attr    = rd32(e + 0x04);   /* dwFileAttributes */
             fe.ftimeLo = rd32(e + 0x08);
             fe.ftimeHi = rd32(e + 0x0C);
             fe.ftime   = 0;
             fe.hasTime = 1;
             fe.expSize = rd32(e + 0x10);
-            fe.attr    = 0;
             fe.dataOff  = firstFrameOff;
             fe.compSize = flen;
             arc.files.push_back(fe);
@@ -174,12 +212,12 @@ static int gcaParseGcax(const unsigned char* base, unsigned long len,
         GcaFileEntry fe;
         unsigned long stored = rd32(e + 0x18);
         fe.crc       = rd32(e + 0x00);
+        fe.attr      = rd32(e + 0x04);   /* dwFileAttributes */
         fe.ftimeLo   = rd32(e + 0x08);
         fe.ftimeHi   = rd32(e + 0x0C);
         fe.ftime     = 0;
         fe.hasTime   = 1;
         fe.expSize   = rd32(e + 0x10);
-        fe.attr      = 0;
         if (pos + stored > len) goto fail;
         fe.dataOff  = pos;
         fe.compSize = stored;
@@ -221,14 +259,199 @@ fail:
     return GCA_PARSE_ERROR;
 }
 
+/* Build a plaintext image of an encrypted GCAX archive.
+ *
+ * gcac.exe encrypts three things:
+ *   - the payload region.  Sequential archives use one keystream per
+ *     member keyed with "<password><member name>"; solid archives use
+ *     a single keystream keyed with "<password>".
+ *   - the 16 bytes at GCA3+0x10 (keystream bytes 0..15).  Their
+ *     plaintext is (0, dirCRC32, numFiles, 0).
+ *   - the directory body (keystream bytes 16..).
+ * The GCAX header and GCA3+0x00..0x0F stay plaintext.
+ *
+ * The result has exactly the same layout and length as the input, so
+ * every offset computed by the plain parser stays valid.
+ */
+static int gcaDecryptImage(const unsigned char* base, unsigned long len,
+                           unsigned long startOff, const std::string& spell,
+                           std::vector<unsigned char>& out)
+{
+    static const unsigned char kEmpty[1] = { 0 };
+    unsigned long dirAbs, flags, blockSize, bodyLen, payloadOff, payloadLen;
+    unsigned long i, numFiles, bodyBase, entsUsed = 0, pos2, off;
+    unsigned long plainFlags;
+    const unsigned char* bodyPtr;
+    std::string ents, names, key;
+    std::vector<unsigned char> body;
+    std::vector<std::string> fileNames;
+    GcaWork w;
+    GcaCrypt ks;
+    int rc = GCA_PARSE_ERROR;
+
+    if (gcaLocateDir(base, len, startOff, &dirAbs) != GCA_PARSE_OK)
+        return GCA_PARSE_ERROR;
+    if (memcmp(base + dirAbs, "GCA3", 4) != 0)
+        return GCA_PARSE_ERROR;
+    flags = rd32(base + dirAbs + 4);
+    blockSize = rd32(base + dirAbs + 8);
+    if (blockSize < 0x20)
+        return GCA_PARSE_ERROR;
+    bodyLen = blockSize - 0x20;
+    if (dirAbs + 0x20 + bodyLen > len)
+        return GCA_PARSE_ERROR;
+
+    memset(&w, 0, sizeof(w));
+    w.hist = new unsigned long[65536 + 16];
+    if (!w.hist)
+        return GCA_PARSE_ERROR;
+
+    /* the 1997 STLport that the VC4 build uses has no iterator
+       range form of assign(), so the copy is done by hand */
+    out.clear();
+    out.resize(len);
+    if (len) memcpy((unsigned char*)&out[0], base, len);
+
+    /* --- the directory ------------------------------------------- */
+    key = gcaCryptDirKey(spell);
+    ks.setKey((const unsigned char*)key.data(), (unsigned long)key.size());
+    ks.crypt(&out[dirAbs + 0x10], 16);            /* keystream bytes 0..15 */
+    body.resize(bodyLen);
+    if (bodyLen) {
+        memcpy(&body[0], base + dirAbs + 0x20, bodyLen);
+        ks.crypt(&body[0], bodyLen);               /* keystream bytes 16..  */
+        memcpy(&out[dirAbs + 0x20], &body[0], bodyLen);
+    }
+    /* clear the crypto bits: the plain parser must not try again */
+    plainFlags = flags & ~(unsigned long)(GCA_DIRF_CRYPTO | GCA_DIRF_DIRENC);
+    out[dirAbs + 4] = (unsigned char)(plainFlags & 0xFF);
+    out[dirAbs + 5] = (unsigned char)((plainFlags >> 8) & 0xFF);
+    out[dirAbs + 6] = (unsigned char)((plainFlags >> 16) & 0xFF);
+    out[dirAbs + 7] = (unsigned char)((plainFlags >> 24) & 0xFF);
+
+    numFiles = rd32(&out[dirAbs + 0x18]);
+    if (numFiles == 0 || numFiles > 100000) goto done;
+
+    /* the entry table + names: needed for the per member payload keys */
+    bodyPtr = bodyLen ? &body[0] : kEmpty;
+    bodyBase = (flags & GCA_DIRF_COMPRESSED) ? 8u : 0u;
+    if (gcaReadBlock(bodyPtr, bodyLen, bodyBase, numFiles * 32,
+                     w, ents, &entsUsed) != 0)
+        goto done;
+    if (ents.size() != (size_t)(numFiles * 32)) goto done;
+    pos2 = bodyBase + entsUsed;
+    if (pos2 + 4 <= bodyLen &&
+        (memcmp(&body[pos2], "GCF0", 4) == 0 ||
+         memcmp(&body[pos2], "GCF1", 4) == 0 ||
+         memcmp(&body[pos2], "GCF2", 4) == 0)) {
+        if (gcaReadBlock(bodyPtr, bodyLen, pos2, 0, w, names, NULL) != 0)
+            goto done;
+    } else {
+        if (pos2 > bodyLen) goto done;
+        names.assign((const char*)&body[pos2], bodyLen - pos2);
+    }
+    {
+        size_t p = 0;
+        for (i = 0; i < numFiles; i++) {
+            unsigned long n;
+            if (p + 2 > names.size()) goto done;
+            n = (unsigned char)names[p] |
+                ((unsigned long)(unsigned char)names[p + 1] << 8);
+            p += 2;
+            if (n == 0 || p + n > names.size()) goto done;
+            fileNames.push_back(names.substr(p, n));
+            p += n;
+        }
+    }
+
+    /* --- the payload --------------------------------------------- */
+    payloadOff = startOff + 0x10;
+    if (dirAbs < payloadOff) goto done;
+    payloadLen = dirAbs - payloadOff;
+    if (flags & GCA_DIRF_SOLID) {
+        key = gcaCryptSolidKey(spell);
+        ks.setKey((const unsigned char*)key.data(), (unsigned long)key.size());
+        if (payloadLen) ks.crypt(&out[payloadOff], payloadLen);
+    } else {
+        off = payloadOff;
+        for (i = 0; i < numFiles; i++) {
+            unsigned long stored =
+                rd32((const unsigned char*)ents.data() + i * 32 + 0x18);
+            key = gcaCryptPayloadKey(spell, fileNames[i]);
+            ks.setKey((const unsigned char*)key.data(), (unsigned long)key.size());
+            if (stored) {
+                if (off + stored > dirAbs) goto done;
+                ks.crypt(&out[off], stored);
+            }
+            off += stored;
+        }
+    }
+    rc = GCA_PARSE_OK;
+
+done:
+    delete[] w.hist;
+    delete[] w.bufA;
+    delete[] w.bufB;
+    delete[] w.btwTmp;
+    if (rc != GCA_PARSE_OK)
+        out.clear();
+    return rc;
+}
+
+static int gcaParseGcax(const unsigned char* base, unsigned long len,
+                        unsigned long startOff, GcaParsed& arc,
+                        const std::string& spell)
+{
+    unsigned long dirAbs, flags;
+    std::vector<unsigned char> plain;
+    int rc;
+
+    if (gcaLocateDir(base, len, startOff, &dirAbs) != GCA_PARSE_OK)
+        return GCA_PARSE_ERROR;
+    if (memcmp(base + dirAbs, "GCA3", 4) != 0)
+        return GCA_PARSE_ERROR;
+    flags = rd32(base + dirAbs + 4);
+
+    if (flags & (GCA_DIRF_CRYPTO | GCA_DIRF_DIRENC)) {
+        if (spell.empty())
+            return GCA_PARSE_NEEDKEY;
+        if (gcaDecryptImage(base, len, startOff, spell, plain) != GCA_PARSE_OK)
+            return GCA_PARSE_ERROR;
+        arc.encrypted = true;
+        arc.plain.swap(plain);
+        rc = gcaParseGcaxPlain(&arc.plain[0], (unsigned long)arc.plain.size(),
+                               startOff, arc);
+        arc.crypto       = (flags & GCA_DIRF_CRYPTO) != 0;
+        arc.dirEncrypted = (flags & GCA_DIRF_DIRENC) != 0;
+        return rc;
+    }
+
+    arc.encrypted = false;
+    rc = gcaParseGcaxPlain(base, len, startOff, arc);
+    arc.crypto       = (flags & GCA_DIRF_CRYPTO) != 0;
+    arc.dirEncrypted = (flags & GCA_DIRF_DIRENC) != 0;
+    return rc;
+}
+
+
 int gcaParse(const unsigned char* base, unsigned long len,
              unsigned long startOff, GcaParsed& arc)
+{
+    return gcaParse(base, len, startOff, arc, std::string());
+}
+
+int gcaParse(const unsigned char* base, unsigned long len,
+             unsigned long startOff, GcaParsed& arc, const std::string& spell)
 {
     const unsigned char* h;
     unsigned long ver, cnt, hdr, flags, crc, c0, e0;
     unsigned long off;
     arc.files.clear();
     arc.fmt = GCA_FMT_UNKNOWN;
+    arc.encrypted = false;
+    arc.plain.clear();
+    arc.crypto = 0;
+    arc.dirEncrypted = 0;
     if (startOff + 36 > len)
         return GCA_PARSE_ERROR;
     h = base + startOff;
@@ -238,7 +461,7 @@ int gcaParse(const unsigned char* base, unsigned long len,
         return GCA_PARSE_ERROR;
     if (memcmp(h, "GCAX", 4) == 0) {
         arc.fmt = GCA_FMT_X;
-        return gcaParseGcax(base, len, startOff, arc);
+        return gcaParseGcax(base, len, startOff, arc, spell);
     }
     if (memcmp(h, "GCA3", 4) == 0) {
         arc.fmt = GCA_FMT_V3;

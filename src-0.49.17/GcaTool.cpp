@@ -18,6 +18,11 @@ static int dummy_msg_proc( int msg,string,void* ptr )
 	case GCAM_FILE_WRITE_ERROR:
 	case GCAM_ARC_CRYPTO_ERROR:
 	case GCAM_FILE_CRYPTO_ERROR:
+		{
+			CGca* gca=(CGca*)ptr;
+			CGcaTool* tool = gca ? (CGcaTool*)gca->GetUser() : 0;
+			if( tool ) tool->m_cryptoError = true;
+		}
 		return GCAM_CANCEL;
 
 	case GCAM_FILE_CRYPTO:
@@ -26,17 +31,8 @@ static int dummy_msg_proc( int msg,string,void* ptr )
 		CGcaTool* tool = (CGcaTool*)gca->GetUser();
 		if( tool )
 		{
-			string s;
-			const char* x = tool->pwd();
-			if( *x=='#' )
-				if( x[1]=='#' )
-					x++;
-				else
-				{
-					GetSpellFromKeyFile( s, string(x+1) );
-					x = s.c_str();
-				}
-			gca->SetSpell( string(x) );
+			string s = GcaSpellFromArg( tool->pwd() );
+			gca->SetSpell( s );
 			gca->SetCrypto(TRUE);
 			gca->SetUser( 0 );
 		}}break;
@@ -44,14 +40,46 @@ static int dummy_msg_proc( int msg,string,void* ptr )
 	return GCAM_OK;
 }
 
+std::string GcaSpellFromArg( const char* arg )
+{
+	string s;
+	if( !arg || !*arg ) return s;
+	if( *arg=='#' )
+	{
+		if( arg[1]=='#' ) return string(arg+1);
+		if( GetSpellFromKeyFile( s, string(arg+1) ) ) return s;
+		return string();
+	}
+	return string(arg);
+}
+
 bool CGcaTool::Check( const char* fname, unsigned long fsize )
 {
 	CGca gca;
 	gca.SetArcFilePath(fname);
 
+	// a password that was handed in on the command line is used
+	// straight away, so that an encrypted archive is recognised and
+	// can be listed.  The dialog is not opened here: the check runs
+	// while the archive is being routed.
+	gca.SetSpell( GcaSpellFromArg( CTool::m_pPassArg ) );
+	gca.SetCrypto( TRUE );
+
 	if(gca.GetNumFiles())
 		return true;
-	return false;
+
+	// an encrypted archive without a password has no file list at
+	// all, so the format is recognised by its signature instead
+	{
+		FILE* fp = fopen( fname, "rb" );
+		unsigned char hdr[3];
+		bool ans = false;
+		if( !fp ) return false;
+		if( 3==fread( hdr,1,3,fp ) &&
+			hdr[0]=='G' && hdr[1]=='C' && hdr[2]=='A' ) ans = true;
+		fclose( fp );
+		return ans;
+	}
 /*	FILE* fp = fopen(fname,"rb");
 	if( !fp )
 		return false;
@@ -79,6 +107,21 @@ bool CGcaTool::Extract( const char* fname,const char* ddir )
 	gca.SetMessageProc( dummy_msg_proc );
 	gca.SetUser( (DWORD)this );
 
+	// an encrypted archive cannot be read before the password is
+	// known, and the SDK does not ask for it: it reports that the
+	// archive needs a key and stops.  So the password is taken here,
+	// which opens the dialog when there is no -p on the command
+	// line, just like the other providers that need one.
+	m_cryptoError = false;
+	{
+		string spell = GcaSpellFromArg( pwd() );
+		if( !spell.empty() )
+		{
+			gca.SetSpell( spell );
+			gca.SetCrypto( TRUE );
+		}
+	}
+
 	/*if(strcmp(wildcard[1],"")==0)
 	{
 		if( !gca.Extract() )
@@ -91,6 +134,12 @@ bool CGcaTool::Extract( const char* fname,const char* ddir )
 	{
 		int filenum =gca.GetNumFiles();
 		string filename;
+		if( !filenum && m_cryptoError )
+		{
+			// the archive is encrypted and the password did not open it
+			gca.Free();
+			return false;
+		}
 		for (int i = -1 ; ++i!=filenum;)
 		{
 			filename = gca.GetFileName(i);

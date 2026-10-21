@@ -21,7 +21,19 @@ public:
 	bool Check( const char* fname, unsigned long fsize );
 	bool Extract( const char* fname, const char* ddir );
 
-	char* pwd(){ return GetPassword(); }
+  	char* pwd(){ return GetPassword(); }
+
+	// set when the archive turned out to be encrypted and the password
+	// was missing or wrong, so that the extraction can fail loudly
+	// instead of quietly producing nothing
+  	bool m_cryptoError;
 };
+
+// The password of an encrypted GCA archive.  It is either the raw
+// text or, when the argument starts with a single '#', the hex SHA-1
+// digest of a key file -- which is what gcac.exe's -k switch does.
+// "##text" means the literal text.  The empty string means "no
+// password", and the archive is then reported as needing a key.
+std::string GcaSpellFromArg( const char* arg );
 
 #endif

@@ -157,6 +157,9 @@ call, so keep applying them:
   they live under `fixtures/`, one directory per format, and
   `fixtures/README.md` says where each one came from and what it
   proves.
+- The GCA format is described in `src-0.49.17/GcaSDK/GCA_FORMAT.md`,
+  which was reverse engineered from `gcac.exe` 0.9k and marks every
+  point that was verified by running the tool.
 - Vendored sources and their commits: `unrar-7.2.7`, `yz32lib`,
   `ZData-recon`, `src-0.49.17/lhasa`, `src-0.49.17/unsqx`,
   `src-0.49.17/fdi`, `src-0.49.17/jcalg1lib`, `src-0.49.17/ZData`.
@@ -596,8 +599,11 @@ call, so keep applying them:
   here**: it sets a non-interactive password, so `CTool::GetPassword()`
   returns it and never opens the modal dialog. That makes batch/headless
   extraction work for every provider that asks - 7zAES, ZIP WinZip-AES,
-  RAR, ARC, ACE, SQX - instead of hanging on the dialog (which is what a
-  headless run does today). Verified with `%TEMP%\aesfix\` and
+  RAR, ARC, ACE, SQX, GCA - instead of hanging on the dialog (which is
+  what a headless run does today). A GCA key file is given as
+  `-p#<file>`, which is hashed with SHA-1 and the hex digest is used as
+  the password - the same thing `gcac.exe`'s `-k` does. Verified with
+  `%TEMP%\aesfix\` and
   `m93_aes.7z`; a wrong password still fails per-member exactly as the
   dialog path does. Implementation notes:
   - `CSplitCmdLine::Analysis` takes everything after the option letter as
@@ -758,7 +764,8 @@ call, so keep applying them:
   Trap worth keeping: `dec.DecodeFile(0)` is NOT a substitute here -
   it is the v1 entry point and leaves `dec_file_count` at 0, and
   `m_arc_name` is private anyway.
-- Known gaps: GCA non-`GCAX` paths are stubbed; `OpenDummy`/`OpenCompactC` have no live listing path.
+- Known gaps: the GCA formats older than `GCAX` and `GCA3` are not
+  decoded (the SDK reports them as unsupported); `OpenDummy`/`OpenCompactC` have no live listing path.
 - **8.3 fallback for file systems with no long names** (Win32s on
   Windows 3.1, Win95 with `lfn=off`). Reported symptom: the VC4 build on
   Win32s returns **0x8013 `ERROR_CANNOT_WRITE`** for any archive with a
@@ -2690,6 +2697,52 @@ folder reader has to hand the decoder that byte.
 |---|---|
 | `fixtures/cab/LICENCE-quantum.cab` | 18340 bytes, the same as the `LICENCE` member of `fixtures/rar/GPLv2-rar4.rar` |
 | `fixtures/cab/LICENCE-mzsip.cab` | 18340 bytes, the same |
+
+## GCA: the new SDK (the GCA3 format and the encrypted archives)
+
+`src-0.49.17/GcaSDK/` now holds a decoder that was written from the
+format description in `GcaSDK/GCA_FORMAT.md` (the reverse engineering
+of `gcac.exe` 0.9k, with the verified points marked as such).
+
+What it brought:
+
+- **The `GCA3` container.**  The old SDK only knew the `GCAX` one, so
+  **90 of the 145 sample archives now extract** where none of them did
+  before -- and none of the 55 that worked changed (0 regressions).
+- **The encrypted archives**: the cipher, the key derivation and the
+  encrypted directory.
+
+The password is taken the same way as everywhere else: `-p<password>`
+on the command line, and a key file as `-p#<file>` (the key file is
+hashed with SHA-1 and the lower case hex digest is used as the
+password, which is exactly what `gcac.exe`'s `-k` switch does;
+`-p##text` means the literal text).
+
+The SDK does **not** ask for the password: it reports that the archive
+needs a key and stops, so the provider has to hand the password over
+*before* the archive is read.  The check that decides whether a file is
+a GCA archive at all therefore uses only the password that came in on
+the command line (never the dialog, because the check runs while the
+archive is being routed) and falls back to the signature, since an
+encrypted archive has no readable file list at all.
+
+A wrong password fails loudly: the provider remembers that the archive
+was encrypted and the extraction returns false instead of quietly
+producing nothing.
+
+Two things were needed to make it build:
+
+- `GcaSDK/gca_crypt.cpp` and `GcaSDK/gca_sha1.cpp` had to be added to
+  `XacRett.dsp` and `Makefile.vc4`; without them the link failed with
+  seven unresolved externals.
+- `gca_arc.cpp` used `vector::assign` with an iterator range, which the
+  1997 STLport of the VC4 build does not have; the copy is done by
+  hand now.
+
+Verified: the plain, the password and the key file archives of the
+`ctest` corpus give the same 2537600 bytes in the VC6 and the VC4
+build, and the whole corpus of 145 archives shows 0 regressions against
+the old SDK.
 
 ## Pre-commit checklist
 

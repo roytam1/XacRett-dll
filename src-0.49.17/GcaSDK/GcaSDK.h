@@ -15,7 +15,13 @@ using namespace std;
 
 namespace nsGcaSDK{
 
+ // Offset of the GCA container inside `strPathName` (0 for a plain
+ // archive, non-zero for a self extracting stub).
  DWORD GetStartOffset(const string& strPathName);
+
+ // Derive the archive password ("spell") from a key file: the lower
+ // case hex SHA-1 digest of the file contents.  This is exactly what
+ // gcac.exe's -k switch does.
  BOOL GetSpellFromKeyFile(string &strSpell, const string &strKeyFile);
 
  class CGca{
@@ -38,6 +44,10 @@ namespace nsGcaSDK{
   void SetTempPath(const string &strTempPath);
 
   void SetCrypto(BOOL bCrypto);
+  // Password of an encrypted archive: the raw -p text, or the hex
+  // SHA-1 digest produced by GetSpellFromKeyFile().  Encrypted
+  // archives cannot be opened without it (OpenArchive then fails with
+  // GCAM_ARC_CRYPTO_ERROR).
   void SetSpell(const string &strSpell);
 
   void SetOrder(const vector<string> &astrOrder);

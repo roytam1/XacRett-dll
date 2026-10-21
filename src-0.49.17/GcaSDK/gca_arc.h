@@ -1,6 +1,6 @@
-///////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////
 // gca_arc.h -- GCA container + per-file decode orchestration.
-///////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////
 #ifndef GCA_ARC_H
 #define GCA_ARC_H
 
@@ -15,10 +15,12 @@
 struct GcaFileEntry {
     std::string name;
     unsigned long expSize;
-    unsigned long compSize; // framed length (0 = empty, no payload)
+    unsigned long compSize; // bytes this member occupies in the payload
+                            // region (frame(s) for sequential archives, the
+                            // whole region for solid archives).  0 = empty.
     unsigned long dataOff;  // absolute file offset of payload
     unsigned long crc;
-    unsigned long attr;
+    unsigned long attr;     // Win32 dwFileAttributes (0x10 = directory)
     unsigned long ftime;    // DOS date<<16|time (from FILETIME conv)
     unsigned long ftimeHi, ftimeLo;
     int           hasTime;
@@ -41,19 +43,44 @@ enum GcaFormat {
 enum {
     GCA_PARSE_OK         =  0,
     GCA_PARSE_ERROR      = -1,  /* not a GCA archive, or malformed       */
-    GCA_PARSE_UNSUPPORTED= -2   /* valid GCA3/GCAX, decoder not built yet */
+    GCA_PARSE_UNSUPPORTED= -2,  /* valid GCA3/GCAX, decoder not built yet */
+    GCA_PARSE_NEEDKEY    = -3   /* encrypted archive, no password given   */
 };
+
+/* GCA3 directory flags (gcac.exe writes these; see GCA_FORMAT.md) */
+#define GCA_DIRF_COMPRESSED  0x001u /* the directory body is compressed      */
+#define GCA_DIRF_DIRENC      0x002u /* the directory body is encrypted      */
+#define GCA_DIRF_PAYCOMP     0x010u /* the payload is compressed            */
+#define GCA_DIRF_CRYPTO      0x020u /* crypto is enabled                    */
+#define GCA_DIRF_SOLID       0x100u /* solid archive (one shared payload)   */
 
 struct GcaParsed {
     int arcType; // 0=GCA0, 1=GCA1
     int fmt;     // GcaFormat
-    int flags;
+    int flags;   // raw GCA3 flags word
+    int crypto;      /* (flags & GCA_DIRF_CRYPTO) != 0      */
+    int dirEncrypted;/* (flags & GCA_DIRF_DIRENC) != 0      */
     unsigned long crc;
     std::vector<GcaFileEntry> files;
+    /* When the archive was encrypted the parser decrypts it into `plain`
+     * and all offsets in `files` refer to that image instead of the
+     * caller's buffer.  `plain` is empty for plain archives. */
+    bool encrypted;
+    std::vector<unsigned char> plain;
 };
 
 // Parse container. base/len = whole file image, startOff = SFX offset.
 // Returns a GCA_PARSE_* code.
+//
+// `spell` is the archive password (the raw -p text, or the hex SHA-1
+// digest of a -k key file).  It is only needed for encrypted archives;
+// when one is encountered and no spell is supplied the call fails with
+// GCA_PARSE_NEEDKEY.
+int gcaParse(const unsigned char* base, unsigned long len,
+             unsigned long startOff, GcaParsed& arc,
+             const std::string& spell);
+
+// Convenience overload for unencrypted archives.
 int gcaParse(const unsigned char* base, unsigned long len,
              unsigned long startOff, GcaParsed& arc);
 

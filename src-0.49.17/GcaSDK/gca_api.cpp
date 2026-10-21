@@ -4,6 +4,7 @@
 #include "GcaSDK.h"
 #include "gca_arc.h"
 #include "gca_bwt.h"
+#include "gca_sha1.h"
 #include "../kiutil.h"   // 8.3 fallback (no-op where long names work)
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +28,7 @@ struct GcaSession {
     unsigned long arcLen;
     GcaParsed arc;
     int parsed;
+    std::string parsedSpell;   /* spell the cached parse was made with */
     /* work */
     GcaWork w;
     GcaSession() : crypto(FALSE), startOff(0), progCb(0), progCtx(0),
@@ -84,9 +86,10 @@ DWORD GetStartOffset(const string& path)
             continue;
         }
         prc = gcaParse(buf, (unsigned long)len, (unsigned long)off, arc);
-        if (prc == GCA_PARSE_OK || prc == GCA_PARSE_UNSUPPORTED) {
-            /* UNSUPPORTED still means "this offset holds a GCA archive",
-               which is all GetStartOffset has to report. */
+        if (prc == GCA_PARSE_OK || prc == GCA_PARSE_UNSUPPORTED ||
+            prc == GCA_PARSE_NEEDKEY) {
+            /* UNSUPPORTED and NEEDKEY still mean "this offset holds a GCA
+               archive", which is all GetStartOffset has to report. */
             found = 1;
             break;
         }
@@ -99,12 +102,26 @@ DWORD GetStartOffset(const string& path)
 
 BOOL GetSpellFromKeyFile(string& spell, const string& keyfile)
 {
-    /* TODO: probe original (likely hex(SHA1(file))). Deferred. */
-    FILE* fp = fopen(keyfile.c_str(), "rb");
+    /* gcac.exe hashes the key file with SHA-1 and uses the lower case
+       hex digest of that hash as the archive password
+       (gcac.exe.c:17433-17459: sub_412AF0/412B70/412C00/412CB0).
+       `gcac a x.gca -k key.bin` is therefore byte identical to
+       `gcac a x.gca -p <sha1hex(key.bin)>`. */
+    FILE* fp;
+    std::string data;
+    char buf[4096];
+    size_t n;
+    char hex[41];
+
+    fp = fopen(keyfile.c_str(), "rb");
     if (!fp) return FALSE;
+    while ((n = fread(buf, 1, sizeof(buf), fp)) > 0)
+        data.append(buf, n);
     fclose(fp);
-    spell = "";
-    return FALSE;
+    gcaSha1Hex((const unsigned char*)data.data(),
+               (unsigned long)data.size(), hex);
+    spell = hex;
+    return TRUE;
 }
 
 /* The original SDK allocates its context in the constructor (CGca::CGca ->
@@ -122,6 +139,36 @@ CGca::~CGca()
     Free();
 }
 
+/* Allocate (or re-allocate) the decode work buffers.
+ *
+ * The original SDK's callers never call Init() -- they go straight to
+ * SetArcFilePath()/GetNumFiles() -- but Extract() needs the scratch
+ * buffers, so they are allocated on demand here instead.
+ */
+static BOOL gcaAllocWork(GcaSession* s)
+{
+    if (s->w.bufA && s->w.bufB && s->w.hist)
+        return TRUE;
+    delete [] s->w.bufA;  s->w.bufA = 0;
+    delete [] s->w.bufB;  s->w.bufB = 0;
+    delete [] s->w.hist;  s->w.hist = 0;
+    delete [] s->w.btwTmp; s->w.btwTmp = 0;
+    s->w.btwTmpSize = 0;
+    s->w.bufA = new unsigned char[0x400000];
+    s->w.bufB = new unsigned char[0x400000];
+    s->w.hist = new unsigned long[65536 + 16];
+    if (!s->w.bufA || !s->w.bufB || !s->w.hist) {
+        delete [] s->w.bufA;  s->w.bufA = 0;
+        delete [] s->w.bufB;  s->w.bufB = 0;
+        delete [] s->w.hist;  s->w.hist = 0;
+        return FALSE;
+    }
+    s->w.bufASize = 0x400000;
+    s->w.bufBSize = 0x400000;
+    memset(s->w.hist, 0xFF, (65536 + 16) * sizeof(unsigned long));
+    return TRUE;
+}
+
 BOOL CGca::Init(void)
 {
     GcaSession* s = (GcaSession*)m_pContext;
@@ -136,26 +183,17 @@ BOOL CGca::Init(void)
     s->arcBytes = 0;
     s->arcLen = 0;
     s->parsed = 0;
+    s->parsedSpell = "";
     s->arc.files.clear();
+    s->arc.plain.clear();
+    s->arc.encrypted = false;
     delete [] s->w.bufA;  s->w.bufA = 0;
     delete [] s->w.bufB;  s->w.bufB = 0;
     delete [] s->w.hist;  s->w.hist = 0;
     delete [] s->w.btwTmp; s->w.btwTmp = 0;
     s->w.btwTmpSize = 0;
 
-    s->w.bufA = new unsigned char[0x400000];
-    s->w.bufB = new unsigned char[0x400000];
-    s->w.hist = new unsigned long[65536 + 16];
-    if (!s->w.bufA || !s->w.bufB || !s->w.hist) {
-        delete [] s->w.bufA;  s->w.bufA = 0;
-        delete [] s->w.bufB;  s->w.bufB = 0;
-        delete [] s->w.hist;  s->w.hist = 0;
-        return FALSE;
-    }
-    s->w.bufASize = 0x400000;
-    s->w.bufBSize = 0x400000;
-    memset(s->w.hist, 0xFF, (65536 + 16) * sizeof(unsigned long));
-    return TRUE;
+    return gcaAllocWork(s);
 }
 
 void CGca::Free(void)
@@ -175,7 +213,7 @@ void CGca::SetArcFilePath(const string& p) { if (m_pContext) ((GcaSession*)m_pCo
 void CGca::SetOutputPath(const string& p) { if (m_pContext) ((GcaSession*)m_pContext)->outPath = p; }
 void CGca::SetTempPath(const string& p) { if (m_pContext) ((GcaSession*)m_pContext)->tmpPath = p; }
 void CGca::SetCrypto(BOOL b) { if (m_pContext) ((GcaSession*)m_pContext)->crypto = b; }
-void CGca::SetSpell(const string& s) { if (m_pContext) ((GcaSession*)m_pContext)->spell = s; }
+void CGca::SetSpell(const string& s) { if (m_pContext) { GcaSession* g = (GcaSession*)m_pContext; g->spell = s; g->parsed = 0; } }
 void CGca::SetOrder(const vector<string>& v) { (void)v; }
 void CGca::SetCompress(BOOL b) { (void)b; }
 void CGca::SetHeaderCompress(BOOL b) { (void)b; }
@@ -220,45 +258,71 @@ static int gcaEnsure(GcaSession* s, int (*msg)(int, string, void*),
 {
     FILE* fp;
     long len;
+    int prc;
     if (s) {
         s->msgCb = msg; s->msgCtx = msgCtx;
         s->progCb = prog; s->progCtx = progCtx;
     }
-    if (s->parsed)
+    if (!s || s->arcPath.empty())
+        return 0;
+    /* The decode work buffers are allocated lazily: the original SDK's
+       callers never call Init(), but Extract() needs them. */
+    if (!gcaAllocWork(s))
+        return 0;
+    /* An encrypted archive can only be parsed once the password is
+       known, so a changed spell invalidates the cached parse. */
+    if (s->parsed && s->parsedSpell == s->spell)
         return 1;
-    if (s->arcPath.empty())
-        return 0;
-    fp = fopen(s->arcPath.c_str(), "rb");
-    if (!fp)
-        return 0;
-    fseek(fp, 0, SEEK_END);
-    len = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    if (len <= 0 || len > (1 << 28)) { fclose(fp); return 0; }
-    s->arcBytes = new unsigned char[len];
-    if ((long)fread(s->arcBytes, 1, len, fp) != len) {
+    if (!s->arcBytes) {
+        fp = fopen(s->arcPath.c_str(), "rb");
+        if (!fp)
+            return 0;
+        fseek(fp, 0, SEEK_END);
+        len = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+        if (len <= 0 || len > (1 << 28)) { fclose(fp); return 0; }
+        s->arcBytes = new unsigned char[len];
+        if ((long)fread(s->arcBytes, 1, len, fp) != len) {
+            fclose(fp);
+            delete [] s->arcBytes; s->arcBytes = 0;
+            return 0;
+        }
         fclose(fp);
-        delete [] s->arcBytes; s->arcBytes = 0;
+        s->arcLen = (unsigned long)len;
+    }
+    s->arc.files.clear();
+    s->arc.plain.clear();
+    s->arc.encrypted = false;
+    prc = gcaParse(s->arcBytes, s->arcLen, (unsigned long)s->startOff,
+                   s->arc, s->spell);
+    if (prc == GCA_PARSE_NEEDKEY) {
+        /* encrypted archive, no (or wrong) password */
+        gcaMsg(s, GCAM_ARC_CRYPTO_ERROR, s->arcPath.c_str());
         return 0;
     }
-    fclose(fp);
-    s->arcLen = (unsigned long)len;
-    {
-        int prc = gcaParse(s->arcBytes, s->arcLen, (unsigned long)s->startOff, s->arc);
-        if (prc == GCA_PARSE_UNSUPPORTED) {
-            /* A real GCA container (GCA3/GCAX) that this build cannot
-               decode yet. Report it as unknown rather than letting the
-               caller see a half-built file list. */
-            gcaMsg(s, GCAM_ARC_UNKNOWN_FORMAT, s->arcPath.c_str());
-            return 0;
-        }
-        if (prc != GCA_PARSE_OK) {
-            gcaMsg(s, GCAM_ARC_UNKNOWN_FORMAT, s->arcPath.c_str());
-            return 0;
-        }
+    if (prc == GCA_PARSE_UNSUPPORTED) {
+        /* A real GCA container (GCA3/GCAX) that this build cannot
+           decode yet. Report it as unknown rather than letting the
+           caller see a half-built file list. */
+        gcaMsg(s, GCAM_ARC_UNKNOWN_FORMAT, s->arcPath.c_str());
+        return 0;
+    }
+    if (prc != GCA_PARSE_OK) {
+        gcaMsg(s, GCAM_ARC_UNKNOWN_FORMAT, s->arcPath.c_str());
+        return 0;
     }
     s->parsed = 1;
+    s->parsedSpell = s->spell;
     return 1;
+}
+
+/* The image the payload offsets refer to.  For an encrypted archive the
+   parser produced a decrypted copy; otherwise it is the file as read. */
+static const unsigned char* gcaImage(const GcaSession* s)
+{
+    if (s->arc.encrypted && !s->arc.plain.empty())
+        return &s->arc.plain[0];
+    return s->arcBytes;
 }
 
 static void gcaMkDir(const char* path)
@@ -345,7 +409,11 @@ BOOL CGca::CloseArchive(void)
     GcaSession* s = (GcaSession*)m_pContext;
     if (!s) return FALSE;
     delete [] s->arcBytes; s->arcBytes = 0; s->arcLen = 0;
-    s->arc.files.clear(); s->parsed = 0;
+    s->arc.files.clear();
+    s->arc.plain.clear();
+    s->arc.encrypted = false;
+    s->parsed = 0;
+    s->parsedSpell = "";
     return TRUE;
 }
 
@@ -426,7 +494,7 @@ BOOL CGca::Extract(void)
         if (s->arc.files.empty())
             return FALSE;
         s->w.msgProc = 0; s->w.msgCtx = 0;
-        if (gcaDecodeFile(s->arcBytes, s->arc.files[0], 1, s->w, cat) != 0) {
+        if (gcaDecodeFile(gcaImage(s),s->arc.files[0], 1, s->w, cat) != 0) {
             gcaMsg(s, GCAM_FILE_READ_ERROR, s->arc.files[0].name.c_str());
             return FALSE;
         }
@@ -448,7 +516,7 @@ BOOL CGca::Extract(void)
         const GcaFileEntry& e = s->arc.files[i];
         std::string data;
         s->w.msgProc = 0; s->w.msgCtx = 0;
-        if (gcaDecodeFile(s->arcBytes, e, 0, s->w, data) != 0) {
+        if (gcaDecodeFile(gcaImage(s),e, 0, s->w, data) != 0) {
             gcaMsg(s, GCAM_FILE_READ_ERROR, e.name.c_str());
             return FALSE;
         }
@@ -468,7 +536,7 @@ static BOOL gcaSolidSlice(GcaSession* s, int n, std::string& data)
         n >= (int)s->arc.files.size())
         return FALSE;
     s->w.msgProc = 0; s->w.msgCtx = 0;
-    if (gcaDecodeFile(s->arcBytes, s->arc.files[0], 1, s->w, cat) != 0)
+    if (gcaDecodeFile(gcaImage(s),s->arc.files[0], 1, s->w, cat) != 0)
         return FALSE;
     for (i = 0; i < (unsigned)n; i++)
         off += s->arc.files[i].expSize;
@@ -490,7 +558,7 @@ BOOL CGca::ExtractFile(int n)
                    s->arc.files[n].name.c_str());
             return FALSE;
         }
-    } else if (gcaDecodeFile(s->arcBytes, s->arc.files[n],
+    } else if (gcaDecodeFile(gcaImage(s),s->arc.files[n],
                              0, s->w, data) != 0)
         return FALSE;
     return gcaWriteOne(s, s->arc.files[n], data);
@@ -505,7 +573,7 @@ BOOL CGca::ExtractFileToMemory(int n, BYTE *pBuffer)
     if (s->arc.arcType == 1) {
         if (!gcaSolidSlice(s, n, data))
             return FALSE;
-    } else if (gcaDecodeFile(s->arcBytes, s->arc.files[n],
+    } else if (gcaDecodeFile(gcaImage(s),s->arc.files[n],
                              0, s->w, data) != 0)
         return FALSE;
     memcpy(pBuffer, data.data(), data.size());

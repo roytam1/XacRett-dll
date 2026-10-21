@@ -186,25 +186,28 @@ int GcaStages::iterationDecode(unsigned char* out, const unsigned char* lit,
         }
         if (outPos >= total)
             break;
-        /* match phase: count from local table B; 0 = none */
+        /* match phase: the length is coded as (length - 64) and is used
+           unconditionally.  A coded 0 therefore means a 64 byte match,
+           not "no match": gcac.exe's own decoder (sub_4101B0) adds the
+           64 without testing the value. */
         {
             int m = vd.decodeLargeNum(locB, 32, 6);
+            int mlen;
+            unsigned h = rolling & 0xFFFF;
+            int src;
+            int j;
             if (m < 0)
                 return 0;
-            if (m != 0) {
-                int mlen = m + 0x40;
-                unsigned h = rolling & 0xFFFF;
-                int src = (int)hist[h];
-                int j;
-                if (src < 0 || src > outPos)
-                    return 0; /* original throws */
-                for (j = 0; j < mlen && outPos < total; j++) {
-                    unsigned char b = out[src++];
-                    out[outPos] = b;
-                    hist[(rolling & 0xFFFF)] = (unsigned long)outPos;
-                    rolling = ((rolling & 0xFF) << 8) | b;
-                    outPos++;
-                }
+            mlen = m + 0x40;
+            src = (int)hist[h];
+            if (src < 0 || src > outPos)
+                return 0; /* original throws */
+            for (j = 0; j < mlen && outPos < total; j++) {
+                unsigned char b = out[src++];
+                out[outPos] = b;
+                hist[(rolling & 0xFFFF)] = (unsigned long)outPos;
+                rolling = ((rolling & 0xFF) << 8) | b;
+                outPos++;
             }
         }
     }

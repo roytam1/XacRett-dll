@@ -223,6 +223,8 @@ SOURCE=.\FrzTool.cpp
 # Begin Source File
 
 SOURCE=.\GcaSDK\gca_api.cpp
+SOURCE=.\GcaSDK\gca_crypt.cpp
+SOURCE=.\GcaSDK\gca_sha1.cpp
 
 !IF  "$(CFG)" == "XacRett - Win32 Release"
 
