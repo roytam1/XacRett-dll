@@ -43,7 +43,11 @@ enum GcaFormat {
 enum {
     GCA_PARSE_OK         =  0,
     GCA_PARSE_ERROR      = -1,  /* not a GCA archive, or malformed       */
-    GCA_PARSE_UNSUPPORTED= -2,  /* valid GCA3/GCAX, decoder not built yet */
+    GCA_PARSE_UNSUPPORTED= -2,  /* a valid container this build cannot
+                                 * decode: a standalone "GCA3" file (that
+                                 * magic is the directory block, not a file
+                                 * container) or a GCA3 top level variant.
+                                 * See GCA_FORMAT.md 7.5.                */
     GCA_PARSE_NEEDKEY    = -3   /* encrypted archive, no password given   */
 };
 
