@@ -27,10 +27,10 @@
 // in that order.  The "column" method splits the data into interleaved
 // columns, each of them delta transformed and compressed on its own.
 //
-// What is NOT implemented: the encryption (-p / -k).  The cipher is
-// known, but the key material that the writer derives is not, so an
-// encrypted archive is reported as such instead of being decoded into
-// garbage.
+// An encrypted archive (the -p / -k switches) has its DGCC records
+// encrypted: the 32 byte chunk header and the payload of every one of
+// them.  The outer chunk headers are in the clear, so the tree can
+// still be walked; only the records have to be decrypted one by one.
 
 #define DGC_MAX_NAME	1024
 
@@ -61,7 +61,17 @@ struct DgcArchive
 // Read the archive: the container, the index and the name list.  The
 // data area is not decompressed yet, that happens when a file is
 // extracted.
-bool DgcOpen( const char* path, DgcArchive *arc );
+//
+// The password is the one of an encrypted archive (0 when there is
+// none).  If the archive is encrypted and the password is missing or
+// wrong, the function fails and arc->encrypted is set.
+bool DgcOpen( const char* path, DgcArchive *arc, const char* password );
+
+// The password of an encrypted archive as the command line gives it:
+// -p<password> is the password itself and -p#<file> is a key file,
+// whose content is hashed with SHA-512 and whose hex digest is the
+// password (the same thing the DGC Archiver's -k switch does).
+std::string DgcPasswordFromArg( const char* arg );
 
 // Give back the memory.
 void DgcClose( DgcArchive *arc );

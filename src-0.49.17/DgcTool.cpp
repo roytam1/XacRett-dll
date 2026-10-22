@@ -31,8 +31,21 @@ bool CDgcTool::Extract( const char* fname,const char* ddir )
 	int i;
 //--------------------------------------------------------------------//
 
-	if( !DgcOpen( fname, &arc ) )
-		return false;
+	if( !DgcOpen( fname, &arc, 0 ) )
+	{
+		if( !arc.encrypted )
+			return false;
+		// An encrypted archive: the password is asked for, but only
+		// now, so that an archive that is not encrypted never opens
+		// the dialog.
+		{
+			std::string pw = DgcPasswordFromArg( CTool::GetPassword() );
+			if( pw.empty() )
+				return false;
+			if( !DgcOpen( fname, &arc, pw.c_str() ) )
+				return false;
+		}
+	}
 
 	for( i=0; i<arc.nentry; i++ )
 	{

@@ -2828,18 +2828,56 @@ columns that are delta transformed and compressed one by one.
 The names are UTF-8 and the paths use backslashes, so they go through
 `kiutil::utf8toAnsi` and `kiutil::pathMake` like the other providers.
 
-**What is not implemented:** the encryption (`-p` / `-k`).  The cipher is
-known (a SHA-512 stretched over 39 rounds, seeding an MT19937 variant,
-and a self inverse XOR stream with one feedback byte) and it is
-implemented in the recon, but the key material that the writer derives
-is not, so an encrypted archive is reported as needing a key instead of
-being decoded into garbage.  The match coder (the params' bit 1) and
-the recovery data (a `DGCR` chunk, a RAID-4 style parity table) are not
-implemented either.
+**The encryption is supported** (`src-0.49.17/DgcCrypt.cpp`).  An
+encrypted archive has every `DGCC` record encrypted - the 32 byte chunk
+header AND the payload - while the outer chunk headers (the `DGCA`, the
+`DATA`, the `INFO`, the `IARC`, the `IFDT` and the `IFNM`) are in the
+clear, so the tree can still be walked and only the records have to be
+decrypted one by one.  Two keys are used, and both are stretched over
+39 rounds before they seed the MT19937 of the key stream:
+
+    the chunk headers:  SHA-512( 8 zero bytes | password )
+    the payloads:       SHA-512( the plaintext header | password )
+
+The cipher is a self inverse XOR stream with one feedback byte.  Three
+traps, all of them real:
+
+- **the SHA-512 is the standard one, but its state is byte reversed.**
+  `getState` returns the 64 raw bytes of the state with every 64 bit
+  word's low dword first, so the digest comes out reversed per 8 byte
+  group.  The padding's length field is **16** bytes wide (the high
+  dword is zero), which for a short message is the same as the
+  standard 8 byte field.
+- **the "scratch" buffer of the key stream overlaps the upper half of
+  the 128 byte rolling state**, so every feedback byte is stored
+  TWICE and the hash of the rolling state sees it twice.  Getting this
+  wrong breaks the key stream from the third prng call on - the first
+  32 data bytes still match.
+- **the decrypt's feedback byte is the ORIGINAL byte, not the
+  decrypted one.**  The encrypt feeds back `plaintext ^ k1` and the
+  decrypt feeds back `ciphertext ^ k2`, and those are the same value,
+  so the cipher is its own inverse - but only if the feedback is taken
+  from the input, not from the output.
+
+The password comes from `-p<password>`, and a key file from
+`-p#<file>`: the file's content is hashed with SHA-512 and the hex
+digest of the hash is the password (the same thing the archiver's `-k`
+switch does).  The listing uses the command line password only and
+never asks, so an encrypted archive lists 0 members without one; the
+extraction asks for it (like the YZ1 and the GCA do) and a wrong
+password fails loudly with 0x8003.
+
+What is NOT implemented: the match coder (the params' bit 1, which no
+sample archive uses) and the recovery data (a `DGCR` chunk, a RAID-4
+style parity table in a separate `.dgcr` file).
 
 Verified: the ten archives in `fixtures/dgc/` give every file with the
 CRC-32 of the index, including `names.dgc` with its 5981 members and
-their Japanese names, in the VC6 and the VC4 build.
+their Japanese names, in the VC6 and the VC4 build.  The encrypted one
+(`dgca110-password.dgc`, the password `password`) gives a file that is
+byte identical to the one of the plain archive of the same tree, and
+the archives that the archiver's command line tool makes with `-p` and
+with `-k` decrypt the same way.
 
 ## Pre-commit checklist
 

@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "DgcCrypt.h"
 #include "DgcDecode.h"
 #include "zlib/zlib.h"
 #include <stdlib.h>
@@ -53,6 +54,53 @@ static int DgcIsContainer( const char* id )
 static int DgcIsKnown( const char* id )
 {
 	return DgcIsContainer(id) || !strcmp(id,"DGCC") || !strcmp(id,"IARC");
+}
+
+// ------------------------------------------------------------------
+// The encryption
+// ------------------------------------------------------------------
+//
+// An encrypted archive has every DGCC record encrypted: the 32 byte
+// chunk header AND the payload.  The outer chunk headers (the DGCA,
+// the DATA, the INFO, the IARC, the IFDT and the IFNM) are in the
+// clear, so the tree can still be walked; only the records have to be
+// decrypted one by one.
+//
+// Two keys are used:
+//   the chunk headers:  SHA-512( 8 zero bytes | password )
+//   the payloads:       SHA-512( the plaintext header | password )
+// and both are stretched over 39 rounds before they seed the MT19937
+// of the key stream.
+
+// Decrypt the DGCC records of one container (the DATA, the IFDT or
+// the IFNM).  The records are decrypted in place.
+static int DgcDecryptRecords( DgcWalk *w, DgcChunk* parent,
+							   const unsigned char* pw, unsigned long pwlen )
+{
+	unsigned long p = parent->off + DGC_CHUNK_HDR;
+	unsigned long end = parent->off + DGC_CHUNK_HDR + parent->psize;
+	DgcCrypt c;
+
+	while( p + DGC_CHUNK_HDR <= end ) {
+		unsigned char hdr[DGC_CHUNK_HDR];
+		unsigned long ps;
+
+		c.SetKeyHeader( pw, pwlen );
+		c.Decrypt( w->img + p, DGC_CHUNK_HDR );
+		memcpy( hdr, w->img + p, DGC_CHUNK_HDR );
+		if( memcmp(hdr,"DGCC",4) ) {
+			// not a DGCC record: put the header back and stop
+			c.SetKeyHeader( pw, pwlen );
+			c.Encrypt( w->img + p, DGC_CHUNK_HDR );
+			return 0;
+		}
+		ps = DgcRd32( hdr + 8 );
+		if( p + DGC_CHUNK_HDR + ps > end ) return -1;
+		c.SetKeyPayload( hdr, DGC_CHUNK_HDR, pw, pwlen );
+		c.Decrypt( w->img + p + DGC_CHUNK_HDR, ps );
+		p = DgcAlign16( p + DGC_CHUNK_HDR + ps );
+	}
+	return 0;
 }
 
 // Walk the chunk tree.  The recovery data (a DGCR chunk) is scrambled
@@ -823,7 +871,7 @@ static int DgcParseNames( DgcWalk *w, DgcChunk* ifnm, DgcArchive *arc )
 	return 0;
 }
 
-bool DgcOpen( const char* path, DgcArchive *arc )
+bool DgcOpen( const char* path, DgcArchive *arc, const char* password )
 {
 	FILE* fp;
 	DgcWalk w;
@@ -873,12 +921,53 @@ bool DgcOpen( const char* path, DgcArchive *arc )
 	{
 		const unsigned char* h = arc->img + iarc->off + DGC_CHUNK_HDR;
 		if( (h[0] & 1) ) {
-			// encrypted: the key material is not known, so the
-			// archive is reported as such instead of being decoded
-			// into garbage
-			arc->encrypted = 1;
-			DgcClose( arc );
-			return false;
+			// The archive is encrypted.  The records of the DATA,
+			// the IFDT and the IFNM are decrypted with the password
+			// and the tree is walked again, because the ids of the
+			// records were encrypted too.
+			DgcChunk* cont[3];
+			unsigned long pwlen;
+			int i;
+
+			if( !password || !*password ) {
+				DgcClose( arc );
+				arc->encrypted = 1;
+				return false;
+			}
+			pwlen = (unsigned long)strlen(password);
+			cont[0] = DgcFindChunk( &w, "DATA", 1 );
+			cont[1] = DgcFindChunk( &w, "IFDT", 2 );
+			cont[2] = DgcFindChunk( &w, "IFNM", 2 );
+			for( i=0; i<3; i++ ) {
+				if( !cont[i] ) { DgcClose( arc ); return false; }
+				if( DgcDecryptRecords( &w, cont[i], (const unsigned char*)password, pwlen )!=0 ) {
+					DgcClose( arc );
+					return false;
+				}
+			}
+			// the IARC payload's +0x20 area (48 bytes) holds the
+			// number of entries and the length of the name blob
+			{
+				DgcCrypt c;
+				unsigned char* area = arc->img + iarc->off + DGC_CHUNK_HDR + 0x20;
+				c.SetKeyHeader( (const unsigned char*)password, pwlen );
+				c.Decrypt( area, 48 );
+				// the numbers have to be plausible: a wrong
+				// password gives garbage
+				if( DgcRd64( area + 0x08 ) > (unsigned __int64)0x1000000 ||
+					DgcRd32( area + 0x20 ) > 0x1000000u ) {
+					DgcClose( arc );
+					arc->encrypted = 1;
+					return false;
+				}
+			}
+			// walk the tree again: now the records are readable
+			memset( &w, 0, sizeof(w) );
+			w.img = arc->img;
+			w.size = fsize;
+			DgcWalkTree( &w, 0, fsize, 0, 0 );
+			iarc = DgcFindChunk( &w, "IARC", 2 );
+			if( !iarc ) { DgcClose( arc ); return false; }
 		}
 	}
 
@@ -960,4 +1049,33 @@ bool DgcExtractFile( DgcArchive *arc, int index, const char* outpath )
 		if( crc != e->crc ) return false;
 	}
 	return true;
+}
+
+// The password of an encrypted archive as the command line gives it.
+// -p<password> is the password itself, -p#<file> is a key file whose
+// content is hashed with SHA-512 (the hex digest of the hash is the
+// password, which is what the DGC Archiver's -k switch does) and
+// -p##text is the text itself.
+std::string DgcPasswordFromArg( const char* arg )
+{
+	std::string s;
+	if( !arg || !*arg ) return s;
+	if( *arg=='#' ) {
+		if( arg[1]=='#' ) return std::string(arg+1);
+		{
+			FILE* fp = fopen( arg+1, "rb" );
+			std::string data;
+			char buf[4096];
+			size_t n;
+			char hex[129];
+			if( !fp ) return s;
+			while( (n = fread(buf,1,sizeof(buf),fp)) > 0 )
+				data.append(buf,n);
+			fclose(fp);
+			DgcSha512Hex( (const unsigned char*)data.data(),
+						   (unsigned long)data.size(), hex );
+			return std::string(hex);
+		}
+	}
+	return std::string(arg);
 }

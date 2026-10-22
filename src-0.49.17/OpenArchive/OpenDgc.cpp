@@ -10,10 +10,18 @@ bool COpenDgc::FindFirst(INDIVIDUALINFO *lpSubInfo)
 	if( !Opened )
 	{
 		Opened = true;
-		if( !DgcOpen( COpenDgc::szArcFileName, &arc ) )
 		{
-			COpenDgc::FileNum = 0;
-			return false;
+			// A password that was handed in on the command line is
+			// used straight away, so that an encrypted archive can
+			// be listed.  The dialog is not opened here: a listing
+			// must never block.
+			std::string pw = DgcPasswordFromArg( CTool::GetPasswordArg() );
+			if( !DgcOpen( COpenDgc::szArcFileName, &arc,
+						  pw.empty() ? 0 : pw.c_str() ) )
+			{
+				COpenDgc::FileNum = 0;
+				return false;
+			}
 		}
 		COpenDgc::FileNum = arc.nentry;
 	}
