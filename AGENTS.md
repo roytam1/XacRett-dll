@@ -2900,6 +2900,53 @@ Two things are worth knowing:
 What is NOT implemented: the match coder (the params' bit 1, which no
 sample archive uses).
 
+**The spanning files are supported too** (`ARCHIVETYPE_DGD` 75,
+`DgdDecode.cpp` + `DgdTool.cpp` + `OpenArchive/OpenDgd.cpp`).  A file
+that is too big for a single archive is split into parts, and every part
+is a chunk tree of its own:
+
+    DGCD  (the root)
+    |-- INFO  (116 bytes)
+    |     +0x00 u32  the flags, bit 0 = encrypted
+    |     +0x04 u32  the index of this part
+    |     +0x08 u32  the number of the parts
+    |     +0x10 u32  the size of this part
+    |     +0x18 u32  the size of the whole file
+    |     +0x20 64B  the SHA-512 of the whole file
+    |     +0x60 u32  the length of the name
+    |     +0x64      the name (UTF-8)
+    |-- DFDT  (32 bytes)  the date and the time of the file
+    `-- DATA  (this part's bytes, not compressed)
+
+The parts are named `<base>%04d.dgd` and a `.dgdr` has the same
+structure with a `DGCR` chunk (the recovery data) appended.  The parts of
+two different files can lie in the same directory, so the parts are
+told apart by the SHA-512 of the whole file and by the number of the
+parts, and the combinations whose part sizes add up to the size of the
+whole file are tried one after the other until the SHA-512 of the
+reassembled file matches.
+
+The encryption is the one of the archives, but the keys come from the
+material of the INFO chunk:
+
+    the 92 bytes of the material at INFO+4: SHA-512( 8 zeros | password )
+    the name, the DFDT and the DATA:
+            SHA-512( the plaintext 96 byte material | password )
+
+and the name region, the DFDT and the DATA each get their own key
+stream.  The password comes from `-p<password>` and a key file from
+`-p#<file>` (the hex text of the SHA-512 of the file, like the GCA).
+
+The recovery data of a `.dgdr` covers the bytes of the `.dgdr` in front
+of its `DGCR` chunk, so a damaged part is repaired before it is used.
+
+Verified: the six files in `fixtures/dgd/` (the plain pair, the pair
+with the recovery data and the encrypted pair) all give the same
+86016 byte file, byte for byte, in the VC6 and the VC4 build.  The
+control: the same damage in a `.dgd` is NOT repaired (the extraction
+fails with 0x8003 and writes nothing) while the same damage in a
+`.dgdr` is repaired by the parity table and gives the byte-exact file.
+
 Verified: the ten archives in `fixtures/dgc/` give every file with the
 CRC-32 of the index, including `names.dgc` with its 5981 members and
 their Japanese names, in the VC6 and the VC4 build.  The encrypted one

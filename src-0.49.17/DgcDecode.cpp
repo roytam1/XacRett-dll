@@ -191,6 +191,53 @@ static unsigned long DgcRepair( DgcWalk *w, DgcArchive *arc, DgcChunk* dgcr )
 	return fixed;
 }
 
+// The DGCR chunk of a file: it is a chunk of the top level (a .dgcr is
+// an archive with the recovery data appended, a .dgdr is a part of a
+// spanning file with it appended).
+static int DgcFindRecoveryChunk( unsigned char* img, unsigned long size,
+								 unsigned long* off, unsigned long* psize )
+{
+	unsigned long p = 0;
+	while( p + DGC_CHUNK_HDR <= size ) {
+		unsigned long ps = DgcRd32( img + p + 8 );
+		if( p + DGC_CHUNK_HDR + ps > size ) break;
+		if( !memcmp( img + p, "DGCR", 4 ) ) {
+			*off = p; *psize = ps;
+			return 1;
+		}
+		p = DgcAlign16( p + DGC_CHUNK_HDR + ps );
+	}
+	return 0;
+}
+
+bool DgcFindRecovery( unsigned char* img, unsigned long size )
+{
+	unsigned long off, psize;
+	return DgcFindRecoveryChunk( img, size, &off, &psize )!=0;
+}
+
+unsigned long DgcRepairRecovery( unsigned char* img, unsigned long size )
+{
+	DgcWalk w;
+	DgcChunk dg;
+	DgcArchive arc;
+	unsigned long off, psize;
+
+	if( !DgcFindRecoveryChunk( img, size, &off, &psize ) ) return 0;
+	memset( &w, 0, sizeof(w) );
+	w.img = img;
+	w.size = size;
+	memset( &dg, 0, sizeof(dg) );
+	dg.off = off;
+	dg.psize = psize;
+	dg.depth = 0;
+	memcpy( dg.id, "DGCR", 5 );
+	memset( &arc, 0, sizeof(arc) );
+	arc.img = img;
+	arc.imgsize = size;
+	return DgcRepair( &w, &arc, &dg );
+}
+
 //
 // An encrypted archive has every DGCC record encrypted: the 32 byte
 // chunk header AND the payload.  The outer chunk headers (the DGCA,

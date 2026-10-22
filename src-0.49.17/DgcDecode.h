@@ -80,4 +80,12 @@ void DgcClose( DgcArchive *arc );
 // decides where the file goes.
 bool DgcExtractFile( DgcArchive *arc, int index, const char* outpath );
 
+// The recovery data: a .dgcr (an archive with the recovery data
+// appended) and a .dgdr (a part of a spanning file with it appended)
+// carry a DGCR chunk.  The first function tells whether the file has
+// one and the second restores the words that were damaged with the
+// parity table.  The number of restored words is returned.
+bool DgcFindRecovery( unsigned char* img, unsigned long size );
+unsigned long DgcRepairRecovery( unsigned char* img, unsigned long size );
+
 #endif

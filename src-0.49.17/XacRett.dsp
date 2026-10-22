@@ -177,10 +177,16 @@ SOURCE=.\DgcCrypt.cpp
 SOURCE=.\DgcCrypt.h
 SOURCE=.\DgcDecode.cpp
 SOURCE=.\DgcDecode.h
+SOURCE=.\DgdDecode.cpp
+SOURCE=.\DgdDecode.h
 SOURCE=.\DgcTool.cpp
 SOURCE=.\DgcTool.h
+SOURCE=.\DgdTool.cpp
+SOURCE=.\DgdTool.h
 SOURCE=.\OpenArchive\OpenDgc.cpp
 SOURCE=.\OpenArchive\OpenDgc.h
+SOURCE=.\OpenArchive\OpenDgd.cpp
+SOURCE=.\OpenArchive\OpenDgd.h
 # End Source File
 # Begin Source File
 SOURCE=.\CabDecode.h
