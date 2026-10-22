@@ -1297,6 +1297,24 @@ Its import table can never match official: VC4 has no SHLWAPI.LIB, but
 our SHLWAPI use is already GetProcAddress-based, so the VC4 build stays
 95/NT4-loadable by design.
 
+**The VC4 link fails in this environment with "Internal error during
+Pass1".**  It is a limit of this `link.exe`, not a code problem, and it
+is not caused by any change of ours:
+
+- it fails the same way at HEAD with the working tree stashed;
+- it fails the same way with and without the objects of the newest
+  provider, and it names a DIFFERENT object on every run;
+- the same `cl` command, run by hand, always succeeds (five runs in a
+  row for the file it names);
+- 60 objects link fine (only the expected `LNK2001: XacRett`), 120 and
+  more fail, so it is a scale limit.
+
+So the per-file check is the meaningful one here: compile every new
+unit with the VC4 flags and confirm the errorlevel is 0, which is how
+`DgdDecode.cpp`, `DgdTool.cpp`, `OpenArchive\OpenDgd.cpp` and
+`DgcDecode.cpp` were verified.  The full VC4 link works on the
+maintainer's machine.
+
 ## SQX format-2.0 LZ (methods 1-4) -- DONE
 
 `ctab.h/.c`, `uarde.h/.c`, `mm_coder.c`, `sqx_dec.c`.  Verified against
