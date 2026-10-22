@@ -2867,9 +2867,38 @@ never asks, so an encrypted archive lists 0 members without one; the
 extraction asks for it (like the YZ1 and the GCA do) and a wrong
 password fails loudly with 0x8003.
 
+**The recovery data is supported too** (a `DGCR` chunk).  A `.dgcr`
+file is an archive with the recovery data appended, so the provider
+takes it as an archive (`IsType` knows the extension) and uses the
+recovery data on the fly.  The `DGCR` chunk holds an `INFO` chunk (the
+parameters) and a `DATA` chunk with a 2 dimensional parity code over
+the archive's 4 byte words:
+
+    the archive = pages x rows x 256 columns of 4 byte words
+    part 1 (rows*cols words): for every (row, column) the XOR of the
+            words of all the pages
+    part 2 (pages*rows words): for every (page, row) the XOR of the
+            words of all the columns
+
+The column parity locates the damaged words and the row parity says
+which page they are in; the `INFO` chunk holds the archive's checksum
+(the bytes in front of the `DGCR` chunk), which is the final check.  The
+parity table is encrypted with the fixed key of the cipher (the
+password `SecureCryptograph` and 8 zero bytes) and the three parts are
+encrypted one after the other with the same cipher object, so the key
+stream runs over the whole recovery data.
+
+Two things are worth knowing:
+
+- **the recovery data covers the archive AS IT IS STORED**, i.e. the
+  encrypted bytes of an encrypted archive, so the repair has to happen
+  BEFORE the decryption.
+- **the repair runs before the checksums are read**, because a damaged
+  word can be a checksum field - the `DGCA` chunk's own CRC is checked
+  right after the repair and passes again.
+
 What is NOT implemented: the match coder (the params' bit 1, which no
-sample archive uses) and the recovery data (a `DGCR` chunk, a RAID-4
-style parity table in a separate `.dgcr` file).
+sample archive uses).
 
 Verified: the ten archives in `fixtures/dgc/` give every file with the
 CRC-32 of the index, including `names.dgc` with its 5981 members and
@@ -2878,6 +2907,12 @@ their Japanese names, in the VC6 and the VC4 build.  The encrypted one
 byte identical to the one of the plain archive of the same tree, and
 the archives that the archiver's command line tool makes with `-p` and
 with `-k` decrypt the same way.
+
+The recovery data is verified with a control: the same damage in the
+data area, the index table, the name list, the archive index and a
+chunk header is repaired by the `.dgcr` file (all five give the
+byte-exact file) and is NOT repaired without it (all five fail), in
+the VC6 and the VC4 build.
 
 ## Pre-commit checklist
 

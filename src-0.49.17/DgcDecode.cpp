@@ -56,9 +56,141 @@ static int DgcIsKnown( const char* id )
 	return DgcIsContainer(id) || !strcmp(id,"DGCC") || !strcmp(id,"IARC");
 }
 
+// The chunk tree: the walk and the two lookups.
+static DgcChunk* DgcFindChunk( DgcWalk *w, const char* id, int depth );
+static DgcChunk* DgcChildChunk( DgcWalk *w, DgcChunk* parent, const char* id );
+
 // ------------------------------------------------------------------
-// The encryption
+// The recovery data (the DGCR chunk)
 // ------------------------------------------------------------------
+//
+// A DGCR chunk holds an INFO chunk (the parameters) and a DATA chunk
+// with the recovery data.  The data is a 2 dimensional parity code over
+// the archive's 4 byte words:
+//
+//   the archive = pages x rows x 256 columns of 4 byte words
+//   part 1 (rows*cols words): for every (row, column) the XOR of the
+//           words of all the pages
+//   part 2 (pages*rows words): for every (page, row) the XOR of the
+//           words of all the columns
+//   part 3 (rows words): the offsets of the row blocks
+//
+// It is a RAID-4 style redundancy: it can restore a lost 4 byte word.
+// The recovery data is encrypted with the fixed key of the cipher (the
+// password "SecureCryptograph" and 8 zero bytes) and the three parts
+// are encrypted one after the other with the same cipher object, so
+// the key stream runs over the whole recovery data.
+//
+// The recovery data covers the archive AS IT IS STORED (the encrypted
+// bytes of an encrypted archive), so the repair has to happen before
+// the decryption.
+
+#define DGC_RECOVERY_KEY	"SecureCryptograph"
+
+// The word of the archive: (page, row, column).  The matrix is padded
+// with zeros if the archive is shorter than rows*cols*pages words.
+#define DGC_ARCH_WORD(pg,rw,cl,alen) \
+	( ( (((pg)*rows + (rw))*cols + (cl))*4 + 4) > (alen) ? 0ul : \
+	  DgcRd32( arc->img + (((pg)*rows + (rw))*cols + (cl))*4 ) )
+
+// Restore the damaged words of the archive with the parity table.  The
+// number of restored words is returned (0 when nothing was damaged).
+static unsigned long DgcRepair( DgcWalk *w, DgcArchive *arc, DgcChunk* dgcr )
+{
+	DgcChunk *info, *data;
+	const unsigned char* ip;
+	unsigned char* rec = NULL;
+	unsigned char *par, *rowx;
+	unsigned long off, crc, len, cols, rows, pages;
+	unsigned long alen, i, j, k, x, fixed = 0;
+
+	info = DgcChildChunk( w, dgcr, "INFO" );
+	data = DgcChildChunk( w, dgcr, "DATA" );
+	if( !info || !data ) return 0;
+	if( info->psize < 0x30 ) return 0;
+	ip = arc->img + info->off + DGC_CHUNK_HDR;
+	off   = DgcRd32( ip + 0x28 );
+	crc   = DgcRd32( ip + 0x2C );
+	len   = DgcRd32( ip + 0x04 );
+	cols  = DgcRd32( ip + 0x10 );
+	rows  = DgcRd32( ip + 0x14 );
+	pages = DgcRd32( ip + 0x18 );
+	if( off > arc->imgsize ) return 0;
+	if( !cols || !rows || !pages ) return 0;
+	if( data->psize < len ) return 0;
+	if( len < (rows*cols + pages*rows + rows) * 4 ) return 0;
+
+	rec = (unsigned char*)malloc( len ? len : 1 );
+	if( !rec ) return 0;
+	memcpy( rec, arc->img + data->off + DGC_CHUNK_HDR, len );
+	{
+		// the fixed key of the cipher
+		DgcCrypt c;
+		c.SetKeyHeader( (const unsigned char*)DGC_RECOVERY_KEY, 17 );
+		c.Decrypt( rec, len );
+	}
+	par  = rec;                    /* rows*cols words */
+	rowx = rec + rows*cols*4;      /* pages*rows words */
+	alen = off;
+
+	// the columns whose parity does not match have a damaged word
+	for( i=0; i<rows; i++ ) {
+		for( j=0; j<cols; j++ ) {
+			unsigned long want = DgcRd32( par + (i*cols+j)*4 );
+			x = 0;
+			for( k=0; k<pages; k++ ) x ^= DGC_ARCH_WORD(k,i,j,alen);
+			if( x == want ) continue;
+			{
+				unsigned long cand = 0, kp = 0, y;
+				int found = 0;
+				// the damaged word must also repair the row parity
+				for( k=0; k<pages; k++ ) {
+					unsigned long z;
+					y = 0;
+					for( x=0; x<pages; x++ )
+						if( x != k ) y ^= DGC_ARCH_WORD(x,i,j,alen);
+					cand = want ^ y;
+					z = 0;
+					for( x=0; x<cols; x++ ) {
+						unsigned long wv = ( x==j ) ? cand : DGC_ARCH_WORD(k,i,x,alen);
+						z ^= wv;
+					}
+					if( z == DgcRd32( rowx + (k*rows+i)*4 ) ) {
+						kp = k;
+						found = 1;
+						break;
+					}
+				}
+				if( !found ) {
+					// more than one word of the row is damaged: take
+					// the most likely candidate
+					y = 0;
+					for( x=1; x<pages; x++ ) y ^= DGC_ARCH_WORD(x,i,j,alen);
+					cand = want ^ y;
+					kp = 0;
+				}
+				{
+					unsigned long o = ((kp*rows + i)*cols + j)*4;
+					if( o + 4 <= alen ) {
+						unsigned char* q = arc->img + o;
+						q[0] = (unsigned char)cand;
+						q[1] = (unsigned char)(cand >> 8);
+						q[2] = (unsigned char)(cand >> 16);
+						q[3] = (unsigned char)(cand >> 24);
+						fixed++;
+					}
+				}
+			}
+		}
+	}
+	free( rec );
+
+	// the archive's checksum is the final check
+	if( crc && (unsigned long)crc32( 0, arc->img, (uInt)alen )!=crc )
+		return 0;
+	return fixed;
+}
+
 //
 // An encrypted archive has every DGCC record encrypted: the 32 byte
 // chunk header AND the payload.  The outer chunk headers (the DGCA,
@@ -906,11 +1038,33 @@ bool DgcOpen( const char* path, DgcArchive *arc, const char* password )
 		DgcClose( arc );
 		return false;
 	}
+	root = &w.chunks[0];
+
+	// The recovery data: a DGCR chunk at the top level.  Its INFO chunk
+	// holds the checksum of the archive (the bytes in front of the
+	// DGCR chunk) and the parity table restores the words that were
+	// lost.  The repair has to happen before the checksums are read,
+	// because a damaged word can be a checksum.
+	{
+		DgcChunk* dgcr = DgcFindChunk( &w, "DGCR", 0 );
+		if( dgcr ) {
+			DgcChunk* info = DgcChildChunk( &w, dgcr, "INFO" );
+			if( info && info->psize >= 0x30 ) {
+				const unsigned char* ip = arc->img + info->off + DGC_CHUNK_HDR;
+				unsigned long off = DgcRd32( ip + 0x28 );
+				unsigned long crc = DgcRd32( ip + 0x2C );
+				if( crc && off <= arc->imgsize &&
+					(unsigned long)crc32( 0, arc->img, (uInt)off )!=crc ) {
+					DgcRepair( &w, arc, dgcr );
+				}
+			}
+		}
+	}
+
 	if( !DgcChunkCrcOk( &w, &w.chunks[0] ) ) {
 		DgcClose( arc );
 		return false;
 	}
-	root = &w.chunks[0];
 
 	// the index
 	iarc = DgcFindChunk( &w, "IARC", 2 );

@@ -18,8 +18,9 @@ class CDgcTool : public CTool
 public:
 	CDgcTool() : CTool( "Dgc “WŠJ" ){}
 
+	// the .dgcr file is an archive with the recovery data appended
 	bool IsType( const char* ext )
-		{return 0==stricmp(ext,"dgc");}
+		{return 0==stricmp(ext,"dgc") || 0==stricmp(ext,"dgcr");}
 	bool Check( const char* fname, unsigned long fsize );
 	bool Extract( const char* fname, const char* ddir );
 };

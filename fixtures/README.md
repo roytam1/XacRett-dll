@@ -26,7 +26,7 @@ in `AGENTS.md`.  What is here is the input side of those checks.
 | `ain/` | `LICENCE.ARG` | the AIN archiver | the AIN provider |
 | `lbr/` | `crlzh20.lbr` | the 80un CP/M tools | the CP/M LBR provider, the CrLZH variant |
 | `jcalg1/` | `jcalg1_test.jc1` | the jcalg1 reference compressor | the JCALG1 provider |
-| `dgc/` | the ten DGCA archives: the plain, the stored, the "one block per file", the "beta" and the "v100e" variants, the 5981 member `names.dgc` and the encrypted one | made with `dgcac.exe` 0.9k | the DGC provider: every file comes out with the CRC-32 the index says, and the encrypted one decrypts with `-ppassword` |
+| `dgc/` | the eleven DGCA archives: the plain, the stored, the "one block per file", the "beta" and the "v100e" variants, the 5981 member `names.dgc`, the encrypted one and the `.dgcr` with the recovery data | made with `dgcac.exe` 0.9k | the DGC provider: every file comes out with the CRC-32 the index says, the encrypted one decrypts with `-ppassword` and the `.dgcr` repairs a damaged archive |
 | `gca/` | the plain, the password and the key file archives of the `ctest` corpus, plus the `key.bin` the key archives need | `gcac.exe` 0.9k | the GCA provider, the `GCA3` container and the encrypted archives: `-p secret123` and `-p#key.bin` |
 | `yz1/` | `yzenc.yz1`, `yzencpw.yz1` and `lib.yz1` | the `yzenc.exe` in the workarea root | the YZ1 provider, plain and with a password |
 | `lzip/` | `nicfix.tar.lz` and `lzsfx33.lzs` | an upstream lzip file and the lhasa corpus | the lzip provider |
