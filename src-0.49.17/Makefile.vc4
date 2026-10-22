@@ -56,6 +56,9 @@ OBJS = \
     $(OBJDIR)\CabDecode.obj \
     $(OBJDIR)\CabLzx.obj \
     $(OBJDIR)\CabQuantum.obj \
+    $(OBJDIR)\DgcDecode.obj \
+    $(OBJDIR)\DgcTool.obj \
+    $(OBJDIR)\OpenArchive_OpenDgc.obj \
     $(OBJDIR)\CompactCTool.obj \
     $(OBJDIR)\complib.obj \
     $(OBJDIR)\CompressZTool.obj \
@@ -335,6 +338,15 @@ $(OBJDIR)\CabLzx.obj : CabLzx.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\CabQuantum.obj : CabQuantum.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\DgcDecode.obj : DgcDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\DgcTool.obj : DgcTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenDgc.obj : OpenArchive\OpenDgc.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\CompactCTool.obj : CompactCTool.cpp

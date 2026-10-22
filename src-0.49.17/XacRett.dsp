@@ -168,6 +168,17 @@ SOURCE=.\CabTool.cpp
 # End Source File
 # Begin Source File
 SOURCE=.\CabDecode.cpp
+SOURCE=.\CabDecode.h
+SOURCE=.\CabLzx.cpp
+SOURCE=.\CabLzx.h
+SOURCE=.\CabQuantum.cpp
+SOURCE=.\CabQuantum.h
+SOURCE=.\DgcDecode.cpp
+SOURCE=.\DgcDecode.h
+SOURCE=.\DgcTool.cpp
+SOURCE=.\DgcTool.h
+SOURCE=.\OpenArchive\OpenDgc.cpp
+SOURCE=.\OpenArchive\OpenDgc.h
 # End Source File
 # Begin Source File
 SOURCE=.\CabDecode.h

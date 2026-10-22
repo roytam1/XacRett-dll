@@ -151,6 +151,8 @@ using namespace std;   //こいつを入れないと使えません。
 #include "OpenArchive\OpenaPLib.h"
 #include "OpenArchive\OpenSqx.h"
 #include "OpenArchive\OpenAsk.h"
+#include "DgcTool.h"
+#include "OpenArchive\OpenDgc.h"
 #include "OpenArchive\OpenDummy.h"//未対応用のダミー
 
 #ifndef _DEBUG
@@ -690,6 +692,9 @@ void DllSub(void)//ロードする
 	ArchiveListMap[t]=o;
 	t=t->AddTail( new CAskTool );
 	o=o->AddTail( new COpenAsk);
+	ArchiveListMap[t]=o;
+	t=t->AddTail( new CDgcTool );
+	o=o->AddTail( new COpenDgc);
 	ArchiveListMap[t]=o;
 
 	g_pToolList->Msg=RegisterWindowMessage(WM_ARCEXTRACT);
@@ -1300,6 +1305,8 @@ int ArcNameToNum(LPCSTR buffer )
 		return ARCHIVETYPE_AIN;
 	else if (lstrcmp(buffer,"Lbr 展開")==0)
 		return ARCHIVETYPE_LBR;
+	else if (lstrcmp(buffer,"Dgc 展開")==0)
+		return ARCHIVETYPE_DGC;
 	else
 		return ARCHIVETYPE_UNKNOWN ;
 }

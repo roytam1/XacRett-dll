@@ -2785,6 +2785,62 @@ listing hands it to the SDK as the archive password.  So an encrypted
 archive lists as 0 members when no password was given, and lists its
 members when one was -- with no prompt either way.
 
+## DGC (the ".dgc" archives of the DGC Archiver)
+
+`ARCHIVETYPE_DGC` 74 (`DgcTool.cpp` + `OpenArchive/OpenDgc.cpp`, with
+the engine in `DgcDecode.cpp`).  The format is described in
+`dgca/NOTES-dgca-format.md`, which was reverse engineered from
+`dgcac.exe` 0.9k.
+
+The container is a tree of chunks: a 32 byte header (the id, the
+header size, the payload size, two reserved words, the flags, the
+alignment, the CRC-32 of the payload and the CRC-32 of the header with
+the last field zeroed) and a payload that is the concatenation of the
+children, each padded to the next 16 byte boundary.  The tree is
+
+    DGCA
+    +- DATA    the file payloads
+    |   +- DGCC   the compressed blocks
+    +- INFO    the metadata
+        +- IARC   the archive index (80 bytes)
+        +- IFDT -> DGCC   the index table (64 bytes per entry, transposed)
+        +- IFNM -> DGCC   the name list
+
+The compressed blocks are a context mixing entropy coder, an LZ stage
+that permutes the token buffer and an LZ77 with an implicit distance,
+in that order; the "column" method splits the data into interleaved
+columns that are delta transformed and compressed one by one.
+
+**Two things are worth knowing about the index.**
+
+- The **"compressed size" and the offset of the index are not to be
+  used**: they differ between a stored and a compressed archive of the
+  same files.  The records are laid out one after the other in the
+  data area and every one of them is as long as the entry's original
+  size, so that is how the data is found.  The index's own fields are
+  still shown in the listing, because that is what the tool prints.
+- The **CRC-32 in the index is the oracle**.  The reference unpacker
+  that comes with the recon is an older build and it decodes the
+  compressed blocks wrongly -- it prints `MISMATCH` against the index
+  for every compressed archive -- so the index is what the extraction
+  is checked against.
+
+The names are UTF-8 and the paths use backslashes, so they go through
+`kiutil::utf8toAnsi` and `kiutil::pathMake` like the other providers.
+
+**What is not implemented:** the encryption (`-p` / `-k`).  The cipher is
+known (a SHA-512 stretched over 39 rounds, seeding an MT19937 variant,
+and a self inverse XOR stream with one feedback byte) and it is
+implemented in the recon, but the key material that the writer derives
+is not, so an encrypted archive is reported as needing a key instead of
+being decoded into garbage.  The match coder (the params' bit 1) and
+the recovery data (a `DGCR` chunk, a RAID-4 style parity table) are not
+implemented either.
+
+Verified: the ten archives in `fixtures/dgc/` give every file with the
+CRC-32 of the index, including `names.dgc` with its 5981 members and
+their Japanese names, in the VC6 and the VC4 build.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).
