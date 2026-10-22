@@ -58,11 +58,11 @@ OBJS = \
     $(OBJDIR)\CabQuantum.obj \
     $(OBJDIR)\DgcCrypt.obj \
     $(OBJDIR)\DgcDecode.obj \
-$(OBJDIR)\DgdDecode.obj \
+    $(OBJDIR)\DgdDecode.obj \
     $(OBJDIR)\DgcTool.obj \
-$(OBJDIR)\DgdTool.obj \
+    $(OBJDIR)\DgdTool.obj \
     $(OBJDIR)\OpenArchive_OpenDgc.obj \
-$(OBJDIR)\OpenArchive_OpenDgd.obj \
+    $(OBJDIR)\OpenArchive_OpenDgd.obj \
     $(OBJDIR)\CompactCTool.obj \
     $(OBJDIR)\complib.obj \
     $(OBJDIR)\CompressZTool.obj \
