@@ -48,8 +48,8 @@ OBJS = \
     $(OBJDIR)\AskTool.obj \
     $(OBJDIR)\AtoBTool.obj \
     $(OBJDIR)\BelTool.obj \
-    $(OBJDIR)\BgaTool.obj \
     $(OBJDIR)\BlzTool.obj \
+    $(OBJDIR)\BgaTool.obj \
     $(OBJDIR)\BooTool.obj \
     $(OBJDIR)\Bz2Tool.obj \
     $(OBJDIR)\CabTool.obj \
@@ -57,7 +57,7 @@ OBJS = \
     $(OBJDIR)\CabLzx.obj \
     $(OBJDIR)\CabQuantum.obj \
     $(OBJDIR)\DgcCrypt.obj \
-$(OBJDIR)\DgcDecode.obj \
+    $(OBJDIR)\DgcDecode.obj \
     $(OBJDIR)\DgcTool.obj \
     $(OBJDIR)\OpenArchive_OpenDgc.obj \
     $(OBJDIR)\CompactCTool.obj \
@@ -1194,16 +1194,17 @@ unrar : dirs $(UNRAR_OBJS) $(UNRARLIB)
 # 49 object paths overflow the VC4 command-line limit, so the
 # list is globbed into a response file instead of spelled out.
 $(UNRARLIB) : dirs $(UNRAR_OBJS)
-	@echo.>$(UNRAR_RSP)
-	@for %%f in ($(UNRAR_OBJDIR)\*.obj) do @echo %%f>>$(UNRAR_RSP)
-	lib /nologo /out:$@ @$(UNRAR_RSP)
+	lib @<<
+  /nologo /out:$@ $(UNRAR_OBJS)
+<<
 
 # Link: no shlwapi.lib (VC4 ships none; our SHLWAPI use is
 # GetProcAddress-only), so the result stays 95/NT4-loadable by design.
 $(OUTDIR)\XacRett.dll : dirs $(OBJS) $(OBJDIR)\XacRett.res $(UNRARLIB)
-	@echo.>$(LINK_RSP)
-	@for %%f in ($(OBJDIR)\*.obj) do @echo %%f>>$(LINK_RSP)
-	link /nologo /dll /machine:I386 /incremental:no /out:"$(OUTDIR)\XacRett.dll" /def:"XacRett.def" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib $(UNRARLIB) @$(LINK_RSP) "$(OBJDIR)\XacRett.res"
+	link @<<
+  /nologo /dll /machine:I386 /incremental:no /out:"$(OUTDIR)\XacRett.dll" /def:"XacRett.def" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib $(UNRARLIB) $(OBJS) "$(OBJDIR)\XacRett.res"
+<<
+
 # `link` is the explicit spelling of the same thing.
 link : $(OUTDIR)\XacRett.dll
 
