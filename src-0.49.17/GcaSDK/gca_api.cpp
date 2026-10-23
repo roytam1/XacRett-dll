@@ -436,6 +436,13 @@ static BOOL gcaWriteOne(GcaSession* s, const GcaFileEntry& e, const std::string&
         kiutil::pathMake83(tmp83);
         out.assign(tmp83);
     }
+    /* a directory member is created as a directory, not as a file */
+    if (e.attr & 0x10) {
+        gcaMkDir(out.c_str());
+        if (e.attr)
+            SetFileAttributesA(out.c_str(), e.attr);
+        return TRUE;
+    }
     /* mkdir -p for parent */
     {
         char tmp[MAX_PATH * 2];

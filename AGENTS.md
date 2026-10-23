@@ -766,8 +766,9 @@ call, so keep applying them:
   Trap worth keeping: `dec.DecodeFile(0)` is NOT a substitute here -
   it is the v1 entry point and leaves `dec_file_count` at 0, and
   `m_arc_name` is private anyway.
-- Known gaps: the GCA formats older than `GCAX` and `GCA3` are not
-  decoded (the SDK reports them as unsupported); `OpenDummy`/`OpenCompactC` have no live listing path.
+- Known gaps: `OpenDummy`/`OpenCompactC` have no live listing path.
+  (The GCA formats older than `GCAX`/`GCA3` are decoded since the
+  2026-10-24 SDK re-sync - see the GCA section.)
 - **8.3 fallback for file systems with no long names** (Win32s on
   Windows 3.1, Win95 with `lfn=off`). Reported symptom: the VC4 build on
   Win32s returns **0x8013 `ERROR_CANNOT_WRITE`** for any archive with a
@@ -2787,6 +2788,50 @@ Verified: the plain, the password and the key file archives of the
 `ctest` corpus give the same 2537600 bytes in the VC6 and the VC4
 build, and the whole corpus of 145 archives shows 0 regressions against
 the old SDK.
+
+**Re-synced on 2026-10-24** from the `gca` project, which owns this SDK
+(the copy in the workarea root `GcaSDK/` is that project's tree).
+`gca_arc.cpp` and `gca_api.cpp` gained:
+
+- **the legacy `GCA0`/`GCA1` containers**, header variants 2 and 3: the
+  rotated 32 byte entries (an entry carries the metadata of the
+  *previous* member and the CRC/sizes of the *next* one), the 12 byte
+  first-member record, the trailer CRC over everything up to its four
+  zero bytes, and **encrypted version 6** (`+0x10..hdr-1` under
+  `<password>Header`, a member's payload under `<password><stored
+  name>`, a solid payload under `<password>`);
+- **directory members are created as directories** - a member with
+  attribute bit `0x10` used to be written as an empty file;
+- the **`GCA3` directory CRC is validated**
+  (`gcaDirCrc(hdr, flags, body, bodyLen, numFiles)` against `+0x14`);
+- a **solid archive whose first member is empty** decodes, which is why
+  the guard in `gcaDecodeFile` is `e.expSize == 0 && !solid` and not
+  the plain `e.expSize == 0`.
+
+Measured on the legacy fixtures (now in `fixtures/gca/`):
+`gcatxt.gca` (GCA0), `gcasdk_v09d.gca` (GCA1 solid) and
+`gcacv09e_{plain,solid,none}.gca` already decoded before the re-sync,
+but `gcacv09e_encrypted.gca` (`-p fixture`),
+`gcacv09e_encrypted_solid.gca` and `gcacv09e_encrypted_key.gca`
+(`-p#gcacv09e_key.bin`) produced **0 files**.  All eight now extract
+byte-identically to `gcac.exe` (and the modern side is unchanged: the
+17 extractable `fixtures/gca` archives plus the two key-file ones match
+`gcac.exe`, `gca_compare2.py` reports 0 regressions).  An empty
+directory member now comes out as a directory, checked against
+`gcac.exe` on a folder archive.
+
+**When re-syncing, re-apply the VC4 rule**: `std::vector::assign(first,
+last)` does not exist in STLport 2.033, and the new code uses it twice
+(`out` in `gcaDecryptImage`, `arc.plain` in the version 6 path), so
+both are a hand `clear`/`resize` + `memcpy` here.  Nothing else the new
+copy needs is VC4-hostile (`VC4_RC=0` for both units).
+
+Do **not** re-apply the old `plainFlags` clearing from
+`gcaDecryptImage`: clearing the crypto bits in the decrypted image
+changes the input of the new `GCA3` directory CRC, and an encrypted
+modern archive then refuses to open.  Measured with a probe build of
+the new SDK that has the clearing added: `g_pw.gca` and `e_my.gca`
+return `OPEN_FAILED` where the unmodified build returns `EXTRACT_OK`.
 
 ## The command line password, and the listings
 
