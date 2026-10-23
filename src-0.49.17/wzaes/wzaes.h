@@ -5,6 +5,11 @@
 #define IZ_WZAES_H
 #ifndef NO_AES
 #include <stddef.h>
+/* The implementation is C, so C++ callers (the ZIP, ALZ and EGG tools)
+   need C linkage even when they do not wrap the include themselves. */
+#ifdef __cplusplus
+extern "C" {
+#endif
 typedef struct {
     unsigned long h[5], low, high;
     unsigned char block[64];
@@ -46,6 +51,16 @@ void iz_aes_decrypt(iz_wzaes *ctx, unsigned char *buf, size_t len);
 void iz_aes_auth(iz_wzaes *ctx, unsigned char tag[10]);
 void iz_aes_mac_update(iz_wzaes *ctx, const unsigned char *ciphertext, size_t n);
 void iz_aes_wipe(void *ptr, size_t n);
+/* The same primitives, for containers with their own framing (EGG). */
+int  iz_pbkdf2_hmac_sha1(const unsigned char *pw, size_t pwlen,
+                         const unsigned char *salt, size_t saltlen,
+                         unsigned rounds, unsigned char *out, size_t outlen);
+void iz_hmac_sha1_init(iz_hmac *h, const unsigned char *key, size_t keylen);
+void iz_hmac_sha1_update(iz_hmac *h, const unsigned char *p, size_t n);
+void iz_hmac_sha1_finish(iz_hmac *h, unsigned char out[20]);
 int iz_aes_entropy(unsigned char *salt, size_t length);
+#ifdef __cplusplus
+}
+#endif
 #endif
 #endif

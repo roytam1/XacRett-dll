@@ -2,7 +2,9 @@
 #define AFX_EGGDECODE_H__EGG_ENGINE_INCLUDED__
 
 #include "Tool.h"
+#include "EggCrypt.h"
 #include <stdio.h>
+#include <string.h>
 
 // The shared EGG container walker, this tree's rewrite of the reference
 // implementation in alzgg/src/egg.c (the reverse engineering recorded in
@@ -60,14 +62,6 @@
 #define EGG_M_AZO     3
 #define EGG_M_LZMA    4
 
-// the encryption methods (the first byte of the Encrypt Info)
-#define EGG_CRYPT_NONE   (-1)
-#define EGG_CRYPT_ZIP    0
-#define EGG_CRYPT_AES128 1
-#define EGG_CRYPT_AES256 2
-#define EGG_CRYPT_LEA128 5
-#define EGG_CRYPT_LEA256 6
-
 // the Windows File Info attribute bits (EGG's own layout, not FILE_ATTRIBUTE_*)
 #define EGG_ATTR_RO 0x01
 #define EGG_ATTR_H  0x02
@@ -89,6 +83,8 @@ struct EggMember
 {
 	char  name[EGG_NAME_MAX];
 	int   crypt;            // EGG_CRYPT_NONE, or an EGG_CRYPT_* value
+	BYTE  cryptInfo[64];    // the Encrypt Info data, after the method byte
+	DWORD cryptInfoLen;
 	BYTE  attrs;            // the Windows File Info byte
 	BOOL  hasWinInfo;
 	unsigned __int64 filetime;   // 100 nsec from 1601.1.1, when hasWinInfo
@@ -101,6 +97,8 @@ struct EggMember
 	{
 		name[0] = '\0';
 		crypt = EGG_CRYPT_NONE;
+		cryptInfoLen = 0;
+		memset( cryptInfo, 0, sizeof(cryptInfo) );
 		attrs = 0;
 		hasWinInfo = FALSE;
 		filetime = 0;
@@ -168,6 +166,11 @@ public:
 	const char* Error() const           // "" when clean
 		{ return m_err; }
 
+	void SetPassword( const char* p );  // used for every encrypted member
+	bool HasEncrypted() const;          // any member carries Encrypt Info
+	bool PasswordError() const          // the last Extract failed on the password
+		{ return m_pwBad; }
+
 	bool Extract( EggSink* sink );      // everything, in archive order
 
 private:
@@ -194,6 +197,8 @@ private:
 	bool NewBlock( int* idx );
 	bool CheckUsize( const EggMember* m, char* why ) const;
 	bool DecodeMember( int idx, EggSink* sink );
+	bool DecodeMemberBody( int idx, EggDecrypt* dc, EggSink* sink,
+	                       DWORD* memberCrc, char* why );
 	bool DecodeSolid( const EggBlock* blocks, int nblocks,
 	                  unsigned __int64 expect, BYTE* cbuf, EggSink* sink );
 	bool DecodeDeflate( const BYTE* src, DWORD csize, BYTE* dst,
@@ -224,6 +229,9 @@ private:
 	EggBlock*  m_blk;      // every block of every member, in order
 	int        m_nblk;
 	int        m_blkcap;
+
+	char       m_password[256];
+	bool       m_pwBad;
 };
 
 #endif

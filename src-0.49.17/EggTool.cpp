@@ -168,6 +168,24 @@ bool CEggTool::Extract( const char* fname, const char* ddir )
 	sink.close = EggOutClose;
 	sink.fail = EggOutFail;
 	ok = arc.Extract( &sink );
+	if( !ok && arc.PasswordError() )
+	{
+		int i;
+
+		for( i = 0; i < 3 && !ok; i++ )
+		{
+			char        password[256];
+			const char* p = GetPassword();
+
+			if( !p || !*p )
+				break;
+			lstrcpyn( password, p,
+			          sizeof(password) / sizeof(password[0]) );
+			arc.SetPassword( password );
+			out.Reset();
+			ok = arc.Extract( &sink );
+		}
+	}
 	if( !ok )
 		EggDbg( arc.Error() );
 	if( out.fp )

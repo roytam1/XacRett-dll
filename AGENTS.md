@@ -3114,13 +3114,9 @@ method.  Note that a solid member may carry zero blocks (the whole stream
 can hang off the last member's blocks), so the listing's `szMode` is the
 method of that member's first block, `stored` when it has none.
 
-**Encryption is refused up front.**  ZipCrypto, AES-128/256 and
-LEA-128/256 are recognised (and the archive still lists, without the
-password), but extraction stops before writing anything with `'<name>' is
-encrypted: not supported`.  The key material is alzgg's `egg_crypt.c`
-(PBKDF2-HMAC-SHA1, ZipCrypto's 12-byte verifier in the Encrypt Info,
-HMAC-SHA1 authentication, AES/LEA CTR), which is not ported yet; the
-house AES/SHA-1 sources are available if it is ever wanted.
+**Encryption**: ZipCrypto, AES-128/256 and LEA-128/256 are supported --
+see the "EGG encryption" section below for the framing, the shared
+primitives and the traps.
 
 Traps, all real and all hit here:
 
@@ -3188,6 +3184,99 @@ compile the four units clean (VC4 via `%TEMP%\opencode\vc4egg.bat`), and
 the DLL's 11 exports and its KERNEL32/USER32/ADVAPI32 import set are
 unchanged.  Harnesses: `%TEMP%\opencode\eggmatrix2.py` (the matrix and the
 grouping) and `eggneg2.py` (the negatives).
+
+## EGG encryption (ZipCrypto, AES-128/256, LEA-128/256) -- DONE
+
+Encrypted EGG archives now extract.  The work also removed the duplicated
+ZipCrypto cipher and exposed the primitives the tree already had:
+
+- `ZipCrypto.h/.cpp` is the classic PKZIP stream cipher, now shared by
+  `CZipTool`, `CAlzTool` and `EggDecode`.  Its `Crc()` is the ordinary
+  reflected CRC-32 (zlib's), so the three providers' output checks and the
+  cipher's raw `CrcStep()` use the same table; the 256-entry tables and the
+  `calc_crc` macro that were duplicated in ZipTool.cpp/AlzTool.cpp are gone.
+- `wzaes/wzaes.h` now exposes `iz_pbkdf2_hmac_sha1()` and
+  `iz_hmac_sha1_{init,update,finish}()`; its declarations are inside
+  `extern "C"` guards, so a C++ TU can include it directly (the old files
+  wrapped the include by hand).  `pbkdf()` gained a rounds argument.
+- `Lea.h/.cpp` is the LEA-128/256 forward block function (KS X 3246),
+  ported from the reference; CTR only needs the forward direction.
+- `EggCrypt.h/.cpp` holds the password encoding and one member's
+  decryption state.
+
+**Password encoding.**  ALZip converts the UTF-16 password to CP1252 and
+maps anything outside it to `?` (euro -> 0x80, e-acute -> E9, Hangul ->
+3F; measured on the oracle).  `EggPwEncode` parses UTF-8 and applies that
+mapping; if the input is not valid UTF-8 it passes the bytes through
+unchanged, because the modal dialog hands us system-ANSI text.  Without
+that fallback an accented password typed in the dialog would be unusable
+while ALZip itself accepts it (the reference rejects invalid UTF-8).
+
+**Framing.**  The Encrypt Info data (after the method byte) is
+`salt | verifier(2) | HMAC(10)` for AES/LEA with `saltlen = keylen/2`:
+PBKDF2-HMAC-SHA1, 1000 rounds, `2*keylen + 2` bytes (enc key, MAC key,
+verifier).  That is exactly WinZip AES, so `iz_aes_init` is reused
+(strength 128/256) and `iz_aes_mac_update`/`iz_aes_auth`/`iz_aes_decrypt`
+do the rest.  AES-CTR starts at counter 1 and increments the 16-byte
+counter little-endian; LEA zeroes it and increments big-endian.  The HMAC
+covers the CIPHERTEXT and is verified before anything is written.
+ZipCrypto's Encrypt Info carries the 12-byte verifier ciphertext, which is
+consumed by the key stream; the twelfth plaintext byte must equal
+`crc >> 24` of the first block (single-block or empty member) or of the
+WHOLE member CRC (multi-block: decoded once without writing, then again
+for real, exactly like the reference).
+
+**Provider flow.**  The engine has one password per archive.  A member
+whose Encrypt Info exists and no password makes `Extract` fail with
+`password required` and `PasswordError()` set BEFORE writing anything; the
+provider then calls `CTool::GetPassword()` (so `-p<pw>` works headless) up
+to three times and retries.  A wrong password fails on the verifier before
+the file is created (or on the HMAC check), and a failed member deletes
+its partial file.  Listing never asks for a password.  Solid + encrypted
+is refused (ALZip cannot produce it).
+
+Traps, all hit here:
+
+- **`ArchiveListMap` is populated by the line AFTER each pair.**  When the
+  EGG pair was appended after ALZ, the `ArchiveListMap[t]=o;` that
+  belonged to ALZ ended up after the EGG pair: `CAlzTool` was unmapped,
+  so `XacRettOpenArchive` returned NULL (`open failed`) for every ALZ
+  while extraction kept working (extraction does not use the map).  Any
+  provider insertion must keep the `t=...; o=...; ArchiveListMap[t]=o;`
+  group intact, and ALZ listing (10 members on `meta_alz_m1.alz`) is the
+  cheap regression that catches it.
+- **The ZipCrypto 12-byte verifier is part of the key stream.**  Decrypt
+  the 12 info bytes with the password-seeded keys and keep the resulting
+  state; a fresh `Init` before the data would desynchronise the member.
+  This differs from ALZ, where those 12 bytes sit at the head of the
+  member data.
+- **AES needs the HMAC over the whole member ciphertext before decoding**,
+  and `iz_aes_decrypt()` is in-place (it XORs the buffer and also updates
+  the MAC, which is harmless after the tag was taken).
+- **LEA's counter is big-endian from byte 15, AES's little-endian from
+  byte 0.**  They look alike and are not.
+- **Non-ASCII passwords are UTF-8 on the command line but ANSI from the
+  dialog** -- hence the fallback above.  `%TEMP%\lha\eggprobe.exe` takes
+  the password as hex so the `enc_egg_napw_*` fixtures can be driven from
+  a cp950 console: euro `e282ac`, Hangul `ed959c`, acute `c3a9`; raw `e9`
+  also works through the ANSI fallback.
+
+Verified: all encrypted fixtures extract byte-identically to their plain
+counterparts -- ZipCrypto (single- and multi-block, incl. the 16-volume
+`span_15vol_crypt` chain opened from any volume, password `secret`),
+AES-128/256 and LEA-128/256 (`password`), across store/deflate/bzip2/AZO/
+LZMA and the empty/directory cases, all of the 8.0 corpus plus
+`records_compspeed_v100k_zip` and the `enc_egg_napw_*` samples.  The full
+EGG matrix is 304 ok / 4 expected failures (the three `napw` fixtures pass
+only with their non-ASCII password, verified via the probe;
+`names_specials_m1` fails only because its 195-character member name plus
+a long TEMP output path exceeds MAX_PATH -- a short outdir extracts 8/8),
+68 content groups with zero mismatches.  ALZ: 82 pass / 0 fail, including
+the encrypted samples (`secret`).  `runnewmatrix.py` still reports only
+the six known-stale zstd-sandwich expectations.  Negatives (wrong password
+for each method, flipped AES ciphertext, tampered zip member, truncated
+archive) fail loudly with zero output and no hang.  VC6 and VC4 compile
+the new units clean.
 
 ## Pre-commit checklist
 

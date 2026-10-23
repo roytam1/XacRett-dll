@@ -3,6 +3,7 @@
 
 #include "Tool.h"
 #include "AlzDecode.h"
+#include "ZipCrypto.h"
 
 
 //Ver5.02にて確認
@@ -84,10 +85,7 @@ private: //-- Zip内部処理用 -----------------------
 
 	DWORD crc32( DWORD crc, const BYTE* dat, int len );
 
-	#define zdecode(c) update_keys(c^=decrypt_byte())
-	int decrypt_byte();
-	int update_keys(int c);
-	DWORD keys[3];
+	ZipCrypto zc;
 
 // ファイルIO
 
@@ -180,8 +178,7 @@ struct sf_tree
 		{
 			len = chain.read( dat, len );
 			if( needdec )
-				for( int i=0; i<len; i++ )
-					zdecode( dat[i] );
+				zc.DecodeBuffer( dat, len );
 			return len;
 		}
 	bool needdec;

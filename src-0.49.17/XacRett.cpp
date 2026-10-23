@@ -640,6 +640,8 @@ void DllSub(void)//ƒ[ƒh‚·‚é
 
 	t=t->AddTail( new CAlzTool );
 	o=o->AddTail( new COpenAlz);
+	ArchiveListMap[t]=o;
+
 	t=t->AddTail( new CEggTool );
 	o=o->AddTail( new COpenEgg);
 	ArchiveListMap[t]=o;

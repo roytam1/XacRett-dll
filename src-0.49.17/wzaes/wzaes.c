@@ -78,7 +78,8 @@ static void hm_finish(iz_hmac *h,unsigned char out[20]) {
     iz_sha1_finish(&h->outer,out);iz_aes_wipe(in,sizeof(in));
 }
 static void pbkdf(const unsigned char *pass,size_t plen,
-                  const unsigned char *salt,size_t slen,unsigned char *out,size_t olen) {
+                  const unsigned char *salt,size_t slen,unsigned rounds,
+                  unsigned char *out,size_t olen) {
     unsigned char u[20],t[20],cnt[4];unsigned long block=1;
     unsigned j,round;size_t n;
     iz_hmac h;
@@ -87,7 +88,7 @@ static void pbkdf(const unsigned char *pass,size_t plen,
         cnt[2]=(unsigned char)(block>>8);cnt[3]=(unsigned char)block;
         hm_init(&h,pass,plen);hm_update(&h,salt,slen);hm_update(&h,cnt,4);hm_finish(&h,u);
         memcpy(t,u,20);
-        for(round=1;round<1000;round++) {
+        for(round=1;round<rounds;round++) {
             hm_init(&h,pass,plen);hm_update(&h,u,20);hm_finish(&h,u);
             for(j=0;j<20;j++) t[j]^=u[j];
         }
@@ -154,7 +155,7 @@ int iz_aes_init(iz_wzaes *c,const char *pass,const unsigned char *salt,
     unsigned char derived[66];unsigned keylen=strength/8U,sl=iz_aes_salt_size(strength);
     if(!c||!pass||!salt||!verifier||!sl) return 0;
     memset(c,0,sizeof(*c));
-    pbkdf((const unsigned char *)pass,strlen(pass),salt,sl,derived,2*keylen+2);
+    pbkdf((const unsigned char *)pass,strlen(pass),salt,sl,1000,derived,2*keylen+2);
     aes_expand(c,derived,keylen/4U);
     hm_init(&c->mac,derived+keylen,keylen);
     verifier[0]=derived[2*keylen];verifier[1]=derived[2*keylen+1];
@@ -232,3 +233,23 @@ int iz_aes_entropy(unsigned char *out,size_t n) {
 }
 #include "ae3_impl.h"
 #endif
+
+/* Exposed for other containers that reuse these primitives with their own
+ * framing (EGG derives with PBKDF2-HMAC-SHA1 and authenticates with
+ * HMAC-SHA1, then runs its own CTR). */
+int iz_pbkdf2_hmac_sha1(const unsigned char *pw,size_t pwlen,
+                        const unsigned char *salt,size_t saltlen,
+                        unsigned rounds,unsigned char *out,size_t outlen) {
+    if(!pw||!salt||!out||!rounds) return 0;
+    pbkdf(pw,pwlen,salt,saltlen,rounds,out,outlen);
+    return 1;
+}
+void iz_hmac_sha1_init(iz_hmac *h,const unsigned char *key,size_t keylen) {
+    hm_init(h,key,keylen);
+}
+void iz_hmac_sha1_update(iz_hmac *h,const unsigned char *p,size_t n) {
+    hm_update(h,p,n);
+}
+void iz_hmac_sha1_finish(iz_hmac *h,unsigned char out[20]) {
+    hm_finish(h,out);
+}

@@ -193,6 +193,12 @@ SOURCE=.\OpenArchive\OpenDgd.h
 
 # Begin Source File
 SOURCE=.\EggAzo.cpp
+SOURCE=.\EggCrypt.cpp
+SOURCE=.\EggCrypt.h
+SOURCE=.\Lea.cpp
+SOURCE=.\Lea.h
+SOURCE=.\ZipCrypto.cpp
+SOURCE=.\ZipCrypto.h
 SOURCE=.\EggAzo.h
 SOURCE=.\EggDecode.cpp
 SOURCE=.\EggDecode.h

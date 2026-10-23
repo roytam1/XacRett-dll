@@ -4,6 +4,7 @@
 #include "Tool.h"
 extern "C" {
 #include "wzaes/wzaes.h"
+#include "ZipCrypto.h"
 }
 
 // ローカルヘッダ
@@ -146,10 +147,7 @@ private: //-- Zip内部処理用 -----------------------
 
 	DWORD crc32( DWORD crc, const BYTE* dat, int len );
 
-	#define zdecode(c) update_keys(c^=decrypt_byte())
-	int decrypt_byte();
-	int update_keys(int c);
-	DWORD keys[3];
+	ZipCrypto zc;
 
 // ファイルIO
 
@@ -170,8 +168,7 @@ private: //-- Zip内部処理用 -----------------------
 		{
 			len = fread( dat, 1, len, zip );
 			if( needdec )
-				for( int i=0; i<len; i++ )
-					zdecode( dat[i] );
+				zc.DecodeBuffer( dat, len );
 			if( needaes )
 				iz_aes_decrypt( &aesctx, dat, len );
 			return len;

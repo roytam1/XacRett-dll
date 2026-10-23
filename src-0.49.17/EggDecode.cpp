@@ -89,6 +89,8 @@ EggArchive::EggArchive()
 	m_blk = NULL;
 	m_nblk = 0;
 	m_blkcap = 0;
+	m_password[0] = '\0';
+	m_pwBad = false;
 }
 
 EggArchive::~EggArchive()
@@ -117,6 +119,7 @@ void EggArchive::Close()
 	m_nblk = 0;
 	m_blkcap = 0;
 	m_nvol = 0;
+	m_pwBad = false;
 }
 
 static void EggSetErr( char* err, const char* fmt, ... )
@@ -798,6 +801,8 @@ bool EggArchive::ParseMember( DWORD off, DWORD* retPos )
 	char  name[EGG_NAME_MAX];
 	int   namelen = -1;
 	int   crypt = EGG_CRYPT_NONE;
+	BYTE  cryptInfo[64];
+	DWORD cryptInfoLen = 0;
 	BYTE  attrs = 0;
 	BOOL  hasWinInfo = FALSE;
 	unsigned __int64 filetime = 0;
@@ -884,6 +889,15 @@ bool EggArchive::ParseMember( DWORD off, DWORD* retPos )
 				EggSetErr( m_err, "unknown encryption method %d", crypt );
 				return false;
 			}
+			// the key material (method byte excluded)
+			{
+				DWORD n = size - 1;
+
+				if( n > sizeof(cryptInfo) )
+					n = sizeof(cryptInfo);
+				memcpy( cryptInfo, m_buf + data + 1, n );
+				cryptInfoLen = n;
+			}
 		}
 		else if( sig != EGG_SIG_COMMENT && sig != EGG_SIG_POSIXINFO &&
 		         sig != EGG_SIG_DUMMY )
@@ -909,6 +923,9 @@ bool EggArchive::ParseMember( DWORD off, DWORD* retPos )
 	m_mem[idx].fileId = fileId;
 	m_mem[idx].usize = usize;
 	m_mem[idx].crypt = crypt;
+	if( cryptInfoLen )
+		memcpy( m_mem[idx].cryptInfo, cryptInfo, cryptInfoLen );
+	m_mem[idx].cryptInfoLen = cryptInfoLen;
 	m_mem[idx].attrs = attrs;
 	m_mem[idx].hasWinInfo = hasWinInfo;
 	m_mem[idx].filetime = filetime;
@@ -1660,14 +1677,26 @@ bool EggArchive::Extract( EggSink* sink )
 	int i, j;
 
 	// preflight: refuse anything this tree cannot decode, before writing
+	m_pwBad = false;
 	for( i = 0; i < m_count; i++ )
 	{
 		EggMember* m = &m_mem[i];
 
 		if( m->crypt != EGG_CRYPT_NONE )
 		{
-			EggSetErr( m_err, "'%s' is encrypted: not supported", m->name );
-			return false;
+			if( !m_password[0] )
+			{
+				EggSetErr( m_err, "'%s' is encrypted: password required",
+				           m->name );
+				m_pwBad = true;
+				return false;
+			}
+			if( m_solid )
+			{
+				// ALZip never writes an encrypted solid archive
+				EggSetErr( m_err, "solid AND encrypted archive: refused" );
+				return false;
+			}
 		}
 		for( j = 0; j < m->nblocks; j++ )
 		{
@@ -1780,46 +1809,74 @@ bool EggArchive::Extract( EggSink* sink )
 	return true;
 }
 
-bool EggArchive::DecodeMember( int idx, EggSink* sink )
+void EggArchive::SetPassword( const char* p )
+{
+	if( !p )
+		p = "";
+	lstrcpyn( m_password, p, sizeof(m_password) / sizeof(m_password[0]) );
+	m_pwBad = false;
+}
+
+bool EggArchive::HasEncrypted() const
+{
+	int i;
+
+	for( i = 0; i < m_count; i++ )
+	{
+		if( m_mem[i].crypt != EGG_CRYPT_NONE )
+			return true;
+	}
+	return false;
+}
+
+// Decodes one member's blocks into the sink, or only counts them when sink
+// is NULL (the ZipCrypto whole-member verifier pass).  `dc`, when given,
+// decrypts the ciphertext in block order and keeps the stream state across
+// the blocks, as EGG encrypts the member as one continuous stream.
+bool EggArchive::DecodeMemberBody( int idx, EggDecrypt* dc, EggSink* sink,
+                                   DWORD* memberCrc, char* why )
 {
 	const EggMember* m = &m_mem[idx];
-	char  why[256];
-	int   r;
+	BYTE* chunk = NULL;
+	DWORD crc = 0;
 	int   j;
 
-	r = sink->open( sink->ctx, idx, m );
-	if( r < 0 )
+	if( memberCrc )
+		*memberCrc = 0;
+	if( why )
+		why[0] = '\0';
+	if( dc )
 	{
-		EggSetErr( m_err, "could not create '%s'", m->name );
-		return false;
-	}
-	if( r == 0 )
-		return true;            // a directory or a skipped member
-
-	if( !CheckUsize( m, why ) )
-	{
-		EggSetErr( m_err, "%s", why );
-		sink->fail( sink->ctx, idx, why );
-		return false;
+		chunk = (BYTE*)malloc( 1024 * 1024 );
+		if( !chunk )
+		{
+			strcpy( why, "out of memory" );
+			return false;
+		}
 	}
 	for( j = 0; j < m->nblocks; j++ )
 	{
 		const EggBlock* b = &m_blk[m->firstblock + j];
+		DWORD bcrc = 0;
 
 		if( b->usize == 0 )
 		{
-			if( EggCrc32( 0, NULL, 0 ) != b->crc )
+			if( b->csize != 0 )
 			{
-				sprintf( why, "'%s': CRC mismatch (block %d)", m->name, j );
-				EggSetErr( m_err, "%s", why );
-				sink->fail( sink->ctx, idx, why );
-				return false;
+				sprintf( why, "'%s': empty block %d carries %u bytes",
+				         m->name, j, b->csize );
+				goto fail;
+			}
+			if( b->crc != 0 )
+			{
+				sprintf( why, "'%s': CRC mismatch (block %d: expected %08x, "
+				         "computed 00000000)", m->name, j, b->crc );
+				goto fail;
 			}
 			continue;
 		}
 		if( b->method == EGG_M_STORE )
 		{
-			DWORD crc = 0;
 			DWORD left = b->usize;
 			DWORD off = b->data;
 
@@ -1827,55 +1884,65 @@ bool EggArchive::DecodeMember( int idx, EggSink* sink )
 			{
 				sprintf( why, "'%s': store block %u/%u", m->name,
 				         b->csize, b->usize );
-				EggSetErr( m_err, "%s", why );
-				sink->fail( sink->ctx, idx, why );
-				return false;
+				goto fail;
 			}
 			while( left )
 			{
 				DWORD n = left > 1024 * 1024 ? 1024 * 1024 : left;
+				const BYTE* src;
 
-				crc = EggCrc32( crc, m_buf + off, n );
-				if( sink->write( sink->ctx, m_buf + off, n ) < 0 )
+				if( dc )
+				{
+					memcpy( chunk, m_buf + off, n );
+					dc->Update( chunk, n );
+					src = chunk;
+				}
+				else
+					src = m_buf + off;
+				bcrc = EggCrc32( bcrc, src, n );
+				crc = EggCrc32( crc, src, n );
+				if( sink && sink->write( sink->ctx, src, n ) < 0 )
 				{
 					sprintf( why, "short write for '%s'", m->name );
-					EggSetErr( m_err, "%s", why );
-					sink->fail( sink->ctx, idx, why );
-					return false;
+					goto fail;
 				}
 				off += n;
 				left -= n;
 			}
-			if( crc != b->crc )
-			{
-				sprintf( why, "'%s': CRC mismatch (block %d: expected "
-				         "%08x, computed %08x)", m->name, j, b->crc, crc );
-				EggSetErr( m_err, "%s", why );
-				sink->fail( sink->ctx, idx, why );
-				return false;
-			}
 		}
 		else
 		{
+			BYTE* cbuf = NULL;
 			BYTE* obuf;
-			DWORD crc;
+			const BYTE* src;
 			bool  okd = false;
 
-			obuf = (BYTE*)malloc( (size_t)b->usize );
+			if( dc )
+			{
+				cbuf = (BYTE*)malloc( b->csize ? b->csize : 1 );
+				if( !cbuf )
+				{
+					sprintf( why, "out of memory for '%s'", m->name );
+					goto fail;
+				}
+				memcpy( cbuf, m_buf + b->data, b->csize );
+				dc->Update( cbuf, b->csize );
+				src = cbuf;
+			}
+			else
+				src = m_buf + b->data;
+
+			obuf = (BYTE*)malloc( b->usize ? b->usize : 1 );
 			if( !obuf )
 			{
+				free( cbuf );
 				sprintf( why, "out of memory for '%s'", m->name );
-				EggSetErr( m_err, "%s", why );
-				sink->fail( sink->ctx, idx, why );
-				return false;
+				goto fail;
 			}
-			why[0] = '\0';
 			if( b->method == EGG_M_DEFLATE )
-				okd = DecodeDeflate( m_buf + b->data, b->csize, obuf,
-				                     b->usize, why );
+				okd = DecodeDeflate( src, b->csize, obuf, b->usize, why );
 			else if( b->method == EGG_M_BZIP2 )
-				okd = DecodeBzip2( m_buf + b->data, b->csize, obuf,
-				                   b->usize, why );
+				okd = DecodeBzip2( src, b->csize, obuf, b->usize, why );
 			else if( b->method == EGG_M_LZMA )
 			{
 				EggLzSink o;
@@ -1885,16 +1952,15 @@ bool EggArchive::DecodeMember( int idx, EggSink* sink )
 				o.dst = obuf;
 				o.left = b->usize;
 				o.bad = false;
-				okd = DecodeLzma( m_buf + b->data, b->csize, &o, b->usize,
-				                  why );
+				okd = DecodeLzma( src, b->csize, &o, b->usize, why );
 				if( !why[0] && (o.bad || o.left != 0) )
 					strcpy( why, "LZMA: size mismatch" );
 				if( o.bad || o.left != 0 )
 					okd = false;
 			}
 			else
-				okd = DecodeAzo( m_buf + b->data, b->csize, obuf,
-				                 b->usize, why );
+				okd = DecodeAzo( src, b->csize, obuf, b->usize, why );
+			free( cbuf );
 			if( !okd )
 			{
 				char what[256 + EGG_NAME_MAX];
@@ -1902,12 +1968,12 @@ bool EggArchive::DecodeMember( int idx, EggSink* sink )
 				if( !why[0] )
 					strcpy( why, "decode failed" );
 				sprintf( what, "'%s': %s (block %d)", m->name, why, j );
-				EggSetErr( m_err, "%s", what );
-				sink->fail( sink->ctx, idx, what );
+				strcpy( why, what );
 				free( obuf );
-				return false;
+				goto fail;
 			}
-			crc = EggCrc32( 0, obuf, b->usize );
+			bcrc = EggCrc32( 0, obuf, b->usize );
+			crc = EggCrc32( crc, obuf, b->usize );
 			{
 				DWORD left = b->usize;
 				DWORD off = 0;
@@ -1916,28 +1982,156 @@ bool EggArchive::DecodeMember( int idx, EggSink* sink )
 				{
 					DWORD n = left > 1024 * 1024 ? 1024 * 1024 : left;
 
-					if( sink->write( sink->ctx, obuf + off, n ) < 0 )
+					if( sink && sink->write( sink->ctx, obuf + off, n ) < 0 )
 					{
 						sprintf( why, "short write for '%s'", m->name );
-						EggSetErr( m_err, "%s", why );
-						sink->fail( sink->ctx, idx, why );
 						free( obuf );
-						return false;
+						goto fail;
 					}
 					off += n;
 					left -= n;
 				}
 			}
 			free( obuf );
-			if( crc != b->crc )
+		}
+		if( bcrc != b->crc )
+		{
+			sprintf( why, "'%s': CRC mismatch (block %d: expected %08x, "
+			         "computed %08x)", m->name, j, b->crc, bcrc );
+			goto fail;
+		}
+	}
+	if( memberCrc )
+		*memberCrc = crc;
+	free( chunk );
+	return true;
+
+fail:
+	free( chunk );
+	return false;
+}
+
+bool EggArchive::DecodeMember( int idx, EggSink* sink )
+{
+	const EggMember* m = &m_mem[idx];
+	EggDecrypt dc;
+	char  why[256 + EGG_NAME_MAX];
+	DWORD mcrc = 0;
+	bool  encrypted = m->crypt != EGG_CRYPT_NONE;
+	int   r, j;
+
+	if( !CheckUsize( m, why ) )
+	{
+		EggSetErr( m_err, "%s", why );
+		sink->fail( sink->ctx, idx, why );
+		return false;
+	}
+
+	if( encrypted )
+	{
+		if( !dc.Begin( m->crypt, m->cryptInfo, m->cryptInfoLen,
+		               m_password, why ) )
+		{
+			char what[256 + EGG_NAME_MAX];
+
+			sprintf( what, "'%s': %s", m->name, why );
+			EggSetErr( m_err, "%s", what );
+			sink->fail( sink->ctx, idx, what );
+			m_pwBad = true;
+			return false;
+		}
+		if( !dc.IsZip() )
+		{
+			for( j = 0; j < m->nblocks; j++ )
 			{
-				sprintf( why, "'%s': CRC mismatch (block %d: expected "
-				         "%08x, computed %08x)", m->name, j, b->crc, crc );
-				EggSetErr( m_err, "%s", why );
-				sink->fail( sink->ctx, idx, why );
+				const EggBlock* b = &m_blk[m->firstblock + j];
+
+				if( !dc.Auth( m_buf + b->data, b->csize ) )
+					break;
+			}
+			if( j != m->nblocks || !dc.Ready( why ) )
+			{
+				char what[256 + EGG_NAME_MAX];
+
+				if( !why[0] )
+					strcpy( why, "authentication failed" );
+				sprintf( what, "'%s': %s", m->name, why );
+				EggSetErr( m_err, "%s", what );
+				sink->fail( sink->ctx, idx, what );
+				m_pwBad = true;
 				return false;
 			}
 		}
+		else
+		{
+			BYTE need;
+
+			if( m->nblocks <= 1 )
+			{
+				need = m->nblocks
+				     ? (BYTE)(m_blk[m->firstblock].crc >> 24) : 0;
+				if( dc.ZipVerifier()[11] != need )
+				{
+					sprintf( why, "'%s': incorrect password "
+					         "(ZipCrypto verifier)", m->name );
+					EggSetErr( m_err, "%s", why );
+					sink->fail( sink->ctx, idx, why );
+					m_pwBad = true;
+					return false;
+				}
+			}
+			else
+			{
+				// The verifier of a multi-block member is the high byte of
+				// the WHOLE member CRC, so it must be decoded once without
+				// writing anything.
+				if( !DecodeMemberBody( idx, &dc, NULL, &mcrc, why ) )
+				{
+					char what[256 + EGG_NAME_MAX];
+
+					sprintf( what, "'%s': %s", m->name, why );
+					EggSetErr( m_err, "%s", what );
+					sink->fail( sink->ctx, idx, what );
+					m_pwBad = true;
+					return false;
+				}
+				if( (BYTE)(mcrc >> 24) != dc.ZipVerifier()[11] )
+				{
+					sprintf( why, "'%s': incorrect password "
+					         "(ZipCrypto verifier)", m->name );
+					EggSetErr( m_err, "%s", why );
+					sink->fail( sink->ctx, idx, why );
+					m_pwBad = true;
+					return false;
+				}
+				if( !dc.Begin( m->crypt, m->cryptInfo, m->cryptInfoLen,
+				               m_password, why ) )
+				{
+					EggSetErr( m_err, "%s", why );
+					sink->fail( sink->ctx, idx, why );
+					return false;
+				}
+			}
+		}
+	}
+
+	r = sink->open( sink->ctx, idx, m );
+	if( r < 0 )
+	{
+		EggSetErr( m_err, "could not create '%s'", m->name );
+		return false;
+	}
+	if( r == 0 )
+		return true;
+
+	if( !DecodeMemberBody( idx, encrypted ? &dc : NULL, sink, &mcrc, why ) )
+	{
+		char what[256 + EGG_NAME_MAX];
+
+		sprintf( what, "'%s': %s", m->name, why );
+		EggSetErr( m_err, "%s", what );
+		sink->fail( sink->ctx, idx, what );
+		return false;
 	}
 	sink->close( sink->ctx, idx );
 	return true;
