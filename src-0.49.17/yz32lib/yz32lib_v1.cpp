@@ -387,6 +387,7 @@ static int YZDecodeImage(const unsigned char* arc, long arcLen,
 	unsigned long total = BE32(arc + 8);
 	unsigned long metaSize = BE32(arc + 12);
 	unsigned long fileCount = BE32(arc + 16);
+	unsigned long useTotal = total;
 	if (metaSize > total || fileCount > 65535) return -1;
 	if ((unsigned long)arcLen < 20) return -1;
 
@@ -412,14 +413,24 @@ static int YZDecodeImage(const unsigned char* arc, long arcLen,
 			if (!sizes) goto done;
 		}
 		unsigned long sum = 0, mx = 0;
+		unsigned __int64 sum64 = 0;
 		unsigned long k;
 		for (k = 0; k < fileCount; k++) {
 			sizes[k] = BE32(meta + k * 4);
-			sum += sizes[k];
+			sum64 += sizes[k];
 			if (sizes[k] > mx) mx = sizes[k];
 		}
-		if (metaSize + sum != total) { if (sizes) delete [] sizes; goto done; }
-		unsigned char* img = new unsigned char[total ? total : 1];
+		// The members may not exceed the declared total, but yzdec.exe does
+		// not require them to REACH it (a mutated all_size still extracts,
+		// measured with yzfuzz/bighdr), so the image is sized by the
+		// metadata rather than by all_size.
+		if (sum64 > (unsigned __int64)(total - metaSize)) {
+			if (sizes) delete [] sizes;
+			goto done;
+		}
+		sum = (unsigned long)sum64;
+		useTotal = metaSize + sum;
+		unsigned char* img = new unsigned char[useTotal ? useTotal : 1];
 		if (!img) { if (sizes) delete [] sizes; goto done; }
 		if (metaSize) memcpy(img, meta, metaSize);
 		unsigned long dpos = metaSize;
@@ -470,12 +481,12 @@ static int YZDecodeImage(const unsigned char* arc, long arcLen,
 				}
 				unsigned long dp = metaSize;
 				for (i = 0; i < fileCount && rc == 0; i++) {
-					if (dp + en[i].size > total) rc = -1;
+					if (dp + en[i].size > useTotal) rc = -1;
 					else { en[i].dataOff = dp; dp += en[i].size; }
 				}
 				if (rc == 0) {
 					*outEntries = en; *outCount = (long)fileCount;
-					*outImage = img; *outTotal = total;
+					*outImage = img; *outTotal = useTotal;
 					img = 0; en = 0;
 				}
 				if (en) FreeEntries(en, (long)fileCount);

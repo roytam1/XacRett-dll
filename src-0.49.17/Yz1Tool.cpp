@@ -54,8 +54,8 @@ bool CYz1Tool::Check( const char* fname, unsigned long fsize )
 
 	DWORD alsz = (head[ 8]<<24)+(head[ 9]<<16)+(head[10]<<8)+(head[11]);
 	DWORD hdsz = (head[12]<<24)+(head[13]<<16)+(head[14]<<8)+(head[15]);
-	DWORD fnum = (head[16]<<24)+(head[17]<<16)+(head[16]<<8)+(head[19]);
-	return (alsz>hdsz && hdsz>fnum);
+	DWORD fnum = (head[16]<<24)+(head[17]<<16)+(head[18]<<8)+(head[19]);
+	return (alsz>=hdsz && hdsz>fnum);   // all_size == head_size: every member is empty
 }
 
 #if 1 //----------------------------------------------------------------------------

@@ -753,6 +753,44 @@ call, so keep applying them:
     Every member also matches `yzdec.exe`. Re-checked on the VC4 build.
   - Reference is the shipped `yzenc.exe`/`yzdec.exe` plus `yzdec.c` /
     `yzdec.lst` in the workarea root - never vendored.
+  - **Re-synced 2026-10-24** from the `yz32lib/` tree in the workarea
+    root, which is the other recon project's rewrite of the SDK (it
+    targets the ORIGINAL vendor header, so only the decoder *behaviour*
+    was taken, never its files).  Two real decoder gaps came out of
+    comparing the two implementations over the 176 `.yz1` files in the
+    workarea (their `sdktest.exe` is an independent decoder, and
+    `yzdec.exe` 1.05a is the oracle):
+    - **an archive whose members are ALL empty was rejected outright.**
+      `CYz1Tool::Check` demanded `all_size > head_size`, so `yzenc`'s
+      `total == head_size` case never even routed to the provider and
+      extracted nothing.  `yzdec.exe` writes the empty files.  The test
+      is `all_size >= head_size` now (and the file count's third byte
+      was read from `head[16]` instead of `head[18]` - a typo that only
+      bites a count >= 65536).
+    - **a declared `all_size` larger than the members is tolerated by
+      both `yzdec.exe` and their SDK** (a mutated header still extracts
+      its members).  `YZDecodeImage` now sizes the image by
+      `head_size + sum(sizes)` and only requires the members to fit
+      inside `all_size`; equality is no longer demanded.  Measured on
+      `%TEMP%\opencode\yzbighdr\big.yz1` (all_size says 512 MB, the
+      members are 2x1000 bytes): identical output to `yzdec.exe`.
+    - Verified: 176 archives, our DLL vs their SDK, 0 differ (7 differed
+      before); the 6 key cases (empty, 100 empty, mixed, big, alice,
+      yzenc/yzencpw) match `yzdec.exe` file for file.  Two authentic
+      `yzenc.exe` 1.05a fixtures were added for this:
+      `fixtures/yz1/yzenc-empty.yz1` (2 empty members) and
+      `fixtures/yz1/yzenc-mixed.yz1` (5 byte member + 2 empty ones, one
+      in a subdirectory).
+    - **Not taken, on purpose**: `YZ_MsgTbl.*` (a different message table;
+      ours is the small original one), the `pub-` password convention
+      (`pub-xxxxxxxx-xx` carries the 4 key bytes and the check byte
+      directly - that is a cracker/tooling aid, not a format feature, and
+      it would make `-p` ambiguous), the streaming `StreamDecoder` and the
+      whole-file API split (architecture, no behaviour gain - their SDK
+      reads the file into memory too), the encoder, and their path
+      handling: `normalize_path` only maps `/` to `\` and does NOT strip
+      `..`, while our `CleanRelName` does (so a hostile member name
+      cannot escape the output directory here).
 - YZ1 (`.yz1`, `ARCHIVETYPE_YZ1` 45, `Yz1Tool` + `COpenYz1` over
   `yz32lib`) listing was silently broken: the listing constructor
   `yzFileDecode(InEv&, yzFileEv*, const char*)` only REMEMBERS the archive
