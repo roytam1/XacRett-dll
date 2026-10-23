@@ -190,6 +190,17 @@ SOURCE=.\OpenArchive\OpenDgc.h
 SOURCE=.\OpenArchive\OpenDgd.cpp
 SOURCE=.\OpenArchive\OpenDgd.h
 # End Source File
+
+# Begin Source File
+SOURCE=.\EggAzo.cpp
+SOURCE=.\EggAzo.h
+SOURCE=.\EggDecode.cpp
+SOURCE=.\EggDecode.h
+SOURCE=.\EggTool.cpp
+SOURCE=.\EggTool.h
+SOURCE=.\OpenArchive\OpenEgg.cpp
+SOURCE=.\OpenArchive\OpenEgg.h
+# End Source File
 # Begin Source File
 SOURCE=.\CabDecode.h
 # End Source File

@@ -3061,6 +3061,134 @@ The old `BLZ`/`size_len` parser (`read_header`/`doHeader`, `FILE *zip`) is
 left in place but is unreachable: it describes a different (pre-8.0) header
 layout for which no fixture exists.
 
+## EGG (ALZip) -- the 8.0 container and the five block methods
+
+`ARCHIVETYPE_EGG` 76 (`EggTool.cpp`, `OpenArchive/OpenEgg.cpp`), with the
+container and the codecs in `EggDecode.h/.cpp` and the AZO decoder in
+`EggAzo.h/.cpp`.  Reference is seb3773/alzgg (`alzgg/src/egg.c`,
+`egg_azo.c`, `egg_lzma.c`, `egg_bzip2.c`, `FORMAT-EGG.md`); the AZO file is
+a decode-only port, the rest are clean-room rewrites of the observed
+format.  Registered right after ALZ, and `IsType("egg")` is implemented so
+the extension always wins pass 1.
+
+**Format.**  `EGGA` + 14 bytes, then a prefix section (`Split`, `Solid`,
+`Dummy`, `Skip`, `Global Encrypt`) closed by an END marker or by the first
+FILE header, then members, then archive-level `Comment`s, then a final END
+marker that must be the last byte.  A member is `FILE` (file id + u64
+size), sub-headers (`Filename`, `Comment`, `Windows File Info` = FILETIME
++ attribute byte, `Encrypt Info`) closed by END, then blocks; sub-headers
+may resume between blocks.  A block is an 18-byte header (method, hint,
+usize, csize, crc32), a 4-byte END marker, then the payload.  An extra
+field is `flags(1) + size(2|4)`; `flags & 1` selects the 32-bit size.
+Filename flags: `0x08` = 2-byte locale, `0x10` = 4-byte parent path id.
+Attributes are EGG's own bits: 0x01 R, 0x02 H, 0x04 S, 0x08 symlink,
+0x80 directory.  The block CRC-32 is over the block's UNcompressed bytes;
+there is no member-level CRC.
+
+**Block methods**: 0 store, 1 raw deflate, 2 bzip2, 3 AZO, 4 LZMA.  Store
+requires `csize == usize`; deflate is zlib raw (`inflateInit2(-15)`);
+bzip2 is `BZ2_bzBuffToBuffDecompress`; LZMA blocks start with 9 bytes
+(constant `04 41 05 00` + the 5 SDK props) followed by a raw stream with
+**no end marker**, decoded with `LzmaDecodeStream(..., exact=true)`
+(the shared engine's 64 MiB dictionary cap applies; the writer uses 16
+MiB).  AZO: `'1'`, a flags byte, then 12-byte big-endian slices
+(decompressed size, compressed size, size XOR check); `bcs == bus` is a
+stored slice; every slice restarts the models/history; flag bit 0 means
+the x86 call filter, decoder direction (`addr -= i`, step 5, 0xE8/0xE9
+with a 0x00/0xFF high byte).
+
+**Volumes.**  `Split Info` carries the header ids of the previous and the
+next volume; the `.egg` files of the directory are indexed by header id,
+the chain is walked from the head through `next`, and only the first
+volume keeps its header and prefix (later ones contribute from their
+payload offset).  Every id-based walk is ambiguous when unrelated archives
+share ids -- see the trap below.  The whole logical stream is read into
+memory, so a chain over 2 GB-1 is refused, and a member over 2 GB-1 is
+refused too (`egg_normal_zero5g.egg`, a 5 GB fixture, fails loudly).
+
+**Solid archives** (`Solid Info` in the prefix): the block payloads of ALL
+members form ONE continuous stream in archive order and are decoded once,
+then split on the block and member sizes.  Empty files and directories are
+created at their position during that walk.  All blocks must share one
+method.  Note that a solid member may carry zero blocks (the whole stream
+can hang off the last member's blocks), so the listing's `szMode` is the
+method of that member's first block, `stored` when it has none.
+
+**Encryption is refused up front.**  ZipCrypto, AES-128/256 and
+LEA-128/256 are recognised (and the archive still lists, without the
+password), but extraction stops before writing anything with `'<name>' is
+encrypted: not supported`.  The key material is alzgg's `egg_crypt.c`
+(PBKDF2-HMAC-SHA1, ZipCrypto's 12-byte verifier in the Encrypt Info,
+HMAC-SHA1 authentication, AES/LEA CTR), which is not ported yet; the
+house AES/SHA-1 sources are available if it is ever wanted.
+
+Traps, all real and all hit here:
+
+- **The block CRC is the ordinary reflected CRC-32, i.e. zlib's.**  The
+  first cut used the bare table loop with no initial/final inversion, so
+  a correct decode reported `computed` = `raw0(data)` instead of
+  `crc32(data)`: two, then seven, archives "failed" on a CRC that was
+  right.  `EggCrc32` now inverts the incoming and outgoing state, which
+  also makes chained (store) calls behave like `crc32(crc, buf, len)`.
+- **Header ids are not unique across unrelated archives.**  The sample
+  corpus has `records_compspeed_v100k.vol{1,2}.egg` and the ZipCrypto
+  `..._zip.vol{1,2}.egg` with the SAME ids (edf3fdbe / 56ab3820), so the
+  directory scan picks the wrong vol2 and the chain decodes to the wrong
+  length (153284 instead of 153308).  The reference has the same flaw.
+  Fixed with a name-affinity tie-break: on a duplicate id, keep the
+  candidate whose file name shares the longest prefix with the requested
+  one.  That is a heuristic, but it makes both spools work in place.
+- **An inline constructor in the header means a stale `XacRett.obj`.**
+  `CEggTool() : CTool("Egg <sjis>")` is defined in `EggTool.h`, so the
+  string literal is instantiated in the TU that does `new CEggTool`,
+  i.e. `XacRett.cpp`.  After changing the title and rebuilding only
+  `EggTool.cpp`, `XacRettGetArchiveType` returned 0 while extraction
+  still worked (the sweep itself does not care about the name) --
+  `ArcNameToNum` simply never matched.  Same class as the NMAKE
+  header-dependency note: rebuild the TU that includes the header.
+  Worth knowing because "type 0 but extraction fine" reads like a
+  registration bug, not a stale object.
+- **A lister must not disturb the walk, and the walk is not seekable.**
+  The engine is sequential (volumes concatenated, blocks consumed in
+  order), which is why the listing and the extraction share the same
+  parsed member table; there is no byte-alignment shortcut to a member.
+- **Names are UTF-8 and may be unusable.**  `kiutil::utf8toAnsi` converts
+  them; a name that cannot be represented, or that fails to convert, is
+  skipped (the ALZ house behaviour).  The corpus contains writer-mangled
+  names (`cafe_clair/???/???.txt`), which still extract.
+- **AZO distances are validated, and a slice is bounded by 2^19.**  The
+  decoder reports failure on `distance == 0 || distance > i`; the caller
+  has already checked `bus <= usize - out`, so a corrupt stream cannot
+  write past the block buffer.
+- **LZMA and AZO are only reachable through correctly-routed blocks.**
+  `EggDecode` preflights every member for an unknown encryption method or
+  block method BEFORE writing anything, so an unsupported archive fails
+  with no partial tree (mirroring the reference's preflight).
+
+`XACRETT_EGG_DBG=1` appends the failure reason to `XacRett.egg.log` in
+the current directory (the output dir, since MeltArchive chdirs first);
+it was what turned the CRC problem and the volume-id collision from
+guesses into facts.  It costs one `getenv` per failed extraction and is
+otherwise inert.
+
+Verified: **284 archives** (`alzgg/packed_egg` and `alzgg/packed_egg_8.0`,
+everything up to 6 MB) list and extract with `rc=0` and no log line,
+except the encrypted ones, which are refused loudly with zero output.
+Grouping the results by member set gives **68 content groups with ZERO
+hash mismatches** -- that is what proves the five methods agree: e.g. the
+`two_*` / `egg_m*_two` / `egg_s_m*_two` families, `probe_*`, the
+`nested_*` family, `records_*`, `zeros_*`, `image*`, `mz*` and the 420
+member `splitmany_*` chains all produce byte-identical trees across
+profiles.  The 16-volume `span_15vol_m0/m1` chains open from ANY volume.
+Negatives (empty, header-only, bad magic, truncation at the header, in
+the block header and in the payload, corrupted block CRC, block usize
+over the member size, member usize 2^63/2^64, missing continuation
+volume) all fail loudly, leave no file, and never hang.  VC6 and VC4
+compile the four units clean (VC4 via `%TEMP%\opencode\vc4egg.bat`), and
+the DLL's 11 exports and its KERNEL32/USER32/ADVAPI32 import set are
+unchanged.  Harnesses: `%TEMP%\opencode\eggmatrix2.py` (the matrix and the
+grouping) and `eggneg2.py` (the negatives).
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).

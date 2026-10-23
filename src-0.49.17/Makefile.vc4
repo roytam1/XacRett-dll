@@ -59,6 +59,10 @@ OBJS = \
     $(OBJDIR)\DgcCrypt.obj \
     $(OBJDIR)\DgcDecode.obj \
     $(OBJDIR)\AlzDecode.obj \
+    $(OBJDIR)\EggAzo.obj \
+    $(OBJDIR)\EggDecode.obj \
+    $(OBJDIR)\EggTool.obj \
+    $(OBJDIR)\OpenArchive_OpenEgg.obj \
     $(OBJDIR)\DgdDecode.obj \
     $(OBJDIR)\DgcTool.obj \
     $(OBJDIR)\DgdTool.obj \
@@ -350,6 +354,18 @@ $(OBJDIR)\DgcCrypt.obj : DgcCrypt.cpp
 $(OBJDIR)\DgcDecode.obj : DgcDecode.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 $(OBJDIR)\AlzDecode.obj : AlzDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\EggAzo.obj : EggAzo.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\EggDecode.obj : EggDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\EggTool.obj : EggTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenEgg.obj : OpenArchive\OpenEgg.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\DgcTool.obj : DgcTool.cpp

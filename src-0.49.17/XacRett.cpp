@@ -79,6 +79,7 @@ using namespace std;   //こいつを入れないと使えません。
 #include "IsoTool.h"//追加By Bonty
 #include "BlzTool.h"//追加By Bonty
 #include "AlzTool.h"//追加By Bonty
+#include "EggTool.h"
 #include "LzxTool.h"//追加By Bonty
 #include "askTool.h"//追加By Bonty
 
@@ -145,6 +146,7 @@ using namespace std;   //こいつを入れないと使えません。
 #include "OpenArchive\OpenIs.h"
 #include "OpenArchive\OpenBlz.h"
 #include "OpenArchive\OpenAlz.h"
+#include "OpenArchive\OpenEgg.h"
 #include "OpenArchive\OpenDmg.h"
 #include "OpenArchive\OpenIso.h"
 #include "OpenArchive\OpenLzx.h"
@@ -638,6 +640,8 @@ void DllSub(void)//ロードする
 
 	t=t->AddTail( new CAlzTool );
 	o=o->AddTail( new COpenAlz);
+	t=t->AddTail( new CEggTool );
+	o=o->AddTail( new COpenEgg);
 	ArchiveListMap[t]=o;
 
 	t=t->AddTail( new CLzxTool );
@@ -1293,6 +1297,8 @@ int ArcNameToNum(LPCSTR buffer )
 		return ARCHIVETYPE_BLZ;
 	else if (lstrcmp(buffer,"Alz 展開")==0)
 		return ARCHIVETYPE_ALZ;
+	else if (lstrcmp(buffer,"Egg \x93W\x8aJ")==0)
+		return ARCHIVETYPE_EGG;
 	else if (lstrcmp(buffer,"Dmg 展開")==0)
 		return ARCHIVETYPE_DMG;
 	else if (lstrcmp(buffer,"Iso 展開")==0)
