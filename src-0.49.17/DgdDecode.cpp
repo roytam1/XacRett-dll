@@ -45,11 +45,16 @@ static int DgdFindChunks( const unsigned char* img, unsigned long size,
 	if( size < DGD_CHUNK_HDR ) return -1;
 	if( memcmp( img, "DGCD", 4 ) ) return -1;
 	p = DGD_CHUNK_HDR;
-	end = DGD_CHUNK_HDR + DgdRd32( img + 8 );
-	if( end > size ) end = size;
+	{
+		unsigned long psroot = DgdRd32( img + 8 );
+		// subtraction form: a huge value must not wrap to a small end
+		end = ( psroot > size - DGD_CHUNK_HDR ) ? size
+												: DGD_CHUNK_HDR + psroot;
+	}
 	while( p + DGD_CHUNK_HDR <= end ) {
 		unsigned long ps = DgdRd32( img + p + 8 );
-		if( p + DGD_CHUNK_HDR + ps > end ) break;
+		// the same here: a wrapped p would never advance
+		if( ps > end - p - DGD_CHUNK_HDR ) break;
 		if( !memcmp( img + p, "INFO", 4 ) ) {
 			*info = img + p + DGD_CHUNK_HDR; *infolen = ps;
 		} else if( !memcmp( img + p, "DFDT", 4 ) ) {
@@ -273,6 +278,12 @@ bool DgdOpen( const char* path, const char* password, DgdFile *f )
 		*e = 0;
 	}
 
+	if( ref.nparts == 0 || ref.nparts > DGD_MAX_PART ) {
+		// the part count is a file value: DgdCombos indexes
+		// g_combo[][part] and would run off its row
+		if( ref.data ) free( ref.data );
+		return false;
+	}
 	if( DgdScan( dir, password, ref.sha, ref.nparts )<=0 ) {
 		if( ref.data ) free( ref.data );
 		return false;

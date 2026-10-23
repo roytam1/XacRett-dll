@@ -2948,6 +2948,32 @@ is not used by either reader**, and the recon's own notes disagree
 about what the writer puts there (the row block offsets in section 7.1,
 the CRC-32 of every row in section 12.5).  Nothing depends on it.
 
+**Malformed input is refused, not followed.**  A corrupt chunk header
+could declare a payload far larger than the file, and the walk (and its
+CRC-32) followed it straight out of the image: an 1808 byte `.dgc` whose
+root payload size says `0x7FFFFFF0` crashed the DLL with 0xC0000005 in
+BOTH listing and extraction.  A chunk is now required to fit inside its
+parent (and the parent inside the file) before it is recorded, the chunk
+CRC refuses a chunk that runs past the image, the DGCC child walk
+bounds its payload the same way, and the recovery table's
+`rows*cols + pages*rows + rows` size check is done in 64 bits so a
+corrupt `DGCR` header cannot overflow it.  A one byte truncation used to
+extract "successfully" from a one byte out-of-bounds read (the `IFNM`'s
+trailing padding) and is now refused as well.
+
+Two more of the same family, both worth remembering because the check
+looks right when you read it:
+
+- **a size check of the form `p + 32 + ps > end` can be defeated by the
+  wrap.**  With `ps = 0xFFFFFFE0` the sum comes back to `p`, the loop
+  never advances and the DLL spins forever - the top level `DGCR` scan
+  and the `.dgd` chunk walk both did this on a 1808 byte file.  The
+  comparison has to be the subtraction form, `ps > end - p - 32`, which
+  cannot wrap.
+- **the `.dgd` part count is a file value** and `DgdCombos` indexes
+  `g_combo[ncombo][part]`, whose row is `DGD_MAX_PART` (64) long, so a
+  `.dgd` claiming more parts wrote past the row; it is refused now.
+
 **The spanning files are supported too** (`ARCHIVETYPE_DGD` 75,
 `DgdDecode.cpp` + `DgdTool.cpp` + `OpenArchive/OpenDgd.cpp`).  A file
 that is too big for a single archive is split into parts, and every part

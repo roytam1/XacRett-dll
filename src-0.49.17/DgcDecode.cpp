@@ -120,7 +120,11 @@ static unsigned long DgcRepair( DgcWalk *w, DgcArchive *arc, DgcChunk* dgcr )
 	if( off > arc->imgsize ) return 0;
 	if( !cols || !rows || !pages ) return 0;
 	if( data->psize < len ) return 0;
-	if( len < (rows*cols + pages*rows + rows) * 4 ) return 0;
+	// 64 bit, so a corrupt header cannot overflow the check and then
+	// walk a gigantic matrix
+	if( (unsigned __int64)len <
+		((unsigned __int64)rows*cols + (unsigned __int64)pages*rows + rows) * 4 )
+		return 0;
 
 	rec = (unsigned char*)malloc( len ? len : 1 );
 	if( !rec ) return 0;
@@ -202,7 +206,9 @@ static int DgcFindRecoveryChunk( unsigned char* img, unsigned long size,
 	unsigned long p = 0;
 	while( p + DGC_CHUNK_HDR <= size ) {
 		unsigned long ps = DgcRd32( img + p + 8 );
-		if( p + DGC_CHUNK_HDR + ps > size ) break;
+		// subtraction form: ps is a file value and the addition can wrap,
+		// which would leave p where it is (an endless loop)
+		if( ps > size - p - DGC_CHUNK_HDR ) break;
 		if( !memcmp( img + p, "DGCR", 4 ) ) {
 			*off = p; *psize = ps;
 			return 1;
@@ -276,7 +282,7 @@ static int DgcDecryptRecords( DgcWalk *w, DgcChunk* parent,
 			return 0;
 		}
 		ps = DgcRd32( hdr + 8 );
-		if( p + DGC_CHUNK_HDR + ps > end ) return -1;
+		if( ps > end - p - DGC_CHUNK_HDR ) return -1;
 		c.SetKeyPayload( hdr, DGC_CHUNK_HDR, pw, pwlen );
 		c.Decrypt( w->img + p + DGC_CHUNK_HDR, ps );
 		p = DgcAlign16( p + DGC_CHUNK_HDR + ps );
@@ -292,6 +298,11 @@ static void DgcWalkTree( DgcWalk *w, unsigned long off, unsigned long end,
 {
 	unsigned long p = off;
 
+	// a parent's declared payload can never reach past the file: a
+	// truncated or corrupt header would otherwise walk (and CRC) far
+	// outside the image
+	if( end > w->size ) { end = w->size; w->broken = 1; }
+
 	while( p + DGC_CHUNK_HDR <= end ) {
 		const unsigned char* h = w->img + p;
 		unsigned long ps = DgcRd32( h + 8 );
@@ -299,6 +310,11 @@ static void DgcWalkTree( DgcWalk *w, unsigned long off, unsigned long end,
 		char id[5];
 
 		if( w->nchunk >= DGC_MAX_CHUNK ) return;
+		if( ps > end - p - DGC_CHUNK_HDR ) {
+			// the chunk does not fit into its parent
+			w->broken = 1;
+			return;
+		}
 		memcpy( id, h, 4 );
 		id[4] = 0;
 		if( !DgcIsKnown(id) ) {
@@ -335,9 +351,11 @@ static DgcChunk* DgcChildChunk( DgcWalk *w, DgcChunk* parent, const char* id )
 	unsigned long p = parent->off + DGC_CHUNK_HDR;
 	unsigned long end = parent->off + DGC_CHUNK_HDR + parent->psize;
 
+	if( end > w->size ) end = w->size;
 	while( p + DGC_CHUNK_HDR <= end ) {
 		const unsigned char* h = w->img + p;
 		unsigned long ps = DgcRd32( h + 8 );
+		if( ps > end - p - DGC_CHUNK_HDR ) break;
 		if( !memcmp(h,id,4) ) {
 			DgcChunk* c = &w->chunks[w->nchunk<DGC_MAX_CHUNK ? w->nchunk++ : DGC_MAX_CHUNK-1];
 			c->off = p;
@@ -361,6 +379,9 @@ static int DgcChunkCrcOk( DgcWalk *w, DgcChunk* c )
 	unsigned long hwant = DgcRd32( h + 28 );
 	unsigned char tmp[DGC_CHUNK_HDR];
 
+	// a chunk that runs past the image cannot be verified
+	if( c->off + DGC_CHUNK_HDR > w->size ) return 0;
+	if( c->psize > w->size - c->off - DGC_CHUNK_HDR ) return 0;
 	memcpy( tmp, h, DGC_CHUNK_HDR );
 	memset( tmp + 28, 0, 4 );
 	return ( (unsigned long)crc32( 0, w->img + c->off + DGC_CHUNK_HDR, (uInt)c->psize ) == want
@@ -691,6 +712,10 @@ static int DgcLzInverse( const unsigned char* src, unsigned long n,
 	int i;
 
 	if( n == 0 ) return 0;
+	// the array is n * 4 bytes: refuse a length whose allocation would
+	// overflow (a corrupt block header can say anything)
+	if( (unsigned __int64)n * sizeof(unsigned long) > 0x7FFFFFFF )
+		return -1;
 	block = (unsigned long*)malloc( sizeof(unsigned long) * n );
 	if( !block ) return -1;
 	for( i=0; i<256; i++ ) cnt[i] = 0;
@@ -863,7 +888,7 @@ static int DgcDecompress( DgcCm *C, const unsigned char* pay, unsigned long len,
 
 		if( tag == 0 ) {
 			// stored
-			if( o + 8 + size > len ) return -1;
+			if( size > len - o - 8 ) return -1;
 			if( DgcBufPut( out, pay + o + 8, size )!=0 ) return -1;
 			o += 8 + size;
 		} else if( tag == 1 ) {
@@ -879,7 +904,9 @@ static int DgcDecompress( DgcCm *C, const unsigned char* pay, unsigned long len,
 			b.v7     = DgcRd32( pay + o + 20 );
 			b.lenA   = DgcRd32( pay + o + 24 );
 			b.lenB   = DgcRd32( pay + o + 28 );
-			if( o + 32 + b.lenA + b.lenB > len ) return -1;
+			// subtraction form: lenA/lenB are file values and can wrap
+			if( b.lenA > len - o - 32 || b.lenB > len - o - 32 - b.lenA )
+				return -1;
 			b.A = pay + o + 32;
 			b.B = b.A + b.lenA;
 			tmp = (unsigned char*)malloc( size ? size : 1 );
@@ -897,7 +924,7 @@ static int DgcDecompress( DgcCm *C, const unsigned char* pay, unsigned long len,
 			unsigned long stride = size, oo = o + 8, k, i, total = 0;
 			unsigned char** cols = NULL;
 			unsigned long* csz = NULL;
-			if( stride == 0 ) return -1;
+			if( stride == 0 || stride > 0x10000 || stride > len ) return -1;
 			cols = (unsigned char**)malloc( sizeof(unsigned char*) * stride );
 			csz = (unsigned long*)malloc( sizeof(unsigned long) * stride );
 			if( !cols || !csz ) { free(cols); free(csz); return -1; }
@@ -917,7 +944,7 @@ static int DgcDecompress( DgcCm *C, const unsigned char* pay, unsigned long len,
 				b.v7     = DgcRd32( pay + oo + 20 );
 				b.lenA   = DgcRd32( pay + oo + 24 );
 				b.lenB   = DgcRd32( pay + oo + 28 );
-				if( oo + 32 + b.lenA + b.lenB > len ) break;
+				if( b.lenA > len - oo - 32 || b.lenB > len - oo - 32 - b.lenA ) break;
 				b.A = pay + oo + 32;
 				b.B = b.A + b.lenA;
 				tmp = (unsigned char*)malloc( b.size ? b.size : 1 );
@@ -975,10 +1002,12 @@ static int DgcDecodeChildren( DgcWalk *w, DgcChunk* parent, DgcBuf *out )
 
 	cm = (DgcCm*)malloc( sizeof(DgcCm) );
 	if( !cm ) return -1;
+	if( end > w->size ) end = w->size;
 	while( p + DGC_CHUNK_HDR <= end ) {
 		const unsigned char* h = w->img + p;
 		unsigned long ps = DgcRd32( h + 8 );
 		if( memcmp(h,"DGCC",4) ) break;
+		if( ps > end - p - DGC_CHUNK_HDR ) break;
 		if( DgcDecompress( cm, w->img + p + DGC_CHUNK_HDR, ps, out )!=0 ) {
 			free(cm);
 			return -1;
