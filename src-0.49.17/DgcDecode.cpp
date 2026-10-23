@@ -73,7 +73,9 @@ static DgcChunk* DgcChildChunk( DgcWalk *w, DgcChunk* parent, const char* id );
 //           words of all the pages
 //   part 2 (pages*rows words): for every (page, row) the XOR of the
 //           words of all the columns
-//   part 3 (rows words): the offsets of the row blocks
+//   part 3 (rows words): not used by the reader (the recon's notes
+//           disagree on what the writer puts there: the offsets of the
+//           row blocks, or the CRC-32 of every row)
 //
 // It is a RAID-4 style redundancy: it can restore a lost 4 byte word.
 // The recovery data is encrypted with the fixed key of the cipher (the
@@ -892,7 +894,7 @@ static int DgcDecompress( DgcCm *C, const unsigned char* pay, unsigned long len,
 			o += 32 + b.lenA + b.lenB;
 		} else if( tag == 2 ) {
 			// the column method: `size` columns, each a compressed block
-			unsigned long stride = size, oo = o + 8, k, i, total = 0, n;
+			unsigned long stride = size, oo = o + 8, k, i, total = 0;
 			unsigned char** cols = NULL;
 			unsigned long* csz = NULL;
 			if( stride == 0 ) return -1;
@@ -929,15 +931,20 @@ static int DgcDecompress( DgcCm *C, const unsigned char* pay, unsigned long len,
 				total += b.size;
 				oo += 32 + b.lenA + b.lenB;
 			}
-			// de-interleave the columns
-			n = total / stride;
+			// De-interleave the columns.  The columns of the LAST row are
+			// shorter when the size is not a multiple of the stride (the
+			// writer gives e.g. stride 12 to a 131072 byte block: 8 columns
+			// of 10923 bytes and 4 of 10922), so the length of every column
+			// decides where it ends - total/stride would drop the tail of
+			// the longer ones.
 			{
 				unsigned char* buf = (unsigned char*)malloc( total ? total : 1 );
 				if( buf ) {
 					memset( buf, 0, total );
-					for( i=0; i<n; i++ ) {
-						for( k=0; k<stride; k++ ) {
-							if( i < csz[k] ) buf[i*stride + k] = cols[k][i];
+					for( k=0; k<stride; k++ ) {
+						for( i=0; i<csz[k]; i++ ) {
+							if( (unsigned __int64)i*stride + k < total )
+								buf[i*stride + k] = cols[k][i];
 						}
 					}
 					DgcBufPut( out, buf, total );
@@ -1121,7 +1128,9 @@ bool DgcOpen( const char* path, DgcArchive *arc, const char* password )
 	}
 	{
 		const unsigned char* h = arc->img + iarc->off + DGC_CHUNK_HDR;
-		if( (h[0] & 1) ) {
+		// the IARC payload holds the flags at +0 and the encrypted area at
+		// +0x20..+0x4F, so a payload shorter than 0x50 is not an index
+		if( iarc->psize >= 0x50 && (h[0] & 1) ) {
 			// The archive is encrypted.  The records of the DATA,
 			// the IFDT and the IFNM are decrypted with the password
 			// and the tree is walked again, because the ids of the

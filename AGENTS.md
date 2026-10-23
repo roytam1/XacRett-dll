@@ -2915,8 +2915,38 @@ Two things are worth knowing:
   word can be a checksum field - the `DGCA` chunk's own CRC is checked
   right after the repair and passes again.
 
-What is NOT implemented: the match coder (the params' bit 1, which no
-sample archive uses).
+**The column method** (the tag 2 blocks) is supported, and it hides a
+trap that cost a real bug here: the block is split into `stride`
+interleaved columns (column k = the bytes at k, k+stride, ...), every
+column is delta transformed on its own (order 0/1/2, the flags' bits
+16..19) and coded as its own tag 1 block with its own flags and
+params.  **The columns of the last row are SHORTER when the size is
+not a multiple of the stride** - the tool gives stride 12 to a 131072
+byte block, which is 8 columns of 10923 bytes and 4 of 10922 - so the
+de-interleave has to walk every column to its own length:
+
+    out[i*stride + k] = col_k[i]      while i*stride + k < total
+
+Walking `total/stride` rows instead drops the tail of the longer
+columns: the output is `total % stride` bytes short and those bytes
+stay zero, so the member's CRC fails.  It stayed hidden because the
+tool's 1441792 byte blocks end on all-zero data (`zero.bin`), where
+dropping zeros into zeros is invisible.  `fixtures/dgc/dgca110-column.dgc`
+is the minimal authentic case: one 131072 byte `mat16.bin`, stride 12,
+`total % stride` = 8, made with `dgcac.exe a dgca110-column.dgc mat16.bin`.
+
+**The match coder** (the params' bit 1, `DgcCmMatch`) is implemented
+too, so an older note here that called it "not implemented" is
+retired.  The tool switches it on for very uniform columns
+(`spread(delta1) < 5`); it walks the same 9 bit tree as the literal
+coder but updates `lit[]` in the main loop instead of using the
+prepare/restore passes.  It is exercised by the recon's `all.dgc` /
+`fl2.dgc` blocks (`params` `46443322`), which decode byte exact.
+
+One more correction to the format notes: **the recovery table's part 3
+is not used by either reader**, and the recon's own notes disagree
+about what the writer puts there (the row block offsets in section 7.1,
+the CRC-32 of every row in section 12.5).  Nothing depends on it.
 
 **The spanning files are supported too** (`ARCHIVETYPE_DGD` 75,
 `DgdDecode.cpp` + `DgdTool.cpp` + `OpenArchive/OpenDgd.cpp`).  A file
@@ -2965,9 +2995,12 @@ control: the same damage in a `.dgd` is NOT repaired (the extraction
 fails with 0x8003 and writes nothing) while the same damage in a
 `.dgdr` is repaired by the parity table and gives the byte-exact file.
 
-Verified: the ten archives in `fixtures/dgc/` give every file with the
-CRC-32 of the index, including `names.dgc` with its 5981 members and
-their Japanese names, in the VC6 and the VC4 build.  The encrypted one
+Verified: the twelve archives in `fixtures/dgc/` give every file
+byte for byte identical to the one the recon's `dgcunp.c` writes,
+`names.dgc` included (5981 entries and their Japanese names), in the
+VC6 and the VC4 build.  `dgca110-column.dgc` is the column method case
+above: before the de-interleave fix it extracted NOTHING while `dgcunp`
+gave the 131072 byte file.  The encrypted one
 (`dgca110-password.dgc`, the password `password`) gives a file that is
 byte identical to the one of the plain archive of the same tree, and
 the archives that the archiver's command line tool makes with `-p` and
