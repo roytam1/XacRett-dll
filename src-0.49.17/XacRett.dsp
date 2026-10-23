@@ -108,6 +108,10 @@ SOURCE=.\AinTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\AlzDecode.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\AlzTool.cpp
 # End Source File
 # Begin Source File
@@ -164,63 +168,19 @@ SOURCE=.\Bz2Tool.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\CabTool.cpp
-# End Source File
-# Begin Source File
 SOURCE=.\CabDecode.cpp
-SOURCE=.\CabDecode.h
-SOURCE=.\CabLzx.cpp
-SOURCE=.\CabLzx.h
-SOURCE=.\CabQuantum.cpp
-SOURCE=.\CabQuantum.h
-SOURCE=.\DgcCrypt.cpp
-SOURCE=.\DgcCrypt.h
-SOURCE=.\DgcDecode.cpp
-SOURCE=.\DgcDecode.h
-SOURCE=.\AlzDecode.cpp
-SOURCE=.\AlzDecode.h
-SOURCE=.\DgdDecode.cpp
-SOURCE=.\DgdDecode.h
-SOURCE=.\DgcTool.cpp
-SOURCE=.\DgcTool.h
-SOURCE=.\DgdTool.cpp
-SOURCE=.\DgdTool.h
-SOURCE=.\OpenArchive\OpenDgc.cpp
-SOURCE=.\OpenArchive\OpenDgc.h
-SOURCE=.\OpenArchive\OpenDgd.cpp
-SOURCE=.\OpenArchive\OpenDgd.h
 # End Source File
+# Begin Source File
 
-# Begin Source File
-SOURCE=.\EggAzo.cpp
-SOURCE=.\EggCrypt.cpp
-SOURCE=.\EggCrypt.h
-SOURCE=.\Lea.cpp
-SOURCE=.\Lea.h
-SOURCE=.\ZipCrypto.cpp
-SOURCE=.\ZipCrypto.h
-SOURCE=.\EggAzo.h
-SOURCE=.\EggDecode.cpp
-SOURCE=.\EggDecode.h
-SOURCE=.\EggTool.cpp
-SOURCE=.\EggTool.h
-SOURCE=.\OpenArchive\OpenEgg.cpp
-SOURCE=.\OpenArchive\OpenEgg.h
-# End Source File
-# Begin Source File
-SOURCE=.\CabDecode.h
-# End Source File
-# Begin Source File
 SOURCE=.\CabLzx.cpp
 # End Source File
 # Begin Source File
-SOURCE=.\CabLzx.h
-# End Source File
-# Begin Source File
+
 SOURCE=.\CabQuantum.cpp
 # End Source File
 # Begin Source File
-SOURCE=.\CabQuantum.h
+
+SOURCE=.\CabTool.cpp
 # End Source File
 # Begin Source File
 
@@ -244,11 +204,47 @@ SOURCE=.\CptTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\DgcCrypt.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\DgcDecode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\DgcTool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\DgdDecode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\DgdTool.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\DmgTool.cpp
 # End Source File
 # Begin Source File
 
 SOURCE=.\DzTool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\EggAzo.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\EggCrypt.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\EggDecode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\EggTool.cpp
 # End Source File
 # Begin Source File
 
@@ -261,95 +257,47 @@ SOURCE=.\FrzTool.cpp
 # Begin Source File
 
 SOURCE=.\GcaSDK\gca_api.cpp
-SOURCE=.\GcaSDK\gca_crypt.cpp
-SOURCE=.\GcaSDK\gca_sha1.cpp
-
-!IF  "$(CFG)" == "XacRett - Win32 Release"
-
 # SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
-
-!ENDIF 
-
 # End Source File
 # Begin Source File
 
 SOURCE=.\GcaSDK\gca_arc.cpp
-
-!IF  "$(CFG)" == "XacRett - Win32 Release"
-
 # SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
-
-!ENDIF 
-
 # End Source File
 # Begin Source File
 
 SOURCE=.\GcaSDK\gca_bwt.cpp
-
-!IF  "$(CFG)" == "XacRett - Win32 Release"
-
 # SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
-
-!ENDIF 
-
 # End Source File
 # Begin Source File
 
 SOURCE=.\GcaSDK\gca_cod.cpp
-
-!IF  "$(CFG)" == "XacRett - Win32 Release"
-
 # SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
 
-!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
-
-!ENDIF 
-
+SOURCE=.\GcaSDK\gca_crypt.cpp
+# SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
 
 SOURCE=.\GcaSDK\gca_numb.cpp
-
-!IF  "$(CFG)" == "XacRett - Win32 Release"
-
 # SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
-
-!ENDIF 
-
 # End Source File
 # Begin Source File
 
 SOURCE=.\GcaSDK\gca_numv.cpp
-
-!IF  "$(CFG)" == "XacRett - Win32 Release"
-
 # SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
 
-!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
-
-!ENDIF 
-
+SOURCE=.\GcaSDK\gca_sha1.cpp
+# SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
 
 SOURCE=.\GcaSDK\gca_stage.cpp
-
-!IF  "$(CFG)" == "XacRett - Win32 Release"
-
 # SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
-
-!ENDIF 
-
 # End Source File
 # Begin Source File
 
@@ -401,6 +349,10 @@ SOURCE=.\LbrTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\Lea.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\LzDecode.cpp
 # End Source File
 # Begin Source File
@@ -421,11 +373,11 @@ SOURCE=.\LzmaTool.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\LzmaTool.h
+SOURCE=.\LzTool.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\LzTool.cpp
+SOURCE=.\LzxTool.cpp
 # End Source File
 # Begin Source File
 
@@ -437,8 +389,12 @@ SOURCE=.\MimeTool.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\MSCompressTool.cpp
 SOURCE=.\MsCompress.cpp
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\MSCompressTool.cpp
 # End Source File
 # Begin Source File
 
@@ -470,23 +426,11 @@ SOURCE=.\SevenZCore.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\SevenZCore.h
-# End Source File
-# Begin Source File
-
 SOURCE=.\SevenZDecode.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\SevenZDecode.h
-# End Source File
-# Begin Source File
-
 SOURCE=.\SevenZTool.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\SevenZTool.h
 # End Source File
 # Begin Source File
 
@@ -535,15 +479,7 @@ SOURCE=.\XzDecode.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\XzDecode.h
-# End Source File
-# Begin Source File
-
 SOURCE=.\XzTool.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\XzTool.h
 # End Source File
 # Begin Source File
 
@@ -556,6 +492,10 @@ SOURCE=.\Yz1Tool.cpp
 # Begin Source File
 
 SOURCE=.\ZacTool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\ZipCrypto.cpp
 # End Source File
 # Begin Source File
 
@@ -572,10 +512,6 @@ SOURCE=.\ZooTool.cpp
 # Begin Source File
 
 SOURCE=.\ZstdTool.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\ZstdTool.h
 # End Source File
 # End Group
 # Begin Group "Header Files"
@@ -596,6 +532,10 @@ SOURCE=.\AinCodec.h
 # Begin Source File
 
 SOURCE=.\AinTool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\AlzDecode.h
 # End Source File
 # Begin Source File
 
@@ -655,6 +595,18 @@ SOURCE=.\Bz2Tool.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\CabDecode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\CabLzx.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\CabQuantum.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\CabTool.h
 # End Source File
 # Begin Source File
@@ -679,11 +631,47 @@ SOURCE=.\CptTool.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\DgcCrypt.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\DgcDecode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\DgcTool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\DgdDecode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\DgdTool.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\DmgTool.h
 # End Source File
 # Begin Source File
 
 SOURCE=.\DzTool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\EggAzo.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\EggCrypt.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\EggDecode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\EggTool.h
 # End Source File
 # Begin Source File
 
@@ -743,6 +731,10 @@ SOURCE=.\LbrTool.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\Lea.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\LzDecode.h
 # End Source File
 # Begin Source File
@@ -755,7 +747,15 @@ SOURCE=.\LzhTool.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\LzmaTool.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\LzTool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\LzxTool.h
 # End Source File
 # Begin Source File
 
@@ -771,8 +771,11 @@ SOURCE=.\MimeTool.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\MSCompress.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\MSCompressTool.h
-SOURCE=.\MsCompress.h
 # End Source File
 # Begin Source File
 
@@ -797,6 +800,18 @@ SOURCE=.\RarTool.h
 # Begin Source File
 
 SOURCE=.\RezTool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\SevenZCore.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\SevenZDecode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\SevenZTool.h
 # End Source File
 # Begin Source File
 
@@ -840,6 +855,14 @@ SOURCE=.\XacRett.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\XzDecode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\XzTool.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\YncTool.h
 # End Source File
 # Begin Source File
@@ -852,11 +875,19 @@ SOURCE=.\ZacTool.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\ZipCrypto.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\ZipTool.h
 # End Source File
 # Begin Source File
 
 SOURCE=.\ZooTool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\ZstdTool.h
 # End Source File
 # End Group
 # Begin Group "Resource Files"
@@ -965,10 +996,6 @@ SOURCE=.\zlib\zutil.h
 # PROP Default_Filter "cpp"
 # Begin Source File
 
-SOURCE=.\LzxTool.cpp
-# End Source File
-# Begin Source File
-
 SOURCE=.\OpenArchive\OpenAce.cpp
 # End Source File
 # Begin Source File
@@ -1057,6 +1084,14 @@ SOURCE=.\OpenArchive\OpenCpt.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\OpenArchive\OpenDgc.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenDgd.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\OpenArchive\OpenDmg.cpp
 # End Source File
 # Begin Source File
@@ -1066,6 +1101,10 @@ SOURCE=.\OpenArchive\OpenDummy.cpp
 # Begin Source File
 
 SOURCE=.\OpenArchive\OpenDz.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenEgg.cpp
 # End Source File
 # Begin Source File
 
@@ -1129,10 +1168,6 @@ SOURCE=.\OpenArchive\OpenLzma.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\OpenArchive\OpenLzma.h
-# End Source File
-# Begin Source File
-
 SOURCE=.\OpenArchive\OpenLzx.cpp
 # End Source File
 # Begin Source File
@@ -1169,10 +1204,6 @@ SOURCE=.\OpenArchive\OpenSevenZ.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\OpenArchive\OpenSevenZ.h
-# End Source File
-# Begin Source File
-
 SOURCE=.\OpenArchive\OpenShar.cpp
 # End Source File
 # Begin Source File
@@ -1194,10 +1225,6 @@ SOURCE=.\OpenArchive\OpenUnixDecoder.cpp
 # Begin Source File
 
 SOURCE=.\OpenArchive\OpenXz.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\OpenArchive\OpenXz.h
 # End Source File
 # Begin Source File
 
@@ -1223,18 +1250,10 @@ SOURCE=.\OpenArchive\OpenZoo.cpp
 
 SOURCE=.\OpenArchive\OpenZstd.cpp
 # End Source File
-# Begin Source File
-
-SOURCE=.\OpenArchive\OpenZstd.h
-# End Source File
 # End Group
 # Begin Group "HeaderFile"
 
 # PROP Default_Filter "h"
-# Begin Source File
-
-SOURCE=.\LzxTool.h
-# End Source File
 # Begin Source File
 
 SOURCE=.\OpenArchive\OpenAce.h
@@ -1325,6 +1344,14 @@ SOURCE=.\OpenArchive\OpenCpt.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\OpenArchive\OpenDgc.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenDgd.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\OpenArchive\OpenDmg.h
 # End Source File
 # Begin Source File
@@ -1334,6 +1361,10 @@ SOURCE=.\OpenArchive\OpenDummy.h
 # Begin Source File
 
 SOURCE=.\OpenArchive\OpenDz.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenEgg.h
 # End Source File
 # Begin Source File
 
@@ -1393,6 +1424,10 @@ SOURCE=.\OpenArchive\OpenLzh.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\OpenArchive\OpenLzma.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\OpenArchive\OpenLzx.h
 # End Source File
 # Begin Source File
@@ -1425,6 +1460,10 @@ SOURCE=.\OpenArchive\OpenRez.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\OpenArchive\OpenSevenZ.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\OpenArchive\OpenShar.h
 # End Source File
 # Begin Source File
@@ -1445,6 +1484,10 @@ SOURCE=.\OpenArchive\OpenUnixDecoder.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\OpenArchive\OpenXz.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\OpenArchive\OpenYnc.h
 # End Source File
 # Begin Source File
@@ -1462,6 +1505,10 @@ SOURCE=.\OpenArchive\OpenZip.h
 # Begin Source File
 
 SOURCE=.\OpenArchive\OpenZoo.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenZstd.h
 # End Source File
 # End Group
 # Begin Source File
