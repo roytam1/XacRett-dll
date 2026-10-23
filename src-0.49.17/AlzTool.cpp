@@ -28,82 +28,114 @@ bool CAlzTool::Check( const char* fname, unsigned long fsize )
 
 bool CAlzTool::Extract( const char* fname,const char* ddir )
 {
+	bool failed = false;
 	char password[128] = {'\0'};
 	ZipLocalHeader hdr;
 
-	if( !(zip=fopen(fname,"rb")) )
+	if( !chain.Open( fname ) )
 		return false;
 
-	while( doHeader( &hdr,CTool::common_buf ) )
+	while( true )
 	{
-		unsigned long posnext = ftell( zip ) + hdr.csz;
+		AlzMember m;
+		char name[ALZ_NAME_MAX];
 
-		if (m_Endflg) return true;//追加 By Bonty
-		//ワイルドカード処理
-		if (!CheckStr(hdr.fnm))//追加 By Bonty
-		{
-			fseek( zip, posnext, SEEK_SET );
-			continue;
-		}
+		int r = AlzNextMember( &chain, &m, name );
+		if( r < 0 )            // structural error
+			{failed = true; break;}
+		if( r == 0 )           // END Record
+			break;
+		if( m_Endflg )
+			break;
 
-		char *name = kiutil::pathMake( hdr.fnm );
-		if( out=fopen(name,"wb") )
+		if( m.name_len < ALZ_NAME_MAX && CheckStr( name )
+			&& ( !(m.fd & ALZ_FD_NB)
+				|| m.method == ALZ_M_STORE
+				|| m.method == ALZ_M_DEFLATE ) )
 		{
-			write_init();   // 出力CRCをクリア
-			if( hdr.flg&1 ) // 暗号化されてるのでパスワードをセット
+			if( !(m.fd & ALZ_FD_NB) && (m.attr & 0x10) )
 			{
-				if( *password=='\0' || !read_init(password,&hdr) )
+				// directory
+				char* name2 = kiutil::pathMake( name );
+				::CreateDirectory( name2, NULL );
+				continue;
+			}
+
+			char* name2 = kiutil::pathMake( name );
+			if( out=fopen(name2,"wb") )
+			{
+				bool bfail = false;
+				write_init();   // output CRC reset
+
+				hdr.ver = 0;
+				hdr.flg = (m.fd & ALZ_FD_ENC) ? 1 : 0;
+				hdr.mhd = m.method;
+				hdr.tim = m.time;
+				hdr.dat = m.date;
+				hdr.crc = m.crc;
+				hdr.csz = m.csize;
+				hdr.usz = m.usize;
+
+				if( hdr.flg )
+					hdr.csz += 12;    // the password check comes first
+
+				if( hdr.flg&1 ) // set the password
 				{
-					int i;
-					for( i=0; i!=3; i++ )
+					if( *password=='\0' || !read_init(password,&hdr) )
 					{
-						strncpy( password, GetPassword(), sizeof(password)-1 );
-						if( read_init( password, &hdr ) )
+						int i;
+						for( i=0; i!=3; i++ )
+						{
+							strncpy( password, GetPassword(), sizeof(password)-1 );
+							if( read_init( password, &hdr ) )
+								break;
+						}
+						if( i==3 ) // password mismatch
+						{
+							bfail = true;
+							failed = true;
+							fclose( out );
+							DeleteFile( name2 );
 							break;
-					}
-					if( i==3 ) // パスワード不一致
-					{
-						fclose( out );
-						DeleteFile( name );
-						break;
+						}
 					}
 				}
-			}
-			else // パスワードを使わない
-				read_init();
+				else // no password
+					read_init();
 
-			// 展開！
-			switch( hdr.mhd )
+				if( !bfail )
+				{
+					// decode
+					if( hdr.mhd == ALZ_M_DEFLATE )
+						Inflate( hdr.usz, hdr.csz );
+					else
+						Unstore( hdr.usz, hdr.csz );
+
+					fclose( out );
+
+					// the member CRC is over the (uncompressed) output
+					if( (m.fd & ALZ_FD_NB) && wrtcrc != m.crc )
+					{
+						DeleteFile( name2 );
+						failed = true;
+					}
+					else
+						kiutil::timeSet( name2,(WORD)hdr.dat,(WORD)hdr.tim );
+				}
+			}
+			else
 			{
-			case Stored:	 Unstore( hdr.usz, hdr.csz );	break;
-			case Deflated:	 Inflate( hdr.usz, hdr.csz );	break;
-			case Shrunk:	Unshrink( hdr.usz, hdr.csz );	break;
-			case Reduced1:	Unreduce( hdr.usz, hdr.csz, 1 );	break;
-			case Reduced2:	Unreduce( hdr.usz, hdr.csz, 2 );	break;
-			case Reduced3:	Unreduce( hdr.usz, hdr.csz, 3 );	break;
-			case Reduced4:	Unreduce( hdr.usz, hdr.csz, 4 );	break;
-			case Imploded:
-				Explode( hdr.usz, hdr.csz,
-							 0!=(hdr.flg&0x02), 0!=((hdr.flg)&0x04) );
-				break;
-			case EnhDeflated:
-				zlibSwitchToDeflate64();
-				Inflate( hdr.usz, hdr.csz );
-				zlibSwitchToDeflate_old();
-				break;
+				// could not even create the file
+				failed = true;
+				AlzSkipMember( &chain, &m );
 			}
-
-			// 事後処理
-			fclose( out );
-
-			kiutil::timeSet( name, (WORD)hdr.dat,(WORD)hdr.tim );
 		}
-
-		fseek( zip, posnext, SEEK_SET );
+		else
+			AlzSkipMember( &chain, &m ); // skip unsupported or unsafe members
 	}
 
-	fclose( zip );
-	return true;
+	chain.Close();
+	return !failed;
 }
 
 //---- CRC 関係 ---------------------
@@ -195,38 +227,42 @@ bool CAlzTool::read_init( const char* pwd, ZipLocalHeader* hdr )
 
 	needdec = true;
 
-	// このパスワードで初期化
+	// init with this password
 	keys[0] = 305419896L;
 	keys[1] = 591751049L;
 	keys[2] = 878082192L;
 	while( *pwd )
 		update_keys( *pwd++ );
 
-	// 今の位置を記憶
-	int x = ftell( zip );
+	// remember the position so a failed check can rewind
+	int ov; long op;
+	chain.getpos( &ov, &op );
 
-	// passwordチェック部読み込み
+	// read the password check bytes
 	BYTE eh[RAND_HEAD_LEN];
 	bool ans = false;
-	if( RAND_HEAD_LEN == fread( eh, 1, RAND_HEAD_LEN, zip ) )
+	if( RAND_HEAD_LEN == chain.read( eh, RAND_HEAD_LEN ) )
 	{
 		for( int i=0; i!=RAND_HEAD_LEN; i++ )
 			zdecode( eh[i] );
 
-		// フラグによって、チェックに用いる値は違う
+		// the check value depends on the flags; ALZ only ever sets
+		// bit 0, so this is the high 16 bits of the CRC
 		WORD checkerval = ((hdr->flg&8)==8 ? hdr->tim : (WORD)(hdr->crc>>16));
 
-		// 検査
+		// verify
 		if( (eh[RAND_HEAD_LEN-2] | (eh[RAND_HEAD_LEN-1]<<8)) == checkerval )
 			ans = true;
 	}
 
-	if( ans ) // チェック部を読んだ分、圧縮サイズを変更
+	if( ans ) // checked: shrink the size by the verifier
 		hdr->csz = hdr->csz>RAND_HEAD_LEN ? hdr->csz-RAND_HEAD_LEN : 0;
-	else	  // チェック部の分、戻る
-		fseek( zip, x, SEEK_SET );
+	else      // failed the check: rewind
+		chain.setpos( ov, op );
+
 	return ans;
 }
+
 
 //-- ヘッダ処理 -----------------------------------
 

@@ -3,6 +3,8 @@
 
 bool COpenAlz::FindFirst(INDIVIDUALINFO *lpSubInfo)
 {
+	if( !chain.Open( szArcFileName ) )
+		return false;
 	return Find_sub(lpSubInfo);
 }
 
@@ -12,121 +14,60 @@ bool COpenAlz::FindNext(INDIVIDUALINFO *lpSubInfo)
 }
 bool COpenAlz::Find_sub(INDIVIDUALINFO *lpSubInfo)
 {
-	if (!doHeader())
+	AlzMember m;
+	char name[ALZ_NAME_MAX];
+
+	if( !chain.Valid() )  // the walk was closed; FindFirst re-opens
 		return false;
 
-	::lstrcpyn(lpSubInfo->szFileName,(LPCSTR)hdr.fname,hdr.blz.fn_len+1);
-	lpSubInfo->dwCRC = hdr.blz.crc;
-	lpSubInfo->dwCompressedSize = hdr.cmp_size;
-	lpSubInfo->dwOriginalSize = hdr.ext_size;
+	for(;;)
+	{
+		int r = AlzNextMember( &chain, &m, name );
+		if( r <= 0 )          // END Record or a structural error
+		{
+			chain.Close();
+			return false;
+		}
+		if( m.name_len < ALZ_NAME_MAX
+			&& ( !(m.fd & ALZ_FD_NB)
+				|| m.method == ALZ_M_STORE
+				|| m.method == ALZ_M_DEFLATE ) )
+			break;
+		AlzSkipMember( &chain, &m );  // skip unsupported or unsafe members
+	}
 
-	lstrcpy(lpSubInfo->szAttribute ,"----");
-	if ((hdr.blz.atter) & 0x0100)
-		lpSubInfo->szAttribute[3] = 'R';
-	else
-		lpSubInfo->szAttribute[3] = 'W';
-	if ((hdr.blz.atter) & 0x0200)
+	// the member's data follows its header; step over it so the next
+	// AlzNextMember() lands on the following header
+	if( m.fd & ALZ_FD_NB )
+		AlzSkipMember( &chain, &m );
+
+	::lstrcpyn(lpSubInfo->szFileName,name,FNAME_MAX32+1);
+	lpSubInfo->dwCRC = m.crc;
+	lpSubInfo->dwCompressedSize = m.csize;
+	lpSubInfo->dwOriginalSize = m.usize;
+
+	lstrcpy(lpSubInfo->szAttribute ,"----W");
+	if (m.attr & 0x01)
+		lpSubInfo->szAttribute[4] = 'R';
+	if (m.attr & 0x02)
 		lpSubInfo->szAttribute[2] = 'H';
-	if ((hdr.blz.atter) & 0x0400)
-		lpSubInfo->szAttribute[1] = 'S';
-	/*if (HIWORD(h.attributes_e) & FILE_ATTRIBUTE_DIRECTORY)
-		lpSubInfo->szAttribute[3] = 'D';*/
-	if ((hdr.blz.atter) & 0x2000)
+	if (m.attr & 0x04)
+		lpSubInfo->szAttribute[3] = 'S';
+	if (m.attr & 0x10)
+		lpSubInfo->szAttribute[1] = 'D';
+	if (m.attr & 0x20)
 		lpSubInfo->szAttribute[0] = 'A';
 
-	lpSubInfo->wDate = hdr.blz.date;
-	lpSubInfo->wTime = hdr.blz.time;
+	lpSubInfo->wDate = m.date;
+	lpSubInfo->wTime = m.time;
 
 	double tmp1 = (double)lpSubInfo->dwOriginalSize;
 	double tmp2 = (double)lpSubInfo->dwCompressedSize;
 	if (lpSubInfo->dwOriginalSize > 0 && lpSubInfo->dwCompressedSize > 0){
 		lpSubInfo->wRatio = (WORD)((tmp2 *1000 / tmp1));
 	}
-	//AlzTool maps method&0x02 to deflate, 0 to stored
-	lstrcpy(lpSubInfo->szMode,(hdr.blz.method&0x02)?"deflate":"stored");
+	//0 store, 2 deflate
+	lstrcpy(lpSubInfo->szMode,(m.method&0x02)?"deflate":"stored");
 
 	return true;
-}
-bool COpenAlz::read_header()
-{
-	unsigned char* buf = COpenAlz::common_buf;
-
-	int x=ftell(COpenAlz::fp);
-	if( sizeof(BLZ)+1 != fread(buf,1,sizeof(BLZ)+1,COpenAlz::fp) )
-		return false;
-
-	fseek( COpenAlz::fp,x+9,SEEK_SET );
-
-	hdr.blz.fn_len=buf[0];
-	hdr.blz.atter=((buf[1])|(buf[2]<<8));
-	hdr.blz.time=((buf[3])|(buf[4]<<8));
-	hdr.blz.date=((buf[5])|(buf[6]<<8));
-	switch ((buf[7]&0x01)?(buf[7]^0x01):buf[7])
-	{
-	case 0x00:
-		hdr.blz.method=0;
-		hdr.blz.crc=0;
-		hdr.ext_size=0;
-		hdr.cmp_size=0;
-		fread(&buf[9],1,hdr.blz.fn_len+1,COpenAlz::fp);
-		hdr.fname=&buf[9];
-		break;
-	case 0x10:
-		fread(&buf[9],1,8,COpenAlz::fp);
-		hdr.cmp_size=buf[15];
-		hdr.ext_size=buf[16];
-		fread(&buf[17],1,hdr.blz.fn_len+1,COpenAlz::fp);
-		hdr.fname=&buf[17];
-		break;
-	case 0x20:
-		fread(&buf[9],1,10,COpenAlz::fp);
-		hdr.cmp_size=((buf[15])|(buf[16]<<8));
-		hdr.ext_size=((buf[17])|(buf[18]<<8));
-		fread(&buf[19],1,hdr.blz.fn_len+1,COpenAlz::fp);
-		hdr.fname=&buf[19];
-		break;
-	case 0x40:
-		fread(&buf[9],1,14,COpenAlz::fp);
-		hdr.cmp_size=((buf[15])|(buf[16]<<8)|(buf[17]<<16)|(buf[18]<<24));
-		hdr.ext_size=((buf[19])|(buf[20]<<8)|(buf[21]<<16)|(buf[22]<<24));
-		fread(&buf[23],1,hdr.blz.fn_len+1,COpenAlz::fp);
-		hdr.fname=&buf[23];
-		break;
-	case 0x80:
-		fread(&buf[9],1,22,COpenAlz::fp);
-		hdr.cmp_size=((buf[15])|(buf[16]<<8)|(buf[17]<<16)|(buf[18]<<24)|(buf[19]<<32)|(buf[20]<<40)|(buf[21]<<48)|(buf[22]<<56));
-		hdr.ext_size=((buf[23])|(buf[24]<<8)|(buf[25]<<16)|(buf[26]<<24)|(buf[27]<<32)|(buf[28]<<40)|(buf[29]<<48)|(buf[30]<<56));
-		
-		fread(&buf[31],1,hdr.blz.fn_len+1,COpenAlz::fp);
-		hdr.fname=&buf[31];
-		break;
-	};
-	if((buf[7]&0x01)?(buf[7]^0x01):buf[7]!=0)
-	{
-		hdr.blz.method=((buf[9])|(buf[10]<<8));
-		hdr.blz.crc=((buf[11])|(buf[12]<<8)|(buf[13]<<16)|(buf[14]<<24));
-	}
-	fseek( COpenAlz::fp,-1,SEEK_CUR );
-
-	return true;
-}
-bool COpenAlz::doHeader()
-{
-	int c, stage=0;
-	while( EOF != (c=fgetc(COpenAlz::fp)) )
-	{
-			 if( c=='B'              ) stage++;
-		else if( c=='L' &&  stage==1 ) stage++;
-		else if( c=='Z' && stage==2 ) stage++;
-		else if( c==0x01 && stage==3 )
-		{
-			stage++;
-			int x=ftell(COpenAlz::fp);
-			if( read_header() )
-				return true;
-			fseek( COpenAlz::fp,x,SEEK_SET );
-		}
-		else stage=0;
-	}
-	return false;
 }

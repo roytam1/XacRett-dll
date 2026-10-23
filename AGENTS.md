@@ -2979,6 +2979,88 @@ chunk header is repaired by the `.dgcr` file (all five give the
 byte-exact file) and is NOT repaired without it (all five fail), in
 the VC6 and the VC4 build.
 
+## ALZ (ALZip) -- the 8.0 container, split volumes and ZipCrypto
+
+The ALZ provider was re-cut onto a shared chain reader.  `AlzDecode.h/.cpp`
+(ASCII, new) owns the volume stack and the member walk; `CAlzTool::Extract`
+(`AlzTool.cpp`) and `COpenAlz` (`OpenArchive/OpenAlz.cpp`) both drive it, so
+listing and extraction can never disagree.  Reference is seb3773/alzgg
+(`alzgg/`, external tree, never vendored) plus its `FORMAT-ALZ.md`; the 86
+archives of `alzgg/packed_alz_8.0/` are the fixtures.
+
+**Format, verified byte by byte on the corpus:**
+
+    8   "ALZ\001" + 4 bytes (byte 6 = volume index, not used)
+        member: "BLZ\001" | name_len u16 | attr u8 | dos_time u32 |
+                fd u8 | 1 unknown (0)            <- 9 fixed bytes
+        when fd & 0xF0:  method u8 | 1 unknown | crc32 u32 |
+                         csize nb | usize nb      (nb = fd>>4, 1/2/4/8)
+        name (code-page bytes, NOT NUL terminated)
+        12-byte ZipCrypto verifier when fd & 1, then csize bytes of data
+    16  "CLZ\001" + 8 zero + "CLZ\002" (last volume) / "CLZ\003"
+
+Data region is `[8, filesize-16)` per volume; continuations are
+`<base>.a00`, `.a01`, ... (`.a00` is volume 2) and are not named in the
+archive.  `fd` bit 0 = encrypted; high nibble 0 means no optional part, no
+data, and the name starts right after the fixed part (empty files and
+directory entries).
+
+* `crc32` is over the UNCOMPRESSED data, and `csize` EXCLUDES the 12-byte
+  verifier -- `Extract` does `csz += 12` before `read_init`, which subtracts
+  it back on success (same as the old code and the format doc).
+* The verifier's last two bytes, low first, are `crc >> 16`, i.e.
+  `plain[10] = crc>>16`, `plain[11] = crc>>24`.  The cipher is plain
+  ZipCrypto, so the tree's decrypt_byte/update_keys/zdecode is reused.
+* ALZ 8.0 passwords in the corpus are `secret` (`-psecret`).  Do NOT reuse
+  the EGG passphrase `password` -- different lot, and it fails ALZ.
+* Attr bits map to the house string as `"----W"` with `[4]='R'` (0x01),
+  `[2]='H'` (0x02), `[3]='S'` (0x04), `[1]='D'` (0x10), `[0]='A'` (0x20).
+  Directory entries are `fd` hi = 0 + attr 0x10 and become
+  `CreateDirectory(pathMake(name))`.
+
+**Three traps, all measured here:**
+
+* **`read_init` must RETURN.**  It is `bool` and the first splice lost
+  `return ans;`, so it fell off the end and returned stack garbage: every
+  encrypted archive failed with `rc=0x8013`, wrote nothing, and the
+  password path looked broken.  Same class as the `T var()` traps above --
+  after any splice, check that every non-void function still ends with a
+  return.
+* **A lister must skip the member's data.**  `AlzNextMember` expects to be
+  at a header, so returning a member without `AlzSkipMember` makes the next
+  call read member data as a header: `meta_alz_m1.alz` listed 1 of 10
+  members.  Extraction was unaffected only because the decoder consumes
+  exactly `csize` bytes, which hid the bug from the extract path.
+* **The optional part starts one byte later than it looks.**  The fixed
+  part is NINE bytes (one unknown byte after `fd`), so method/crc sit at
+  fixed+9/+11, not fixed+8/+10.  Reading crc one byte early gives
+  `0x575A2400` where the header says `0x50575A24`, and the member stops
+  listing as deflate.
+
+Behaviour decisions (deliberate, consistent with the ZIP house pattern):
+unsupported methods 1/3 (bzip2 / deflate3) are skipped and never listed
+(the CLI aborts); a CRC mismatch deletes the output, continues, and makes
+the archive fail; a wrong password is three `GetPassword()` tries and then
+delete + fail (the old code returned true with no file); a structural error
+or a missing continuation volume fails with no output.
+
+**Verified:** every archive in `packed_alz_8.0` gives the corpus content
+byte for byte -- 78 pass the full list+extract+hash check; 2 need more than
+20 MiB and were verified separately (50 MB and 4.4 GB of zeros; the 4.4 GB
+one shows `dwOriginalSize` truncating to a DWORD, a house-wide limit); 2
+use a `euro` password that is fed as ANSI `0x80` and cannot be typed on a
+cp950 ACP; 2 (`unicode_basic*`) store cp1252 single-byte accents that this
+ACP cannot represent -- 2 of their 3 members still extract byte-exact and
+the third is `?`-mangled by the WRITER itself (the stored name is literally
+`???`).  Negatives: truncated, bad magic, header-only, junk after the
+magic, flipped payload byte, missing `.a05` of a 16-volume chain -- all fail
+loudly, no partial file, no hang, no crash.  VC6 and VC4 compile the three
+units clean.
+
+The old `BLZ`/`size_len` parser (`read_header`/`doHeader`, `FILE *zip`) is
+left in place but is unreachable: it describes a different (pre-8.0) header
+layout for which no fixture exists.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).

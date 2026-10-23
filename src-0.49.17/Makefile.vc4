@@ -58,6 +58,7 @@ OBJS = \
     $(OBJDIR)\CabQuantum.obj \
     $(OBJDIR)\DgcCrypt.obj \
     $(OBJDIR)\DgcDecode.obj \
+    $(OBJDIR)\AlzDecode.obj \
     $(OBJDIR)\DgdDecode.obj \
     $(OBJDIR)\DgcTool.obj \
     $(OBJDIR)\DgdTool.obj \
@@ -347,6 +348,8 @@ $(OBJDIR)\CabQuantum.obj : CabQuantum.cpp
 $(OBJDIR)\DgcCrypt.obj : DgcCrypt.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 $(OBJDIR)\DgcDecode.obj : DgcDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+$(OBJDIR)\AlzDecode.obj : AlzDecode.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\DgcTool.obj : DgcTool.cpp

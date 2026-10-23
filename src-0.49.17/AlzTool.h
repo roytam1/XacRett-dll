@@ -2,6 +2,7 @@
 #define AFX_ALZTOOL_H__4C5F3720_4483_11D4_8D96_88668194683D__INCLUDED_
 
 #include "Tool.h"
+#include "AlzDecode.h"
 
 
 //Ver5.02にて確認
@@ -91,6 +92,7 @@ private: //-- Zip内部処理用 -----------------------
 // ファイルIO
 
 	FILE *zip,*out;
+	AlzChain chain;
 
 	void write_init()
 		{ wrtcrc = 0; }
@@ -176,7 +178,7 @@ struct sf_tree
 	bool read_init( const char* pwd=NULL,ZipLocalHeader* hdr=NULL );
 	int zipread( BYTE* dat, int len )
 		{
-			len = fread( dat, 1, len, zip );
+			len = chain.read( dat, len );
 			if( needdec )
 				for( int i=0; i<len; i++ )
 					zdecode( dat[i] );
