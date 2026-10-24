@@ -450,6 +450,10 @@ SOURCE=.\SqxPpmd.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\SqxUltra.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\SqxTool.cpp
 # End Source File
 # Begin Source File
@@ -828,6 +832,10 @@ SOURCE=.\SplTool.h
 # Begin Source File
 
 SOURCE=.\SqxPpmd.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\SqxUltra.h
 # End Source File
 # Begin Source File
 

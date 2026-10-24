@@ -685,6 +685,7 @@ void DecodeAudioFile(void)
 }
 
 extern int SqxUnPpmd(void); /* SqxPpmd.cpp: method 6 (PPMd) */
+extern int SqxUnUltra(unsigned long dicSize, int solid, unsigned long compFlags); /* SqxUltra.cpp: method 7 (Ultra) */
 
 void ExtractArcFile(ARC_NODE *ALNode)
 {
@@ -699,6 +700,16 @@ void ExtractArcFile(ARC_NODE *ALNode)
 		DecodeAudioFile();
 	else if( ALNode->lMethod == SQX_C1_EX_NORMAL )
 		SqxUnPpmd();
+	else if( ALNode->lMethod == SQX_C1_EX_GOOD && ALNode->lVersion >= 20 )
+	{
+		/* Ultra (method 7) is SQX 2.0 only; the dictionary is 8MB<<idx
+		   when the extended flag (bit 11) is set, else 32KB<<idx. */
+		unsigned long uIdx = (((unsigned long)ALNode->lFlags >> 8) & 15UL);
+		unsigned long uDic = (ALNode->lFlags & 0x0800)
+			? (0x800000UL << uIdx) : (0x8000UL << uIdx);
+		SqxUnUltra(uDic, (ALNode->lFlags & SQX_SOLID_FILE_FLAG) != 0,
+			(unsigned long)ALNode->lCompFlags);
+	}
 	else
 		DecodeFile(ALNode->lCompFlags,ALNode->lFlags & SQX_SOLID_FILE_FLAG,(1U << (((ALNode->lFlags >> 8) & 15) + 15)),ALNode->lVersion);
 

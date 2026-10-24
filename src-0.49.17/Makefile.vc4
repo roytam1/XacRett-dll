@@ -123,6 +123,7 @@ OBJS = \
     $(OBJDIR)\SplTool.obj \
     $(OBJDIR)\SqxTool.obj \
     $(OBJDIR)\SqxPpmd.obj \
+    $(OBJDIR)\SqxUltra.obj \
     $(OBJDIR)\StdAfx.obj \
     $(OBJDIR)\TarTool.obj \
     $(OBJDIR)\Tool.obj \
@@ -549,6 +550,9 @@ $(OBJDIR)\SqxTool.obj : SqxTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\SqxPpmd.obj : SqxPpmd.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\SqxUltra.obj : SqxUltra.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\StdAfx.obj : StdAfx.cpp

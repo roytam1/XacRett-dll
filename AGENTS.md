@@ -1042,10 +1042,10 @@ call, so keep applying them:
   only as fmt 2.0; `cont=1` (solid continuation) comes only from the
   oracle `sqc`, never from `sqx.exe create` - every obtainable stream has
   cont=0, so the 3-line cont path (refuse without a live model, else
-  continue) mirrors the reference but is untested. Gaps: method 7+
-  ultra is XFAIL (the reference cannot extract it either).  The other
-  gap noted here -- fmt-2.0 LZ methods 1-4 failing -- is now FIXED; see
-  the "SQX format-2.0 LZ" section below.
+  continue) mirrors the reference but is untested. The other gap
+  noted here -- fmt-2.0 LZ methods 1-4 failing -- is now FIXED; see
+  the "SQX format-2.0 LZ" section below. Method 7 Ultra is DONE
+  too; see the "SQX method 7 (Ultra)" section below.
   Plumbing fixes this required (both pre-existing, both hit every SQX
   harness run with `-j` + absolute outdir, proven by the whole matrix):
   `CSqxTool::Extract` now uses `pathMake`'s adjusted pointer (house
@@ -1354,13 +1354,90 @@ unit with the VC4 flags and confirm the errorlevel is 0, which is how
 `DgcDecode.cpp` were verified.  The full VC4 link works on the
 maintainer's machine.
 
+## SQX method 7 (Ultra) -- DONE
+
+`SqxUltra.h/.cpp` + dispatch in `ExtractArcFile` (`sqx_dec.c`), session
+reset per archive from `CSqxTool::Extract`. Reference is the `Squeez/`
+tree in the workarea root (MIT, never vendored -- the port below is a
+clean-room VC6/C89 transcription of its `ultra.c`, verified against
+`Squeez/packed_corpus`).
+
+Format (on-disk `0x07`, SQX 2.0 only; see Squeez `FORMAT.md` SS3.6):
+LZ77 driven by a probabilistic range coder (TOP `0x1000000` / BOT
+`0x10000`, and the range init reads 4 code bytes straight -- NOT the
+GFL dummy-byte skip). Binary `is_match` (64 = 4x4x4 state planes) then
+`is_rep` (16 = 4x4), both incr 8 / maxf 1023. Repeat path
+`RC(len_rep` alphabet 6: `4` = copy 1 byte at current distance, `5` =
+repeat last match, `0..3` = reuse MRU slot k = g+1 with length from
+`RC(len_sub` alphabet 9 (length base table 2,3,4,6,10,18,34,66,130 with
+secondary alphabets 2,4,8,16,32,64,128; `257` escapes to `257 +
+raw(14)`, max match 16640). Fresh path: length from `RC(len_new` (same
+9-group table), distance class by length (2/3/4/other select the 4
+`len_dist` models, alphabet 50), distance symbol (base from
+dword_420B70, ebits from dword_420C38; `ebits < 4` appends raw bits,
+else `dist = base + (raw(ebits-4) << 4) + RC(dist_low)` nibble model).
+Literals: 2 planes x 256 prev-byte contexts, each a 17 x 16-symbol
+nibble model (`hi = RC(16)`, `byte = 16*hi + RC(lo[hi])`; plane 0 after
+a literal, plane 1 after a match). After any match the prev-byte
+context reloads as `dict[(curr-pos - dist) & mask]` (the next source
+byte, NOT the last output byte); a solid archive keeps only the
+probability models across members (MRU, distances, state, prev byte and
+dict position reset per file, like the reference).
+
+Traps, all real:
+- **the `*_ultra.sqx` file names lie for small files.** The Squeez
+  creator names files by the *requested* method but falls back per
+  file, so `hello/code/eng` (+ `nested` member 1) are really method
+  **6** (PPMd) and the old path already decoded them -- that is why
+  "ultra" looked half working before the port (3/13 rc=0, byte-exact).
+  Only 8 members are true method 7 (`biased/zeros/mixed/records/
+  pattern/random/image/image24` + 6 more inside `nested`): all failed
+  loud (`rc=0x8013`, 0 bytes, no hang) before, all byte-exact after.
+  Always check the `cArcMethod` byte, never the file name.
+- **`sqx_bits` is the SqxPpmd reader.** The reference `bitio.h` (LE
+  word, `>> (32-n)` peek, zero-pad past end) is semantics-identical to
+  the `SqxBits*` reader already in `SqxPpmd.cpp`, and `sqx_crc32_raw`
+  is the house `crc32` (reflected 0xEDB88320, init 0xFFFFFFFF, no final
+  xor -- `WriteOutBuf` already maintains it). The port reuses both and
+  streams through `WriteOutBuf` (CRC/progress/volumes/split handling
+  come free) instead of buffering the member like the reference.
+- Port traps: no `stdint.h` / `static inline` / C99 for-init / mixed
+  declarations under VC6 C (house `UWORD32`, plain `static` helpers,
+  C89 block-top declarations); `unsigned __int64` is never needed
+  because csz/usz above 0x7FFFFFFF are refused up front (house cap, cf.
+  `SqxUnPpmd`); the reference `rc_raw` divides by a range that can be
+  0 on corrupt input (0xC0000094), so the port returns -1 instead
+  (loud refusal, same class as the ARC/YZ1/DGC hardenings).
+- The dispatch passes the per-FILE solid bit (`ALNode->lFlags &
+  SQX_SOLID_FILE_FLAG`, the same value LZH gets -- Squeez keys its
+  model persistence on `b.flags & 0x0004`, not the archive bit), and
+  the dictionary needs the 2.0 extended formula (0x0800 set means
+  8MB<<idx, else 32KB<<idx; the old LZH call site ignores the ext
+  bit, Ultra does not, and anything above 32 MB is refused).
+
+Verified: all 13 `Squeez/packed_corpus/*_ultra.sqx` extract rc=0 and
+byte-exact vs `Squeez/corpus` (12 single + the 7-member `nested`; its
+`hello.txt` is the 67 B `corpus/nested/dir1/` one, NOT the 63 B
+top-level one -- the `-j` harness flattens, so compare by content).
+`runmatrix2.py` stays at its 202 baseline with ZERO BYTES-DIFFER and
+ZERO MISSING (ultra members remain REF-AMBIG there only because that
+harness's old `sqx.exe` reference cannot extract them -- the direct
+corpus comparison is the real proof). Corruption negatives
+(truncations, payload flips, garbage, a 1 GB-dict header) all fail
+loud (rc=1), none hang or crash; a flip inside unconsumed trailing
+padding still extracts byte-exact (correct: only `orig_size` worth is
+consumed, same trailing-data policy as lzip). VC4 compiles all three
+TUs clean (`VC4_RC=0`).
+
 ## SQX format-2.0 LZ (methods 1-4) -- DONE
 
 `ctab.h/.c`, `uarde.h/.c`, `mm_coder.c`, `sqx_dec.c`.  Verified against
 `packed_corpus` with `runmatrix2.py`: **202 member passes, ZERO
 BYTES-DIFFER and ZERO MISSING**.  The only non-passes are 15 `REF-AMBIG`
-(every `*_v2.0_ultra` = method 7, which the reference itself cannot
-extract) and 10 `REF-REFUSES` (`sqxtest/DamagedArchive`).
+(every `*_v2.0_ultra` = method 7 -- REF-AMBIG only because that
+harness's old `sqx.exe` reference cannot extract them; ours are
+proved byte-exact against the corpus directly, see the Ultra
+section) and 10 `REF-REFUSES` (`sqxtest/DamagedArchive`).
 
 Format facts (reference is seb3773/Squeez-c, TEMP only):
 - fmt-2.0 litlen alphabet is `NC2`=311 and the groups SHIFT: `LEN2_START2`

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "SqxTool.h"
 #include "SqxPpmd.h"
+#include "SqxUltra.h"
 
 CSqxTool *pSqx; //.....
 
@@ -77,6 +78,7 @@ bool CSqxTool::Extract( const char* fname, const char* ddir )
 		return false;
 
 	SqxPpmd_BeginArchive();
+	SqxUltra_BeginArchive();
 
 	lSkipFlag = OPTION_NONE;
 
