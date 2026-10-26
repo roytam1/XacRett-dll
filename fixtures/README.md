@@ -31,6 +31,8 @@ in `AGENTS.md`.  What is here is the input side of those checks.
 | `gca/` | the plain, the password and the key file archives of the `ctest` corpus plus the `key.bin` they need, and the legacy set shared with the `gca` project: `gcatxt.gca` (GCA0), `gcasdk_v09d.gca` (GCA1 solid), `gcacv09e_{plain,solid,none,encrypted,encrypted_solid,encrypted_key}.gca` and `gcacv09e_key.bin` | `gcac.exe` 0.9k for the modern ones, `gcac_v09e.exe` 0.9e for the legacy ones | the GCA provider: the `GCA3` container and the encrypted archives (`-p secret123`, `-p#key.bin`), the legacy `GCA0`/`GCA1` containers including the encrypted version 6 (`-p fixture`, `-p#gcacv09e_key.bin`), and that a directory member is extracted as a directory |
 | `yz1/` | `yzenc.yz1`, `yzencpw.yz1`, `lib.yz1`, and `yzenc-empty.yz1` / `yzenc-mixed.yz1` (an archive whose members are all empty, and one with a 5 byte member plus two empty ones in a subdirectory) | the `yzenc.exe` 1.05a in the workarea root | the YZ1 provider, plain and with a password, and that zero-length members are extracted (the all-empty case has `all_size == head_size` and used to be refused) |
 | `lzip/` | `nicfix.tar.lz` and `lzsfx33.lzs` | an upstream lzip file and the lhasa corpus | the lzip provider |
+| `compact/` | `LICENCE.txt.C` (Unix `compact` format, `ff 1f` magic) | added for the CompactC provider | the CompactC provider lists it (`LICENCE.txt`, `orig=0` -- the format stores no size) and extracts the 18340-byte `LICENCE` |
+| `packz/` | `LICENCE.txt.Z` (PACKZ format, `1f 1e` magic) | added for the Packz provider | the Packz provider lists it (`LICENCE.txt`, `orig=0`) and extracts the 18340-byte `LICENCE` |
 
 ## The oracle
 

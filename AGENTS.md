@@ -830,7 +830,11 @@ call, so keep applying them:
   Trap worth keeping: `dec.DecodeFile(0)` is NOT a substitute here -
   it is the v1 entry point and leaves `dec_file_count` at 0, and
   `m_arc_name` is private anyway.
-- Known gaps: `OpenDummy`/`OpenCompactC` have no live listing path.
+- Known gaps: `OpenDummy` has no live listing path (`COpenCompactC`
+  lists since 2026-10-26: one member, the `getOriginalName` output
+  name, `orig=0` like PackZ -- the format stores no size, so there
+  is nothing to resolve; `fixtures/compact/LICENCE.txt.C` lists as
+  `LICENCE.txt` and extracts to the 18340-byte `LICENCE`).
   (The GCA formats older than `GCAX`/`GCA3` are decoded since the
   2026-10-24 SDK re-sync - see the GCA section.)
 - **8.3 fallback for file systems with no long names** (Win32s on
