@@ -67,4 +67,49 @@ private:
 	BZFILE* bfp;
 };
 
+// .cpio compressed form via whole-file decode to temp (see the
+// matching CCpio*Tool).
+class COpenCpioLzma : public COpenCpio
+{
+public:
+	COpenCpioLzma() : COpenCpio() {tmpPath[0]=0; tmpLive=false;};
+protected:
+	virtual bool   CpioOpen(const char* fname);
+	virtual size_t CpioRead(void* red,size_t size);
+	virtual void   CpioClose();
+private:
+	char tmpPath[MAX_PATH];
+	bool tmpLive;
+};
+
+// .cpio compressed form via whole-file decode to temp (see the
+// matching CCpio*Tool).
+class COpenCpioXz : public COpenCpio
+{
+public:
+	COpenCpioXz() : COpenCpio() {tmpPath[0]=0; tmpLive=false;};
+protected:
+	virtual bool   CpioOpen(const char* fname);
+	virtual size_t CpioRead(void* red,size_t size);
+	virtual void   CpioClose();
+private:
+	char tmpPath[MAX_PATH];
+	bool tmpLive;
+};
+
+// .cpio compressed form via whole-file decode to temp (see the
+// matching CCpio*Tool).
+class COpenCpioZst : public COpenCpio
+{
+public:
+	COpenCpioZst() : COpenCpio() {tmpPath[0]=0; tmpLive=false;};
+protected:
+	virtual bool   CpioOpen(const char* fname);
+	virtual size_t CpioRead(void* red,size_t size);
+	virtual void   CpioClose();
+private:
+	char tmpPath[MAX_PATH];
+	bool tmpLive;
+};
+
 #endif

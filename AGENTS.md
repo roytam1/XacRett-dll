@@ -415,6 +415,32 @@ call, so keep applying them:
   Negatives: truncated/fake-magic `.zst` refuse loudly, none hang.
   All six file formats (`.lzma`/`.xz`/`.zst`/`.tar.lzma`/
   `.tar.xz`/`.tar.zst`) are now covered end to end.
+- `.cpio.lzma`/`.cpio.xz`/`.cpio.zst` are `CCpioLzmaTool`/
+  `CCpioXzTool`/`CCpioZstTool` + `COpenCpioLzma`/`COpenCpioXz`/
+  `COpenCpioZst` (`ARCHIVETYPE_CPIOLZMA` 77 / `CPIOXZ` 78 /
+  `CPIOZST` 79), the same temp-delegation design over the tar
+  providers' decode helpers (`LzmaDecodeFile`/`XzDecodeFile`/
+  `ZstdDecodeFile`): decode the whole stream to a fixed-name temp
+  file, then run base cpio over it (inherited Check/Extract/List
+  just work, full validation reused). Registration sits right
+  after each tar twin and before the plain single-file provider
+  (`CTxzTool`->`CCpioXzTool`->`CTzstTool`->`CCpioZstTool`->
+  `CZstdTool`, `CTlzmaTarTool`->`CCpioLzmaTool`->`CLzmaTool`), so
+  pass-1/fallback routing is unchanged: `.tar.*` still hits tar
+  first, a non-cpio stream still falls through to the plain
+  provider (a valid `.lzma` that is not cpio extracts as LZMA,
+  type 65). Also fixed the matching `CCpioTool(const char*)`
+  uninitialised-`fp` bug (same class as the `CTarTool` one:
+  `fclose` on garbage on first open) -- `fp=NULL` now.
+  Fixtures in `%TEMP%\cpiofix\` (hand-rolled newc `tree.cpio`
+  over text/binary/zeros/empty-file/subdir + the three compressed
+  forms; the cpio tiles exactly per cpio(5) and the non-empty
+  members match 7-Zip's own extraction, whose "Headers Error"
+  on the zero-size member is its own quirk). Verified 4/4 PASS
+  (type 15/77/78/79, every member byte-exact incl. the 0-byte
+  file); tar/zip routing spot checks unchanged (`.tar.lzma` 67,
+  `.tar.xz` 68, `.tgz` 47, ZIP m10 43); 8 truncation/flip/garbage
+  negatives refuse loud with no output and no hang.
 - UnRAR 7.2.7 (RAR 1.5-5.x; deliberate divergence, official does 2.x/3.x
   only): stable `RAR*` API made it a source drop-in (`Rar3Tool.cpp` glue
   untouched); VC6 port via `vc6compat/` shims (`stdint.h`, SDK headers)

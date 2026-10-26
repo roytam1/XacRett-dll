@@ -1,5 +1,8 @@
 #include "stdafx.h"
 #include "OpenCpio.h"
+#include "..\LzmaTool.h"
+#include "..\XzTool.h"
+#include "..\ZstdTool.h"
 
 bool COpenCpio::FindFirst(INDIVIDUALINFO *lpSubInfo)
 {
@@ -222,6 +225,81 @@ void COpenCpioBz::CpioClose()
 {
 	if( bfp!=NULL )
 		BZ2_bzclose( bfp ),bfp=NULL;
+}
+
+bool COpenCpioLzma::CpioOpen(const char* fname)
+{
+	char tmp[MAX_PATH];
+	DWORD n;
+	if( tmpPath[0] ) { DeleteFile(tmpPath); tmpPath[0]=0; }
+	tmpLive = false;
+	n = GetTempPath(MAX_PATH, tmp);
+	if( n==0 || n+20>=MAX_PATH ) return false;
+	lstrcat(tmp, "XacRettCpioLzma.tmp");
+	if( !LzmaDecodeFile(fname, tmp) ) { DeleteFile(tmp); return false; }
+	lstrcpy(tmpPath, tmp);
+	if( !COpenCpio::CpioOpen(tmpPath) ) { DeleteFile(tmpPath); tmpPath[0]=0; return false; }
+	tmpLive = true;
+	return true;
+}
+size_t COpenCpioLzma::CpioRead(void* red,size_t size)
+{
+	return COpenCpio::CpioRead(red, size);
+}
+void COpenCpioLzma::CpioClose()
+{
+	COpenCpio::CpioClose();
+	if( tmpLive ) { DeleteFile(tmpPath); tmpPath[0]=0; tmpLive = false; }
+}
+
+bool COpenCpioXz::CpioOpen(const char* fname)
+{
+	char tmp[MAX_PATH];
+	DWORD n;
+	if( tmpPath[0] ) { DeleteFile(tmpPath); tmpPath[0]=0; }
+	tmpLive = false;
+	n = GetTempPath(MAX_PATH, tmp);
+	if( n==0 || n+20>=MAX_PATH ) return false;
+	lstrcat(tmp, "XacRettCpioXz.tmp");
+	if( !XzDecodeFile(fname, tmp) ) { DeleteFile(tmp); return false; }
+	lstrcpy(tmpPath, tmp);
+	if( !COpenCpio::CpioOpen(tmpPath) ) { DeleteFile(tmpPath); tmpPath[0]=0; return false; }
+	tmpLive = true;
+	return true;
+}
+size_t COpenCpioXz::CpioRead(void* red,size_t size)
+{
+	return COpenCpio::CpioRead(red, size);
+}
+void COpenCpioXz::CpioClose()
+{
+	COpenCpio::CpioClose();
+	if( tmpLive ) { DeleteFile(tmpPath); tmpPath[0]=0; tmpLive = false; }
+}
+
+bool COpenCpioZst::CpioOpen(const char* fname)
+{
+	char tmp[MAX_PATH];
+	DWORD n;
+	if( tmpPath[0] ) { DeleteFile(tmpPath); tmpPath[0]=0; }
+	tmpLive = false;
+	n = GetTempPath(MAX_PATH, tmp);
+	if( n==0 || n+20>=MAX_PATH ) return false;
+	lstrcat(tmp, "XacRettCpioZst.tmp");
+	if( !ZstdDecodeFile(fname, tmp) ) { DeleteFile(tmp); return false; }
+	lstrcpy(tmpPath, tmp);
+	if( !COpenCpio::CpioOpen(tmpPath) ) { DeleteFile(tmpPath); tmpPath[0]=0; return false; }
+	tmpLive = true;
+	return true;
+}
+size_t COpenCpioZst::CpioRead(void* red,size_t size)
+{
+	return COpenCpio::CpioRead(red, size);
+}
+void COpenCpioZst::CpioClose()
+{
+	COpenCpio::CpioClose();
+	if( tmpLive ) { DeleteFile(tmpPath); tmpPath[0]=0; tmpLive = false; }
 }
 
 //////////////////////////////////////////////////////////////////////

@@ -11,7 +11,7 @@ class CCpioTool : public CTool
 {
 public:
 	CCpioTool() : CTool( "Cpio “WŠJ" ){fp=NULL;}
-	CCpioTool(const char* r) : CTool(r) {}
+	CCpioTool(const char* r) : CTool(r) {fp=NULL;}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"rpm") || 0==stricmp(ext,"cpio");}
@@ -107,6 +107,66 @@ protected:
 	virtual void   CpioClose();
 private:
 	BZFILE* bfp;
+};
+
+// .cpio.lzma via whole-file LZMA decode to a temp file,
+// then plain cpio over it (inherited Check/Extract just work).
+// Temp uses a fixed per-type name and is self-healing (removed
+// on open/close); a cancel between open and close can leave one
+// stale file behind at most, deleted on the next open.
+class CCpioLzmaTool : public CCpioTool
+{
+public:
+	CCpioLzmaTool() : CCpioTool("Cpio+LZMA “WŠJ") {tmpPath[0]=0; tmpLive=false;};
+	bool IsType( const char* ext )
+		{return 0==stricmp(ext,"lzma");}
+protected:
+	virtual bool   CpioOpen(const char* fname);
+	virtual size_t CpioRead(void* red,size_t size);
+	virtual void   CpioClose();
+private:
+	char tmpPath[MAX_PATH];
+	bool tmpLive;
+};
+
+// .cpio.xz via whole-file XZ decode to a temp file,
+// then plain cpio over it (inherited Check/Extract just work).
+// Temp uses a fixed per-type name and is self-healing (removed
+// on open/close); a cancel between open and close can leave one
+// stale file behind at most, deleted on the next open.
+class CCpioXzTool : public CCpioTool
+{
+public:
+	CCpioXzTool() : CCpioTool("Cpio+XZ “WŠJ") {tmpPath[0]=0; tmpLive=false;};
+	bool IsType( const char* ext )
+		{return 0==stricmp(ext,"xz");}
+protected:
+	virtual bool   CpioOpen(const char* fname);
+	virtual size_t CpioRead(void* red,size_t size);
+	virtual void   CpioClose();
+private:
+	char tmpPath[MAX_PATH];
+	bool tmpLive;
+};
+
+// .cpio.zst via whole-file ZSTD decode to a temp file,
+// then plain cpio over it (inherited Check/Extract just work).
+// Temp uses a fixed per-type name and is self-healing (removed
+// on open/close); a cancel between open and close can leave one
+// stale file behind at most, deleted on the next open.
+class CCpioZstTool : public CCpioTool
+{
+public:
+	CCpioZstTool() : CCpioTool("Cpio+ZSTD “WŠJ") {tmpPath[0]=0; tmpLive=false;};
+	bool IsType( const char* ext )
+		{return 0==stricmp(ext,"zst");}
+protected:
+	virtual bool   CpioOpen(const char* fname);
+	virtual size_t CpioRead(void* red,size_t size);
+	virtual void   CpioClose();
+private:
+	char tmpPath[MAX_PATH];
+	bool tmpLive;
 };
 
 #endif

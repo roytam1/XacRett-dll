@@ -546,8 +546,16 @@ void DllSub(void)//ƒ[ƒh‚·‚é
 	o=o->AddTail( new COpenTxz);
 	ArchiveListMap[t]=o;
 
+	t=t->AddTail( new CCpioXzTool );
+	o=o->AddTail( new COpenCpioXz);
+	ArchiveListMap[t]=o;
+
 	t=t->AddTail( new CTzstTool );
 	o=o->AddTail( new COpenTzst);
+	ArchiveListMap[t]=o;
+
+	t=t->AddTail( new CCpioZstTool );
+	o=o->AddTail( new COpenCpioZst);
 	ArchiveListMap[t]=o;
 
 	t=t->AddTail( new CZstdTool );
@@ -564,6 +572,10 @@ void DllSub(void)//ƒ[ƒh‚·‚é
 
 	t=t->AddTail( new CTlzmaTarTool );
 	o=o->AddTail( new COpenTlzma);
+	ArchiveListMap[t]=o;
+
+	t=t->AddTail( new CCpioLzmaTool );
+	o=o->AddTail( new COpenCpioLzma);
 	ArchiveListMap[t]=o;
 
 	t=t->AddTail( new CLzTool );
@@ -1205,6 +1217,12 @@ int ArcNameToNum(LPCSTR buffer )
 		return ARCHIVETYPE_CPIOZ;
 	else if ( lstrcmp(buffer,"Cpio.bz2 “WŠJ")==0)
 		return ARCHIVETYPE_CPIOBZ2;
+	else if ( lstrcmp(buffer,"Cpio+LZMA “WŠJ")==0)
+		return ARCHIVETYPE_CPIOLZMA;
+	else if ( lstrcmp(buffer,"Cpio+XZ “WŠJ")==0)
+		return ARCHIVETYPE_CPIOXZ;
+	else if ( lstrcmp(buffer,"Cpio+ZSTD “WŠJ")==0)
+		return ARCHIVETYPE_CPIOZST;
 	else if ( lstrcmp(buffer,"Cpt “WŠJ")==0)
 		return ARCHIVETYPE_CPT;
 	else if ( lstrcmp(buffer,"Dzip “WŠJ")==0)
