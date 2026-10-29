@@ -2227,6 +2227,19 @@ SOURCE=.\lhasa\lh6_decoder.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\lhasa\lx1_decoder.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
 SOURCE=.\lhasa\lh7_decoder.c
 
 !IF  "$(CFG)" == "XacRett - Win32 Release"

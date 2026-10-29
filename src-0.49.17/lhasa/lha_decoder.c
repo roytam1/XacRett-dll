@@ -37,6 +37,7 @@ extern const LHADecoderType lha_lh1_decoder;
 extern const LHADecoderType lha_lh4_decoder;
 extern const LHADecoderType lha_lh5_decoder;
 extern const LHADecoderType lha_lh6_decoder;
+extern const LHADecoderType lha_lx1_decoder;
 extern const LHADecoderType lha_lh7_decoder;
 extern const LHADecoderType lha_lhx_decoder;
 extern const LHADecoderType lha_lk7_decoder;
@@ -57,6 +58,7 @@ static const struct {
 	{ "-lh4-", &lha_lh4_decoder },
 	{ "-lh5-", &lha_lh5_decoder },
 	{ "-lh6-", &lha_lh6_decoder },
+	{ "-lx1-", &lha_lx1_decoder },
 	{ "-lh7-", &lha_lh7_decoder },
 	{ "-lhx-", &lha_lhx_decoder },
 	{ "-lk7-", &lha_lk7_decoder },

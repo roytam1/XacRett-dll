@@ -269,6 +269,7 @@ OBJS = \
     $(OBJDIR)\lhasa_lh1_decoder.obj \
     $(OBJDIR)\lhasa_lh5_decoder.obj \
     $(OBJDIR)\lhasa_lh6_decoder.obj \
+    $(OBJDIR)\lhasa_lx1_decoder.obj \
     $(OBJDIR)\lhasa_lh7_decoder.obj \
     $(OBJDIR)\lhasa_lha_decoder.obj \
     $(OBJDIR)\LhasaBridge.obj \
@@ -988,6 +989,9 @@ $(OBJDIR)\lhasa_lh5_decoder.obj : lhasa\lh5_decoder.c
 	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
 
 $(OBJDIR)\lhasa_lh6_decoder.obj : lhasa\lh6_decoder.c
+	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
+
+$(OBJDIR)\lhasa_lx1_decoder.obj : lhasa\lx1_decoder.c
 	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
 
 $(OBJDIR)\lhasa_lh7_decoder.obj : lhasa\lh7_decoder.c

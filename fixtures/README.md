@@ -18,7 +18,7 @@ in `AGENTS.md`.  What is here is the input side of those checks.
 | `rar/` | the RAR 1.5/2.0/2.9/4.x/5.x samples and the 72 member `aida64.rar` | `rar15.rar` ... `rar29.rar` from the era, `GPLv2-rar4/5.rar` and `aida64.rar` made for this tree | the RAR provider, and the RAR5 listing |
 | `7z/` | `aida64.7z` and `7z-zstd.7z` (the authentic 7-Zip 19.00 + zstd archive) | the 7-Zip command line tool | the 7z provider, including the zstd coder |
 | `zip/` | `PKZ080.ZIP` and `pkz090.zip` (the old PKZIP samples with the shrink and the reduce methods), plus `aida64.zip` | the PKZIP distribution | the legacy ZIP methods, and the long name handling |
-| `lzh/` | the whole fragglet/lhasa test corpus: `archives/` and the expected `output/` | the upstream lhasa checkout | the LZH decoder, member for member, against the oracle's own expected names and sizes |
+| `lzh/` | the whole fragglet/lhasa test corpus: `archives/` and the expected `output/`, plus `unlha32-lx1.lzh` (UNLHA32 `-lx1-` sample, workarea root) | the upstream lhasa checkout | the LZH decoder, member for member, against the oracle's own expected names and sizes; the `-lx1-` sample decodes byte-exact to the 18340-byte `LICENCE` |
 | `asd/` | `LICENCE-015.asd` (0.1.5), `LICENCE-020.asd` (0.2.0) and `multi.asd` | the ASD 0.2.0 archiver | the ASD provider, both versions |
 | `jam/` | `LICENCE-may96.jam`, `LICENCE-aug96.jam` and `M_PLAIN` | the `jam` package in the workarea root, built with its own `JAM.COM` | the JAM provider: the May/96 and the Aug/96 variants |
 | `shar/` | `LICENCE-text.shar` and `LICENCE-uu.shar` | made with GNU shar | the shar provider, including the uudecode payload |

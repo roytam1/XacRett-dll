@@ -67,7 +67,8 @@ bool CLzhTool::Extract( const char* fname,const char* ddir )
 		else if( 0==strcmp(h_Method,"-lz2-") )mhd=LZS2;
 		else if( 0==strcmp(h_Method,"-lz3-") )mhd=LZS2;
 			if( 0==strcmp(h_Method,"-lh4-") || 0==strcmp(h_Method,"-lhx-") || 0==strcmp(h_Method,"-lk7-") ||
-				0==strcmp(h_Method,"-pm0-") || 0==strcmp(h_Method,"-pm1-") || 0==strcmp(h_Method,"-pm2-") )
+				0==strcmp(h_Method,"-pm0-") || 0==strcmp(h_Method,"-pm1-") || 0==strcmp(h_Method,"-pm2-") ||
+				0==strcmp(h_Method,"-lx1-") )
 				LhasaDecode(h_Method, lzh, h_CompSize, out, h_OrigSize);
 			else
 			{
@@ -113,7 +114,7 @@ int CLzhTool::FindHeader( const char* fname, const BYTE* hdr, DWORD siz )
 	for( DWORD i=0; i<siz-20; i++ )
 	{
 		if( hdr[i+2]=='-' && (hdr[i+3]=='l' || hdr[i+3]=='p') &&
-		   (hdr[i+4]=='h' || hdr[i+4]=='z' || hdr[i+4]=='m' || hdr[i+4]=='k') )
+		   (hdr[i+4]=='h' || hdr[i+4]=='z' || hdr[i+4]=='m' || hdr[i+4]=='k' || hdr[i+4]=='x') )
 		{
 			if( !bopen )
 				if( !(lzh=fopen( fname,"rb" )) )

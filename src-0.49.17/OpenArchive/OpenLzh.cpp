@@ -102,7 +102,7 @@ int COpenLzh::FindHeader(const BYTE* hdr, DWORD siz )
 	for( DWORD i=0; i<siz-20; i++ )
 	{
 		if( hdr[i+2]=='-' && (hdr[i+3]=='l' || hdr[i+3]=='p') &&
-		   (hdr[i+4]=='h' || hdr[i+4]=='z' || hdr[i+4]=='m' || hdr[i+4]=='k') )
+		   (hdr[i+4]=='h' || hdr[i+4]=='z' || hdr[i+4]=='m' || hdr[i+4]=='k' || hdr[i+4]=='x') )
 		{
 			fseek(COpenLzh::fp,i,SEEK_SET );
 			if( ReadHeader(temp) )

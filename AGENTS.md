@@ -2543,6 +2543,57 @@ Two traps, both real:
   compressed data two bytes early, gives a decode that is the right
   length and completely wrong content -- no error, no crash.
 
+## LZH: -lx1- (UNLHA32) -- DONE
+
+`-lx1-` is UNLHA32.DLL's experimental format, and it is NOT `-lh6-`
+under a different name. The literal/length coding is identical to
+`-lh6-` (510 codes) over a 32 KiB window, but the offset coding is
+completely different: every block starts with a 2-bit mode selecting
+one of four offset coders -- mode 0 raw 15-bit offsets, mode 1 a
+fixed 128-symbol Huffman table (code lengths from a breakpoint list),
+mode 2 128 offset lengths as raw 4-bit values (three leading 1s mean
+a single code follows in 7 bits), mode 3 a 16-symbol Huffman table
+decoded like `-lh6-`. Feeding the bytes to either `-lh6-` decoder
+truncates cleanly at 11526 of 18340 bytes (both the Lhasa `-lh6-`
+decoder and, with the method string alone swapped, the in-house one
+-- the in-house LH7 path instead crashed the harness with
+0xC0000005, so the offset coding really is a different stream).
+
+Reference is `lhasa/lib/lx1_decoder.c` in the workarea root (Roy Tam
+2026, reverse engineered from UNLHA32.DLL v2.50: decode triple
+`sub_10013960`/`sub_10013A70`/`sub_10013B40`, block header
+`sub_100138EA`). It is vendored as
+`src-0.49.17/lhasa/lx1_decoder.c` plus the 2-line `lha_decoder.c`
+registration (`extern` + `{ "-lx1-", &lha_lx1_decoder }`, between the
+lh6 and lh7 entries, same as upstream). Use-it-directly was the
+right call and it needed exactly one mechanical change: the shared
+framework files (`bit_stream_reader.c`, `tree_decode.c`,
+`lha_decoder.h`) are byte-identical between the workarea `lhasa/`
+and the vendored subset, the `LHADecoderType` initializer shape
+matches every other decoder, and the only VC6-hostile lines in the
+new file are two mid-block declarations in `read_mode3_offset`
+(`int k`, `int hi`), now hoisted to the function top. `XacRett.dsp`
+and `Makefile.vc4` each gain one unit + rule by hand (never
+re-run `genmakevc4.py`; see the lzip note). Routing is the
+`FindHeader` scan accepting `hdr[i+4]=='x'` in both `LzhTool.cpp`
+and `OpenLzh.cpp`, plus `-lx1-` in the `LhasaDecode` condition --
+no method-name normalization, the table lookup is by name.
+
+Trap worth keeping: a synthetic probe made by overwriting the
+method string in place fails to OPEN, not to decode -- the level-2
+header CRC covers the method bytes, so it must be recomputed (zero
+bytes 75-76, CRC-16/ARC over the whole header) after any edit.
+
+Verified: `fixtures/lzh/unlha32-lx1.lzh` lists 1 member at 18340
+bytes and extracts byte-exact vs the house `LICENCE`
+(sha256 `6c4beace...` full match); 8 truncation/flip/garbage
+negatives refuse loud with no output and no hang; the 209-archive
+corpus is unchanged (`lhacase.py` 143/53/13/0, `lha_ab.py` zero
+cases where official beats ours); VC6 full build 0 FAIL; VC4
+compiles all four touched TUs (`LX1_RC=0`, `LHADEC_RC=0`,
+`LZH_RC=0`, `OPENLZH_RC=0`; the C4761s are the pre-existing
+`set_tree_single(int)` pattern).
+
 ## MSCompress (SZDD/KWAJ) and the Cabinet FDI shim
 
 Two independent things were sorted out here, both about the formats
