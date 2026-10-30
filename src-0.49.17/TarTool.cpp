@@ -51,6 +51,345 @@ static bool CheckSum(TarHeader* hd)
 	return sum==tar_s2i(hd->checksum,8);
 }
 
+// ---- GNU sparse support (old-GNU 'S' + GNU 1.0 via PAX 'x') ----
+// toybox-master/toys/posix/tar.c parity: 'x' records GNU.sparse.name /
+// GNU.sparse.realsize; old-GNU pairs are 12-byte octal at raw offset
+// 386 (continuations: 21 pairs + flag at 504); the 1.0 inline map is
+// decimal text (any non-digit separates, NUL ends), first value is
+// the pair count. A trailing zero-length pair extends the file,
+// which is how the apparent size materialises.
+
+#define TAR_SPARSE_MAX_PAIRS 1048576
+
+// FSCTL_SET_SPARSE = CTL_CODE(FILE_DEVICE_FILE_SYSTEM, 49, METHOD_BUFFERED,
+// FILE_ANY_ACCESS) = 0x900C4; spelled out so no winioctl.h is needed.
+#ifndef FSCTL_SET_SPARSE
+#define FSCTL_SET_SPARSE 0x000900C4
+#endif
+
+static unsigned __int64 tar_s2i64(char* d,int l)
+{
+	unsigned __int64 s=0;
+	int i;
+	for( i=0; i!=l; i++ )
+	{
+		if( '0'<=d[i] && d[i]<='7' )
+			s = (s<<3)+(d[i]-'0');
+		else if( d[i]!=' ' && d[i]!=0 )
+			break;
+	}
+	return s;
+}
+
+static unsigned __int64 tar_a2i64(const char* d,int l)
+{
+	unsigned __int64 s=0;
+	int i;
+	for( i=0; i!=l; i++ )
+	{
+		if( '0'<=d[i] && d[i]<='9' )
+		{
+			if( s > ((~(unsigned __int64)0)-(unsigned __int64)(d[i]-'0'))/10 )
+				return ~(unsigned __int64)0;
+			s = s*10+(unsigned __int64)(d[i]-'0');
+		}
+		else break;
+	}
+	return s;
+}
+
+static bool TarSparseAppend(TarSparsePair** pmap, DWORD* n, DWORD* cap,
+			    unsigned __int64 off, unsigned __int64 len)
+{
+	DWORD nc, i;
+	TarSparsePair* nm;
+	if( *n >= TAR_SPARSE_MAX_PAIRS )
+		return false;
+	if( *n==*cap )
+	{
+		nc = (*cap==0) ? 64 : (*cap)*2;
+		nm = new TarSparsePair[nc];
+		for( i=0; i!=*n; i++ ) { nm[i].off=(*pmap)[i].off; nm[i].len=(*pmap)[i].len; }
+		if( *pmap!=NULL ) delete[] *pmap;
+		*pmap = nm;
+		*cap = nc;
+	}
+	(*pmap)[*n].off = off;
+	(*pmap)[*n].len = len;
+	(*n)++;
+	return true;
+}
+
+static bool TarSeekOut(FILE* out, unsigned __int64 off)
+{
+	HANDLE h;
+	LONG lo, hi;
+	fflush(out);
+	h = (HANDLE)_get_osfhandle(_fileno(out));
+	if( h==(HANDLE)-1 ) return false;
+	lo = (LONG)(off & 0xFFFFFFFF);
+	hi = (LONG)(off >> 32);
+	if( SetFilePointer(h, lo, &hi, FILE_BEGIN)==0xFFFFFFFF && GetLastError()!=NO_ERROR )
+		return false;
+	return true;
+}
+
+bool CTarTool::ReadXHeader(DWORD xsize, char* nameOut, unsigned __int64* realOut)
+{
+	// toybox parity: payloads over 1MB are skipped, not parsed
+	if( xsize>(1<<20) )
+	{
+		unsigned __int64 sk;
+		for( sk=((unsigned __int64)xsize+511)/512; sk>0; )
+		{
+			DWORD c = sk>1000000 ? 1000000 : (DWORD)sk;
+			SkipBlock((int)c);
+			sk -= c;
+		}
+		return true;
+	}
+	if( xsize==0 ) return true;
+	{
+		char* payload = new char[xsize];
+		DWORD off = 0;
+		DWORD p, q, rs, e, rend;
+		unsigned __int64 reclen;
+		unsigned __int64 total, have;
+		char d[512];
+		size_t r;
+		DWORD chunk;
+		while( off<xsize )
+		{
+			r = TarRead(payload+off, xsize-off);
+			if( r==0 ) break;
+			off += (DWORD)r;
+		}
+		p = 0;
+		while( p<off )
+		{
+			// record: "<len> <keyword>=<value>\n", len covers the record
+			q = p;
+			while( q<off && payload[q]>='0' && payload[q]<='9' ) q++;
+			if( q==p || q>=off || payload[q]!=' ' ) break;
+			reclen = tar_a2i64(payload+p, (int)(q-p));
+			rs = q+1;
+			if( reclen<4 || reclen > (unsigned __int64)(off-p) ) break;
+			rend = p+(DWORD)reclen;
+			if( payload[rend-1]!='\n' ) break;
+			e = rs;
+			while( e<rend-1 && payload[e]!='=' ) e++;
+			if( e<rend-1 )
+			{
+				if( (e-rs==15 && 0==memcmp(payload+rs, "GNU.sparse.name", 15))
+				 || (e-rs==4 && 0==memcmp(payload+rs, "path", 4)) )
+				{
+					DWORD vlen = rend-1-(e+1);
+					DWORD cl = vlen>=MAX_PATH ? MAX_PATH-1 : vlen;
+					DWORD k;
+					for( k=0; k!=cl; k++ ) nameOut[k] = payload[e+1+k];
+					nameOut[cl] = 0;
+				}
+				else if( e-rs==19 && 0==memcmp(payload+rs, "GNU.sparse.realsize", 19) )
+					*realOut = tar_a2i64(payload+e+1, (int)(rend-1-(e+1)));
+			}
+			p = rend;
+		}
+		delete[] payload;
+		// discard block padding after the payload
+		total = ((unsigned __int64)xsize+511)/512*512;
+		have = off;
+		while( have<total )
+		{
+			unsigned __int64 want = total-have;
+			chunk = want>512 ? 512 : (DWORD)want;
+			r = TarRead(d, chunk);
+			if( r==0 ) break;
+			have += r;
+		}
+	}
+	return true;
+}
+
+bool CTarTool::ReadSparseOld(BYTE* hdr, TarSparsePair** pmap, DWORD* npairs,
+			      unsigned __int64* apparent, DWORD* mapBlocks)
+{
+	DWORD n = 0, cap = 0;
+	unsigned __int64 end = 0;
+	int i;
+	BYTE ext;
+	*pmap = NULL; *npairs = 0; *apparent = 0; *mapBlocks = 0;
+	for( i=0; i!=4; i++ )
+	{
+		unsigned __int64 off = tar_s2i64((char*)hdr+386+24*i, 12);
+		unsigned __int64 len = tar_s2i64((char*)hdr+386+24*i+12, 12);
+		if( !TarSparseAppend(pmap, &n, &cap, off, len) ) { if(*pmap!=NULL) delete[] *pmap; *pmap=NULL; return false; }
+		if( off+len > end ) end = off+len;
+	}
+	{
+		unsigned __int64 real = tar_s2i64((char*)hdr+483, 12);
+		if( real > end ) end = real;
+	}
+	ext = hdr[482];
+	while( ext!=0 )
+	{
+		BYTE blk[512];
+		int j;
+		if( 512!=TarRead(blk,512) ) { if(*pmap!=NULL) delete[] *pmap; *pmap=NULL; return false; }
+		(*mapBlocks)++;
+		for( j=0; j!=21; j++ )
+		{
+			unsigned __int64 off = tar_s2i64((char*)blk+24*j, 12);
+			unsigned __int64 len = tar_s2i64((char*)blk+24*j+12, 12);
+			if( !TarSparseAppend(pmap, &n, &cap, off, len) ) { delete[] *pmap; *pmap=NULL; return false; }
+			if( off+len > end ) end = off+len;
+		}
+		ext = blk[504];
+	}
+	*npairs = n;
+	*apparent = end;
+	return true;
+}
+
+bool CTarTool::ReadSparseMap10(TarSparsePair** pmap, DWORD* npairs, DWORD* mapBlocks)
+{
+	// streaming decimal map: first value sizes the zeroed table (toybox
+	// parity: NUL ends without storing, any other non-digit stores)
+	DWORD count = 0, stored = 0;
+	unsigned __int64 v = 0;
+	bool have = false, sized = false;
+	BYTE blk[512];
+	DWORD bi = 512, bn = 512;
+	*pmap = NULL; *npairs = 0; *mapBlocks = 0;
+	for(;;)
+	{
+		BYTE c;
+		if( bi>=bn )
+		{
+			if( 512!=TarRead(blk,512) ) return false;
+			bi = 0; bn = 512;
+			(*mapBlocks)++;
+		}
+		c = blk[bi++];
+		if( c>='0' && c<='9' )
+		{
+			if( v > ((~(unsigned __int64)0)-(unsigned __int64)(c-'0'))/10 ) return false;
+			v = v*10+(unsigned __int64)(c-'0');
+			have = true;
+		}
+		else if( c==0 )
+			break;
+		else if( !have )
+			continue;
+		else if( !sized )
+		{
+			DWORD k;
+			if( v > TAR_SPARSE_MAX_PAIRS ) return false;
+			count = (DWORD)v;
+			sized = true;
+			v = 0; have = false;
+			if( count!=0 )
+			{
+				*pmap = new TarSparsePair[count];
+				for( k=0; k!=count; k++ ) { (*pmap)[k].off = 0; (*pmap)[k].len = 0; }
+			}
+		}
+		else
+		{
+			if( stored/2 >= count ) break;
+			if( (stored&1)==0 ) (*pmap)[stored/2].off = (unsigned __int64)v;
+			else (*pmap)[stored/2].len = (unsigned __int64)v;
+			stored++;
+			v = 0; have = false;
+		}
+	}
+	if( !sized ) return true;
+	*npairs = count;
+	return true;
+}
+
+bool CTarTool::WriteSparseData(FILE* out, TarSparsePair* map, DWORD npairs,
+			    unsigned __int64 apparent, unsigned __int64 budget)
+{
+	unsigned char data[512];
+	unsigned __int64 dataRead = 0;
+	unsigned __int64 pos = 0;
+	DWORD i;
+	DWORD chunk;
+	// best effort: let the FS keep holes unallocated where supported
+	{
+		HANDLE h = (HANDLE)_get_osfhandle(_fileno(out));
+		if( h!=(HANDLE)-1 )
+		{
+			DWORD br = 0;
+			DeviceIoControl(h, FSCTL_SET_SPARSE, NULL, 0, NULL, 0, &br, NULL);
+		}
+	}
+	if( npairs==0 )
+	{
+		// degenerate map: dense copy of the stored bytes (toybox parity)
+		unsigned __int64 left = budget;
+		while( left>0 )
+		{
+			DWORD chunk = left>512 ? 512 : (DWORD)left;
+			if( chunk!=TarRead(data,chunk) ) return false;
+			if( chunk!=fwrite(data,1,chunk,out) ) return false;
+			left -= chunk;
+			pos += chunk;
+		}
+	}
+	else
+	{
+		for( i=0; i!=npairs; i++ )
+		{
+			unsigned __int64 off = map[i].off;
+			unsigned __int64 len = map[i].len;
+			// a zero-length pair moves the position only; the
+			// alignment discard below still applies uniformly
+			if( dataRead+len > budget || dataRead+len < dataRead ) return false;
+			if( !TarSeekOut(out, off) ) return false;
+			while( len>0 )
+			{
+				chunk = len>512 ? 512 : (DWORD)len;
+				if( chunk!=TarRead(data,chunk) ) return false;
+				if( chunk!=fwrite(data,1,chunk,out) ) return false;
+				dataRead += chunk;
+				pos += chunk;
+				len -= chunk;
+			}
+			// GNU packs each run block-aligned: discard the leftover
+			while( (pos & 511)!=0 )
+			{
+				chunk = (DWORD)(512-(pos & 511));
+				if( chunk!=TarRead(data,chunk) ) return false;
+				pos += chunk;
+			}
+		}
+	}
+	if( pos < budget )
+	{
+		// trailing data padding after the last aligned run
+		unsigned __int64 left = budget-pos;
+		while( left>0 )
+		{
+			DWORD chunk = left>512 ? 512 : (DWORD)left;
+			if( chunk!=TarRead(data,chunk) ) return false;
+			left -= chunk;
+		}
+	}
+	fflush(out);
+	{
+		HANDLE h = (HANDLE)_get_osfhandle(_fileno(out));
+		LONG lo, hi;
+		if( h==(HANDLE)-1 ) return false;
+		lo = (LONG)(apparent & 0xFFFFFFFF);
+		hi = (LONG)(apparent >> 32);
+		if( SetFilePointer(h, lo, &hi, FILE_BEGIN)==0xFFFFFFFF && GetLastError()!=NO_ERROR )
+			return false;
+		if( !SetEndOfFile(h) ) return false;
+	}
+	return true;
+}
+
 bool CTarTool::Check( const char* fname, unsigned long fsize )
 {
 	if( !TarOpen(fname) )
@@ -92,6 +431,14 @@ bool CTarTool::Extract( const char* fname,const char* ddir )
 	DWORD realupdate;
 	DWORD realcreatetime;
 
+	// pending PAX sparse state for the member the next header describes
+	char xName[MAX_PATH];
+	bool xHave=false;
+	unsigned __int64 xReal=0;
+	char curXName[MAX_PATH];
+	bool curXHave=false;
+	unsigned __int64 curXReal=0;
+
 	while( 512==TarRead(buf,512) )
 	{
 		// ヘッダ読み込み
@@ -103,6 +450,16 @@ bool CTarTool::Extract( const char* fname,const char* ddir )
 		if( bLongName )	realfname=LongBuf;
 		else			realfname=head->filename;
 		bLongName = false;
+
+		// PAX sparse state belongs to this header's member, unless the
+		// header only carries state itself (x/g accumulate it, L/N keep it)
+		curXHave = false; curXReal = 0; curXName[0] = 0;
+		if( head->type!='x' && head->type!='g' && head->type!='L' && head->type!='N' )
+		{
+			curXHave = xHave; curXReal = xReal;
+			if( xHave ) lstrcpy(curXName, xName);
+			xHave = false; xName[0] = 0; xReal = 0;
+		}
 
 		// ブロックサイズ
 		realfsize=tar_s2i(head->filesize,12);
@@ -117,11 +474,111 @@ bool CTarTool::Extract( const char* fname,const char* ddir )
 		case '6':
 		case '7':
 		case 'M':
-		case 'S':
 		case 'V'://とりあえずハンドリング不能と判断したもの全部
 			if( realfsize!=0 )
 				SkipBlock( (realfsize>>9)+1 );
 			continue;
+		case 'x':
+		case 'g':
+		{
+			// PAX extended header: metadata, never a member. The PAX path and
+			// GNU sparse keys update the pending state (toybox parity).
+			DWORD xs = tar_s2i(head->filesize,12);
+			if( head->type=='x' )
+			{
+				char nm[MAX_PATH]; unsigned __int64 rl;
+				nm[0] = 0; rl = xReal;
+				ReadXHeader(xs, nm, &rl);
+				if( nm[0]!=0 ) { lstrcpy(xName, nm); xHave = true; }
+				if( rl!=0 ) xReal = rl;
+			}
+			else if( xs!=0 )
+			{
+				unsigned __int64 sk;
+				for( sk=((unsigned __int64)xs+511)/512; sk>0; )
+				{
+					DWORD c = sk>1000000 ? 1000000 : (DWORD)sk;
+					SkipBlock((int)c);
+					sk -= c;
+				}
+			}
+			continue;
+		}
+		case 'S':
+		{
+			// old-GNU sparse member: inline pairs + continuations
+			TarSparsePair* smap = NULL;
+			DWORD snp = 0, smb = 0;
+			unsigned __int64 apparent = 0;
+			unsigned __int64 stored = tar_s2i64(head->filesize,12);
+			char hname[101];
+			int hi2;
+			DWORD sAttrib, sUpdate;
+			unsigned __int64 budget;
+			FILE* sout;
+			char c_soutname[MAX_PATH];
+			unsigned __int64 sk;
+			for( hi2=0; hi2!=100; hi2++ ) hname[hi2] = head->filename[hi2];
+			hname[100] = 0;
+			sAttrib = tar_s2i(head->attrib,8);
+			sUpdate = tar_s2i(head->update,12);
+			if( !ReadSparseOld((BYTE*)head, &smap, &snp, &apparent, &smb) )
+				return false;
+			{
+				char* mname = (curXHave && curXName[0]!=0) ? curXName : (bLongName ? LongBuf : hname);
+				bLongName = false;
+				if( m_Endflg ) { if(smap!=NULL) delete[] smap; return true; }
+				if( !CheckStr(mname) )
+				{
+					if(smap!=NULL) delete[] smap;
+					for( sk=(stored+511)/512; sk>0; )
+					{
+						DWORD c = sk>1000000 ? 1000000 : (DWORD)sk;
+						SkipBlock((int)c);
+						sk -= c;
+					}
+					continue;
+				}
+				{
+					char* oname = kiutil::pathMake( mname );
+					sout = fopen( oname,"wb" );
+					lstrcpy(c_soutname,oname);
+				}
+				if( sout!=NULL )
+				{
+					if( (unsigned __int64)smb*512 > stored )
+					{ fclose(sout); DeleteFile(c_soutname); if(smap!=NULL) delete[] smap; return false; }
+					// old-GNU continuation blocks sit outside the stored
+					// size, so the data budget is the full stored size
+					budget = stored;
+					if( !WriteSparseData(sout, smap, snp, apparent, budget) )
+					{ fclose(sout); DeleteFile(c_soutname); if(smap!=NULL) delete[] smap; return false; }
+					fclose( sout );
+					kiutil::timeSet( c_soutname,sUpdate );
+					{
+						int st_mode=sAttrib;
+						sAttrib=((st_mode & S_IWRITE)==0)*FA_RDONLY
+						+((st_mode & S_IREAD)==0)*FA_HIDDEN
+						+ 0 *FA_SYSTEM
+						+ 0 *FA_LABEL
+						+((st_mode & S_IFDIR)!=0)*FA_DIREC
+						+0*FA_ARCH;
+						SetFileAttributes(c_soutname,sAttrib);
+					}
+				}
+				else
+				{
+					for( sk=(stored+511)/512; sk>0; )
+					{
+						DWORD c = sk>1000000 ? 1000000 : (DWORD)sk;
+						SkipBlock((int)c);
+						sk -= c;
+					}
+				}
+				if(smap!=NULL) delete[] smap;
+			}
+		}
+			break;
 		case 'L':
 		case 'N'://longname
 			if( realfsize!=0 && 512==TarRead(buf,512) )
@@ -171,7 +628,11 @@ bool CTarTool::Extract( const char* fname,const char* ddir )
 				}
 				continue;
 			}
-			char* outname = kiutil::pathMake( realfname );
+		// GNU sparse via PAX (format 1.0): the x-header renamed this
+		// member and gave its apparent size; its data starts with a map
+		if( curXHave && curXName[0]!=0 ) realfname = curXName;
+		bool isSparse10 = (curXReal>0);
+		char* outname = kiutil::pathMake( realfname );
 
 			//ディレクトリメンバだったら飛ばす
 			if( realattrib&(1<<14) )
@@ -186,6 +647,30 @@ bool CTarTool::Extract( const char* fname,const char* ddir )
 			lstrcpy(c_outname,outname);
 			if( out!=NULL  )
 			{
+				if( isSparse10 )
+				{
+					// GNU 1.0 sparse data: decimal map first, then the runs
+					TarSparsePair* map10 = NULL;
+					DWORD np10 = 0, mb10 = 0;
+					unsigned __int64 stored10 = tar_s2i64(head->filesize,12);
+					unsigned __int64 end10 = 0;
+					unsigned __int64 apparent10;
+					unsigned __int64 budget10;
+					DWORD k10;
+					bool ok10 = ReadSparseMap10(&map10, &np10, &mb10);
+					if( ok10 )
+					{
+						for( k10=0; k10!=np10; k10++ )
+							if( map10[k10].off+map10[k10].len > end10 ) end10 = map10[k10].off+map10[k10].len;
+						apparent10 = curXReal>end10 ? curXReal : end10;
+						if( (unsigned __int64)mb10*512 > stored10 ) ok10 = false;
+						else { budget10 = stored10-(unsigned __int64)mb10*512; ok10 = WriteSparseData(out, map10, np10, apparent10, budget10); }
+					}
+					if( map10!=NULL ) delete[] map10;
+					if( !ok10 ) { fclose(out); DeleteFile(c_outname); return false; }
+				}
+				else
+				{
 				while( realfsize>>9 )
 				{
 					TarRead(buf,512);
@@ -196,6 +681,7 @@ bool CTarTool::Extract( const char* fname,const char* ddir )
 				{
 					TarRead(buf,512);
 					fwrite( buf,1,realfsize,out );
+				}
 				}
 
 				fclose( out );

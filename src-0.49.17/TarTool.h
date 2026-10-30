@@ -17,6 +17,19 @@
 #endif
 
 // TAR+BZIP2 とか TAR+GZIP とか TAR+COMPRESS とか 一括サポート
+// One sparse data run: file offset + length (both 64-bit; the
+// apparent size of a sparse member can exceed 4GB).
+#ifndef TAR_SPARSE_PAIR_DEFINED
+#define TAR_SPARSE_PAIR_DEFINED
+// One sparse data run: file offset + length (both 64-bit; the
+// apparent size of a sparse member can exceed 4GB).
+struct TarSparsePair
+{
+	unsigned __int64 off;
+	unsigned __int64 len;
+};
+#endif
+
 class CTarTool : public CTool
 {
 public:
@@ -35,6 +48,23 @@ protected:
 	virtual void   TarClose();
 private:
 	void SkipBlock(int num);
+	// GNU sparse support (old-GNU type S + GNU 1.0 via PAX type x).
+	// ReadXHeader consumes an x/g payload; sparse keys update the
+	// pending name/realsize, everything else is ignored.
+	bool ReadXHeader(DWORD xsize, char* nameOut, unsigned __int64* realOut);
+	// ReadSparseOld parses the 4 inline pairs plus continuation
+	// blocks of an old-GNU S header; apparent covers realsize too.
+	bool ReadSparseOld(BYTE* hdr, TarSparsePair** pmap, DWORD* npairs,
+		unsigned __int64* apparent, DWORD* mapBlocks);
+	// ReadSparseMap10 parses the decimal inline map of a GNU 1.0
+	// member from the data stream (any non-digit separates, NUL
+	// ends); mapBlocks counts the 512-byte blocks consumed.
+	bool ReadSparseMap10(TarSparsePair** pmap, DWORD* npairs, DWORD* mapBlocks);
+	// WriteSparseData seeks over holes and writes data runs; a
+	// zero-length run only moves the position, the final truncate
+	// to apparent size is what materialises the file tail.
+	bool WriteSparseData(FILE* out, TarSparsePair* map, DWORD npairs,
+		unsigned __int64 apparent, unsigned __int64 budget);
 	FILE* fp;
 };
 

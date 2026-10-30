@@ -2594,6 +2594,77 @@ compiles all four touched TUs (`LX1_RC=0`, `LHADEC_RC=0`,
 `LZH_RC=0`, `OPENLZH_RC=0`; the C4761s are the pre-existing
 `set_tree_single(int)` pattern).
 
+## tar: GNU sparse files (old-GNU 'S' + GNU 1.0) -- DONE
+
+Two sparse layouts are decoded, old-GNU 'S' (4 inline pairs of
+12-byte octal at raw offset 386 + realsize at 483 + cont flag at
+482; continuation blocks carry 21 pairs + flag at 504) and GNU 1.0
+(PAX 'x' header with GNU.sparse.name / GNU.sparse.realsize, then a
+GNUSparseFile.0/name type-0 member whose data starts with a decimal
+inline map whose first value is the pair count). Reference is
+toybox-master/toys/posix/tar.c (this tree's study notes live in
+%TEMP%/opencode, not the repo): the 'S' branch reads inline +
+continuation pairs, the "obsolete" reader eats the decimal map out
+of the data stream (any non-digit separates, NUL ends -- which is why
+it also accepts the 1.0 newline map), and sendfile_sparse seeks holes
+/ truncates on zero-length runs. The writer emits old-GNU 'S' only.
+
+Three findings that cost real debugging time:
+
+- **every data run starts on a 512-byte boundary of the packed
+  stream.** A run's leftover tail bytes are NOT the next run's data;
+  the reader discards up to the next boundary. Proven by crafting an
+  unaligned fixture and watching GNU tar itself shift every run
+  (our first back-to-back implementation produced the identical
+  shifted garbage -- and matched GNU byte-for-byte doing it).
+  Conformant writers pad per run (proved against a GNU-written
+  fixture), so this only bites hand-made archives; ours mirrors GNU
+  exactly either way.
+- **a trailing zero-length pair extends the file.** Both GNU and we
+  ftruncate/set-EOF to max(last pair end, realsize): that is how the
+  5 GiB 3790.img materialises from a 1.88 GiB stream (17 pairs, last
+  one (5368709120, 0)), and how the 100 MB all-zero probe does.
+- **GNU tar 1.32 only honours the 1.0 inline map under POSIX magic.**
+  The identical member under GNU `ustar  \0` magic extracts dense
+  and then hits EOF. Our reader keys on type+name+realsize and
+  accepts either magic; the fixtures use the POSIX form to match
+  the authentic sample.
+
+Implementation (TarTool.cpp + OpenArchive/OpenTar.cpp, shared with
+every .tar.* twin through the virtual TarRead): 'x'/'g' headers are
+consumed (never listed); the pending name (`path=` or
+GNU.sparse.name) and realsize attach to the next non-x/g/L/N member;
+'S' headers decode inline + continuation pairs; 1.0 members decode
+the streaming inline map (1M-pair cap, loud refusal past it or on
+truncated input); data is written with SetFilePointer seeks (64-bit,
+via _get_osfhandle on the CRT FILE*, fflush before every seek) plus
+a best-effort FSCTL_SET_SPARSE (spelled out as 0x900C4 so no
+winioctl.h is needed; failures ignored), and the file is always
+SetEndOfFile'd to the apparent size. A sparse member lists as
+`sparse` with the apparent size truncated to DWORD (the house-wide
+limit, cf. the 4.4 GB 7z member). Output failures delete the partial
+file and fail the whole extraction loudly (no silent desync, unlike
+the dense path's skip-on-garbage).
+
+Two traps worth keeping: `GNU.sparse.realsize` is 19 chars, not 18,
+and `path` is 4 chars before the `=` -- both key-length off-by-ones
+were caught only because the name key (15, correct) worked while the
+size key silently never matched. A changed header field needs its
+header CRC recomputed (the level-2 rule: zero the common-CRC bytes,
+CRC-16/ARC over the whole header) or ReadHeader rejects the synthetic.
+
+Verified: `ia64-3790-firstboot.tar` (workarea root, 2 GB) lists
+3790.img at 1073741824/`sparse` and extracts byte-identical to GNU
+(cmp EXIT=0 over the full 5 GiB); `fixtures/tar/sparse-oldgnu.tar`
+(old-GNU + continuation + trailing zero) and `sparse-1.0.tar`
+(1.0 + inline map + trailing zero) and `sparse-xpath.tar`
+(`path=` rename) all byte-identical to GNU incl. layout; the
+zero-length-pair probe `fixtures/tar/gnusparse.tar` (pre-existing,
+untracked) gives a 100 MB zero file both ways; 4 truncation/flip/
+absurd-count negatives refuse loud with no output and no hang;
+plain `.tar`/`.tgz` regressions pass; VC4 compiles all touched TUs
+(`VC4_RC=0`); full VC6 build 0 FAIL.
+
 ## MSCompress (SZDD/KWAJ) and the Cabinet FDI shim
 
 Two independent things were sorted out here, both about the formats

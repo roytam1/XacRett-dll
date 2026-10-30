@@ -33,6 +33,7 @@ in `AGENTS.md`.  What is here is the input side of those checks.
 | `lzip/` | `nicfix.tar.lz` and `lzsfx33.lzs` | an upstream lzip file and the lhasa corpus | the lzip provider |
 | `compact/` | `LICENCE.txt.C` (Unix `compact` format, `ff 1f` magic) | added for the CompactC provider | the CompactC provider lists it (`LICENCE.txt`, `orig=0` -- the format stores no size) and extracts the 18340-byte `LICENCE` |
 | `packz/` | `LICENCE.txt.Z` (PACKZ format, `1f 1e` magic) | added for the Packz provider | the Packz provider lists it (`LICENCE.txt`, `orig=0`) and extracts the 18340-byte `LICENCE` |
+| `tar/` | `sparse-oldgnu.tar` (old-GNU `S` + continuation + trailing zero pair), `sparse-1.0.tar` (GNU 1.0: PAX `x` header + inline map + trailing zero), `sparse-xpath.tar` (`path=` rename), `sparse-bad.tar` (absurd map count) | hand-built to the GNU writer's layout (verified byte-identical vs GNU tar 1.32) | the tar provider: sparse members list with the apparent size and `sparse` mode, extract sparsely byte-identical to GNU, and corrupt maps are refused loudly |
 
 ## The oracle
 

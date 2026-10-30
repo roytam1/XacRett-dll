@@ -16,6 +16,17 @@
 #define FA_DIREC        0x10            /* Directory */
 #define FA_ARCH         0x20            /* Archive */
 #endif
+#ifndef TAR_SPARSE_PAIR_DEFINED
+#define TAR_SPARSE_PAIR_DEFINED
+// One sparse data run: file offset + length (both 64-bit; the
+// apparent size of a sparse member can exceed 4GB).
+struct TarSparsePair
+{
+	unsigned __int64 off;
+	unsigned __int64 len;
+};
+#endif
+
 class COpenTar : public COpenArchive
 {
 public: //-- COpenArchive 共通インターフェイス -----------
@@ -52,6 +63,14 @@ protected:
 private:
 	void SkipBlock(int num);
 	bool Find_sub(INDIVIDUALINFO *lpSubInfo);
+	// GNU sparse support (old-GNU type S + GNU 1.0 via PAX type x).
+	// ReadXHeader consumes an x/g payload; sparse keys update the
+	// pending name/realsize, everything else is ignored.
+	bool ReadXHeader(DWORD xsize, char* nameOut, unsigned __int64* realOut);
+	// ReadSparseOld parses the 4 inline pairs plus continuation
+	// blocks of an old-GNU S header; apparent covers realsize too.
+	bool ReadSparseOld(BYTE* hdr, TarSparsePair** pmap, DWORD* npairs,
+		unsigned __int64* apparent, DWORD* mapBlocks);
 };
 
 class COpenTbz : public COpenTar
