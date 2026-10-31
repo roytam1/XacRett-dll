@@ -134,6 +134,10 @@ typedef ULONG DWORD_PTR; /* VC6: no basetsd.h (VC6_DWORDPTR) */
 #define _stdfunction __cdecl
 #define _forceinline __forceinline
 
+#if defined(_M_MRX000) || defined(_MIPS_)
+  #define NO_MISALIGNED
+#endif
+
 #endif // _WIN_ALL
 
 #ifdef _UNIX

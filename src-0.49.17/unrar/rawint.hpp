@@ -15,7 +15,7 @@ inline uint RawGet2(const void *Data)
 
 inline uint32 RawGet4(const void *Data)
 {
-#if defined(BIG_ENDIAN) || !defined(ALLOW_MISALIGNED)
+#if defined(BIG_ENDIAN) || !defined(ALLOW_MISALIGNED) || defined(NO_MISALIGNED)
   byte *D=(byte *)Data;
   return D[0]+(D[1]<<8)+(D[2]<<16)+(D[3]<<24);
 #else
@@ -26,7 +26,7 @@ inline uint32 RawGet4(const void *Data)
 
 inline uint64 RawGet8(const void *Data)
 {
-#if defined(BIG_ENDIAN) || !defined(ALLOW_MISALIGNED)
+#if defined(BIG_ENDIAN) || !defined(ALLOW_MISALIGNED) || defined(NO_MISALIGNED)
   byte *D=(byte *)Data;
   return INT32TO64(RawGet4(D+4),RawGet4(D));
 #else
@@ -45,7 +45,7 @@ inline void RawPut2(uint Field,void *Data)
 
 inline void RawPut4(uint Field,void *Data)
 {
-#if defined(BIG_ENDIAN) || !defined(ALLOW_MISALIGNED)
+#if defined(BIG_ENDIAN) || !defined(ALLOW_MISALIGNED) || defined(NO_MISALIGNED)
   byte *D=(byte *)Data;
   D[0]=(byte)(Field);
   D[1]=(byte)(Field>>8);
@@ -59,7 +59,7 @@ inline void RawPut4(uint Field,void *Data)
 
 inline void RawPut8(uint64 Field,void *Data)
 {
-#if defined(BIG_ENDIAN) || !defined(ALLOW_MISALIGNED)
+#if defined(BIG_ENDIAN) || !defined(ALLOW_MISALIGNED) || defined(NO_MISALIGNED)
   byte *D=(byte *)Data;
   D[0]=(byte)(Field);
   D[1]=(byte)(Field>>8);
