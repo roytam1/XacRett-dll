@@ -27,11 +27,15 @@ LINK_RSP = $(OUTDIR)\link.rsp
 ARCH = x86
 !ENDIF
 
+!IFNDEF CEXTRA
+CEXTRA = 
+!ENDIF
+
 CC = cl
 RC = rc
 
 # Base flags mirror genbuild.ps1 (VC6 production flags).
-CFLAGS = /nologo /MT /W3 /GX /O2 /c /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS /D _USRDLL /D XACRETT_EXPORTS /D NO_GZCOMPRESS /I"." /FI"vc4compat\vc4compat.h" /I"..\STL" /I"vc4compat"
+CFLAGS = /nologo /MT /W3 /GX /O2 /c /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS /D _USRDLL /D XACRETT_EXPORTS /D NO_GZCOMPRESS /I"." /FI"vc4compat\vc4compat.h" /I"..\STL" /I"vc4compat" $(CEXTRA)
 CFLAGS_CPP = $(CFLAGS) /I"lhasa"
 CFLAGS_UNSQX = $(CFLAGS) /D __SQX_OS_WIN32__
 CFLAGS_LHASA = $(CFLAGS) /I"lhasa"
@@ -1045,7 +1049,7 @@ clean :
 # VC4 library is built fresh into $(OUTDIR).
 # UNICODE/_UNICODE are required: os.hpp includes windows.h before its own
 # defines, so they must already be set on the command line.
-UNRAR_CFLAGS = /nologo /MT /W3 /GX /O2 /c /D WIN32 /D NDEBUG /D _CONSOLE /D _MBCS /D UNRAR /D RARDLL /D nullptr=NULL /D UNICODE /D _UNICODE /FI"vc4compat\vc4compat.h" /I"..\STL" /I"vc4compat" /I"unrar\vc6compat" /I"."
+UNRAR_CFLAGS = /nologo /MT /W3 /GX /O2 /c /D WIN32 /D NDEBUG /D _CONSOLE /D _MBCS /D UNRAR /D RARDLL /D nullptr=NULL /D UNICODE /D _UNICODE /FI"vc4compat\vc4compat.h" /I"..\STL" /I"vc4compat" /I"unrar\vc6compat" /I"." $(CEXTRA)
 UNRAR_OBJS = \
 	$(UNRAR_OBJDIR)\archive.obj \
 	$(UNRAR_OBJDIR)\arcread.obj \
