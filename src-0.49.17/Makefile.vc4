@@ -23,6 +23,10 @@ UNRARLIB = $(OUTDIR)\UnRAR.lib
 UNRAR_RSP = $(OUTDIR)\unrar.rsp
 LINK_RSP = $(OUTDIR)\link.rsp
 
+!IFNDEF ARCH
+ARCH = x86
+!ENDIF
+
 CC = cl
 RC = rc
 
@@ -1245,15 +1249,15 @@ unrar : dirs $(UNRAR_OBJS) $(UNRARLIB)
 # 49 object paths overflow the VC4 command-line limit, so the
 # list is globbed into a response file instead of spelled out.
 $(UNRARLIB) : dirs $(UNRAR_OBJS)
-	lib @<<
-  /nologo /out:$@ $(UNRAR_OBJS)
+	lib /machine:$(ARCH) /out:$@ @<<
+  /nologo $(UNRAR_OBJS)
 <<
 
 # Link: no shlwapi.lib (VC4 ships none; our SHLWAPI use is
 # GetProcAddress-only), so the result stays 95/NT4-loadable by design.
 $(OUTDIR)\XacRett.dll : dirs $(OBJS) $(OBJDIR)\XacRett.res $(UNRARLIB)
-	link @<<
-  /nologo /dll /machine:I386 /incremental:no /out:"$(OUTDIR)\XacRett.dll" /def:"XacRett.def" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib $(UNRARLIB) $(OBJS) "$(OBJDIR)\XacRett.res"
+	link /machine:$(ARCH) /out:"$(OUTDIR)\XacRett.dll" @<<
+  /nologo /dll /incremental:no /def:"XacRett.def" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib $(UNRARLIB) $(OBJS) "$(OBJDIR)\XacRett.res"
 <<
 
 # `link` is the explicit spelling of the same thing.
