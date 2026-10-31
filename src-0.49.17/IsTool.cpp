@@ -372,9 +372,9 @@ void CIsTool::directCopy( bool crypt )
 
 			for( ; cS>0; cS--,cP++,key++ )
 			{
-				ts = (*cP ^ 0xd5);
-				__asm { ror byte ptr ts, 2 };
-				*cP = ts - (unsigned char)(key%0x47);
+				ts = (unsigned char)(*cP ^ 0xd5);
+				ts = (unsigned char)((ts >> 2) | (ts << 6));
+				*cP = (unsigned char)(ts - (unsigned char)(key % 0x47));
 			}
 		}
 		if( wp )
