@@ -7,12 +7,6 @@
 #include "unrar/dll.hpp"
 #include "dbglog.h"
 
-#ifdef _DEBUG
-	#pragma comment( lib, "unrar/debugUnRAR.lib" )
-#else
-	#pragma comment( lib, "unrar/UnRAR.lib" )
-#endif
-
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 // --- コールバック関数 ---
