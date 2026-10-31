@@ -2665,6 +2665,95 @@ absurd-count negatives refuse loud with no output and no hang;
 plain `.tar`/`.tgz` regressions pass; VC4 compiles all touched TUs
 (`VC4_RC=0`); full VC6 build 0 FAIL.
 
+## BSA/BSN -- DONE
+
+`ARCHIVETYPE_BSA` 80 (`CBsaTool` / `COpenBsa`, with `BsaCodec.cpp` for
+the three decompressors and `BsaDecode.cpp` for the container).  One
+provider covers BOTH containers, like LZH does for lzh+pma, because
+they share the methods and only differ in the directory layout.
+
+Format, as reverse engineered in the `bsabsn/` project in the workarea
+root (`bsn_unpack.c` is the reference decoder; its `bsa32.exe` find was
+from the 1997 BSA 2.3 tool):
+
+  BSN  global header `FF 42 53 47` + BE16 flags (bit 0x0100 = a NUL
+       terminated comment follows), then entries: `FF 42 53 41` +
+       BE16 block length + that many bytes of metadata + BE32 CRC-32
+       OF THE BLOCK, and the packed data follows the block.  Metadata:
+       BE16 flags, 2 bytes method/format (not validated), BE32 time,
+       NUL terminated name, [BE32 extra size when flags & 8], BE32
+       original, BE32 packed, BE32 file CRC, [BE16 + comment when
+       flags & 0x20].  Method from the flags: 0x4000 -> 9 (PPM, and
+       bit 0 makes it a "text" member whose LF are written as CR LF),
+       0x8000 -> unsupported, else 7.  Sizes 0/0 with flags 0x0A00 is
+       a DIRECTORY entry.
+
+  BSA  no global header.  Entry: LE16 header length (0 terminates; a
+       lone trailing 00 at EOF also ends the older archives), `AE`,
+       method byte, LE32 packed, LE32 original, LE32 time, LE16 w1
+       (byte-sum), LE16 w2, LE16 w3, u8 name length, name, NUL, data.
+       The header length repeats 22 + the name length, which is what
+       `Check` validates.
+
+Methods: 0 stored, 2/3/5/6 the BSA200 LZSS + dynamic Huffman family,
+7 LZ77 + dynamic canonical Huffman, 9 PPM.
+
+Traps and findings, all measured:
+
+- **A BSA entry's flag byte is not a method number.**  `BX/BSA.EXE l`
+  prints it as a FLAGS bitfield (`7--B---`, `9--B---`), and the same
+  writer stores `7` for every compressed flavor, so a PPM stream
+  arrives marked 7.  Hence method 7 is tried first and method 9 second,
+  which is what the original dispatch does; the original TOOLS cannot
+  read those files at all (a `samplep.bsa` from the tool extracts for
+  us and is `CRC error` for `BSA.EXE x`).  `flag 9` is NOT PPM: the one
+  probe that has it (`bx/gpp9.bsa`) also fails with `CRC error` in the
+  real tool, so it stays unsupported and lists as `09?`.
+- **Which method produced a stream is only decidable by the checksum.**
+  A wrong LZ variant still runs to the requested length and yields
+  garbage, so probing "does it produce orig bytes" is not enough --
+  m2/m3/m5/m6 all "succeed" on a flag-2 member, and only m2 matches the
+  byte-sum.  Use the checksum.
+- **The LZ windows are persistent across the entries of ONE archive**
+  (both the 128 KiB method-7 window and the 64 KiB method-2/3/5/6 one:
+  the originals never clear them), so `BsaCodecReset` runs once per
+  archive in `BsaOpen`.  Without it a second archive decoded in the
+  same process matches against the previous archive's bytes.
+- **The PPM range decoder and the method-2/3/5/6 bit reader over-read
+  past the packed end** and expect the following archive bytes, so both
+  get a trail buffer (up to 64 KiB of the file after the member, from
+  the in-memory image).
+- **Trailing data after the last BSA entry is common** (`pk/base3.bsa`
+  has 414 junk bytes).  The recon tool calls that "bad entry magic" and
+  errors out after extracting everything; we stop parsing cleanly, but
+  only once at least one entry has parsed, so a broken FIRST entry is
+  still fatal.
+- Two off-by-ones of the same family as the tar `realsize` one, both
+  caught by fixtures: the BSA name advance must use the raw length byte
+  (not `img[pos-1]` after the copy), and the byte-sum is modulo 2^16.
+
+Safety: names are sanitised like the 7z provider (drive letter and
+`..` components dropped, separators normalised), members are capped at
+256 MB and archives at 512 MB with a loud refusal, and a decode or
+checksum failure deletes the member and fails the archive.  Checksums
+are verified when the stored field is non-zero (a zero byte-sum is legal
+for all-zero members, so it is not treated as "unset"); `szMode` is
+`stored`/`m2`/`m3`/`m5`/`m6`/`m7`/`m9`, or `<hex>?` for an unknown BSA
+flag.
+
+Verified: **all 86 archives** of the recon corpus in
+`%TEMP%\opencode\bsatest` extract byte-identical to `bsn_unpack`
+(built from `bsabsn/` as an independent oracle; it covers
+`bx/` (incl. the real `PTSDOS.BSN`, 131 members with directory entries
+and the m2/m3/PPM variants), `bx2/`, `fall/`, `g0..g4`, `gp`, `m0..m9`,
+`ma1`, `mm`, `mp`, `mpb`, `mr1`, `mt2b`, `mt3`, `mt3b`, `new`, `pk/`,
+`pts`, `v230` and `xreg`), with the 5 `corrupt/` archives and the two
+path-traversal probes (`../evil.txt` and `C:\win\evil.txt`) refusing
+loudly with no output and no crash.  Nine of them are tracked under
+`fixtures/bsa/`, including the real `PTSDOS.BSN`.  VC6 full build
+0 FAIL; VC4 compiles the four new units and `XacRett.cpp` clean; the
+zip/7z/rar/lzh/tar/cpio/gca/dgc routing spot checks are unchanged.
+
 ## MSCompress (SZDD/KWAJ) and the Cabinet FDI shim
 
 Two independent things were sorted out here, both about the formats

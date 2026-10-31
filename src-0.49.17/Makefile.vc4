@@ -83,6 +83,10 @@ OBJS = \
     $(OBJDIR)\DgdTool.obj \
     $(OBJDIR)\OpenArchive_OpenDgc.obj \
     $(OBJDIR)\OpenArchive_OpenDgd.obj \
+    $(OBJDIR)\BsaCodec.obj \
+    $(OBJDIR)\BsaDecode.obj \
+    $(OBJDIR)\BsaTool.obj \
+    $(OBJDIR)\OpenArchive_OpenBsa.obj \
     $(OBJDIR)\CompactCTool.obj \
     $(OBJDIR)\complib.obj \
     $(OBJDIR)\CompressZTool.obj \
@@ -407,6 +411,18 @@ $(OBJDIR)\OpenArchive_OpenDgc.obj : OpenArchive\OpenDgc.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\OpenArchive_OpenDgd.obj : OpenArchive\OpenDgd.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\BsaCodec.obj : BsaCodec.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\BsaDecode.obj : BsaDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\BsaTool.obj : BsaTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenBsa.obj : OpenArchive\OpenBsa.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\CompactCTool.obj : CompactCTool.cpp

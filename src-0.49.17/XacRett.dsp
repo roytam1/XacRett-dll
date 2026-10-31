@@ -218,6 +218,19 @@ SOURCE=.\DgcTool.cpp
 
 SOURCE=.\DgdDecode.cpp
 # End Source File
+
+# Begin Source File
+
+SOURCE=.\BsaCodec.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\BsaDecode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\BsaTool.cpp
+# End Source File
 # Begin Source File
 
 SOURCE=.\DgdTool.cpp
@@ -652,6 +665,26 @@ SOURCE=.\DgdDecode.h
 # Begin Source File
 
 SOURCE=.\DgdTool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\BsaCodec.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\BsaDecode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\BsaTool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenBsa.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenBsa.h
 # End Source File
 # Begin Source File
 
