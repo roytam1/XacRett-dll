@@ -250,6 +250,23 @@ MY_CPU_64BIT means that processor can work with 64-bit registers.
 
 #ifdef _WIN32
 
+  #if defined(_M_MRX000) || defined(_MIPS_)
+  #define MY_CPU_LE
+  #define MY_CPU_SIZEOF_POINTER 4
+  #endif
+
+  #if defined(_M_ALPHA)
+  #define MY_CPU_LE
+  #if defined(WIN64)
+    #define MY_CPU_64BIT
+  #endif
+  #endif
+
+  #if defined(_M_PPC)
+  #define MY_CPU_LE
+  #define MY_CPU_SIZEOF_POINTER 4
+  #endif
+
   #ifdef MY_CPU_ARM
   #define MY_CPU_ARM_LE
   #endif
