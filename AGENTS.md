@@ -1104,6 +1104,169 @@ call, so keep applying them:
   for mixed-solid archives is skipped (no sample; stored→blocked is
   registered).
 
+## Win64 (AMD64) build -- MSVC 2003 SDK toolset
+
+`src-0.49.17/Makefile.x64` builds the whole DLL for AMD64: 250
+`XacRett.dsp` units plus the 49 vendored UnRAR units, into
+`%TEMP%\x64build` by default.  `nmake -f Makefile.x64` does everything
+(objects, resource, `UnRAR.lib`, DLL); `clean` and `link` work as in
+`Makefile.vc4`.  The x86 builds are untouched: they never see
+`x64compat/` or the widened guards below, and every Win64-specific code
+change is either inside `#ifdef _WIN64` or a guard whose numeric bound
+was moved past 1400 (VC6 is 1200 and VC4 is 1000, so both keep the branch
+they had).  Generator: TEMP `opencode/genmakex64.py` (re-run it when
+sources are added, or add the object and rule by hand -- never re-run
+`genmakevc4.py`, see the lzip note).
+
+**Toolchain, three traps, all measured:**
+
+- `C:\AMD64sdk\bin\Win64` cannot run at all: its `c1xx.dll` needs
+  `MSVCP70.dll`, which the package does not ship.  `bin\Win64-03sp1`
+  (CL 14.00.40310.41) is complete and is the compiler used here; put it
+  first on `PATH` after `SetWin64.Bat`.
+- **`SetWin64.Bat` points `LIB` at the wrong CRT.**  `Lib\Win64` is the
+  Beta-1 x64 CRT and mangles C++ names the OLD way (`??2@YAPAXI@Z`,
+  `??0_Lockit@std@@QAE@XZ`), so every C++ symbol fails to resolve against
+  objects from the 03sp1 compiler -- the link reports dozens of
+  `unresolved external operator new(unsigned __int64)` / `_Lockit`.
+  `Lib\Win64-03sp1` matches that compiler and must come first:
+  `set LIB=C:\AMD64sdk\Lib\Win64-03sp1;C:\AMD64sdk\Lib\Win64`.
+  A one-line C++ test program reproduces it, so it is the environment,
+  not the tree.
+- The link line needs `bufferoverflowu.lib` (also in `Lib\Win64-03sp1`):
+  that is where this SDK keeps `__security_cookie` /
+  `__security_check_cookie`, which `/GS` (on by default) expects.
+  `libcmt.lib libcpmt.lib oldnames.lib` are named explicitly as well.
+- The SDK ships **no `dumpbin.exe`**, and VC6's cannot read x64 objects
+  (`LNK4048: Invalid format file`), so use TEMP `opencode/peinfo.py` to
+  check machine type, exports and the version resource.
+
+**Vendored guard widening.**  CL 14.00 is `_MSC_VER` 1400: it still has
+no C++11, no C99 variadic macros, no `_O_U16TEXT`, no `<intrin.h>`.
+61 guards in 25 files moved from `_MSC_VER < 1300` / `< 1400` to
+`< 1500` (unrar 55, zstd 5, sevenz 1).  Two rules came out of doing it:
+
+- **Widen only the language/CRT-feature guards, never an SDK-declaration
+  shim.**  `unrar/os.hpp`'s `typedef ULONG DWORD_PTR` (for VC6, whose
+  SDK has no `basetsd.h`) had to stay at `< 1300`: 1400's SDK does have
+  it and widening is `C2371 redefinition`.  This is the tell that
+  separates the two families.
+- `unrar/consio.cpp`'s `_O_U16TEXT` guard moved from `>= 1400` to
+  `>= 1500` for the same reason in the other direction (1400 has no
+  `_O_U16TEXT`).
+
+`sevenz/Aes.c` (`_MSC_VER > 1200` -> `> 1500`) and `sevenz/Sha256.c`
+(`Z7_MSC_VER_ORIGINAL > 1200` -> `> 1500`) had to be narrowed: the NI
+paths reference `AesCbc_Decode_HW` / `Sha256_UpdateBlocks_HW`, which is
+assembly this tree does not vendor, so 1400 has to take the C path.
+`x64compat/intrin.h` is a declaration-only shim for `_BitScanForward/
+Reverse[64]`, `__cpuid`, `__cpuidex`, `__readgsqword` (zstd's
+`common/compiler.h` includes `<intrin.h>` for `_MSC_VER >= 1400`, and
+that header is missing from the 2003 SDK CRT).  The UnRAR units also need
+`/Zc:wchar_t-`, because the 2003 SDK's `ComDef.h` assumes `wchar_t` is
+`unsigned short`, which is also the path `unrar/vc6compat/stdint.h`
+already provides for VC6.
+
+**Own-code x64 fixes -- five real pointer bugs, all loud once you hit
+them:**
+
+- `localtime((long*)&dword)` / `gmtime((long*)&dword)`: `time_t` is 64
+  bits on Win64 while archives store 32, so the value goes through a
+  `time_t` first -- `kiutil::gmtime32` / `kiutil::localtime32` (8 call
+  sites in 7 files).  `c_ftime`-style casts write 8 bytes into a 4-byte
+  source otherwise.
+- `GWL_USERDATA` is 32 bits: storing the progress dialog's object pointer
+  there truncated it.  `Tool.h` now has `XR_SET_USERDATA` /
+  `XR_GET_USERDATA`, which use `SetWindowLongPtr`/`GWLP_USERDATA` under
+  `_WIN64` and the old calls on x86.
+- `ARCHIVERPROC`'s third parameter was `UINT`, but it carries the
+  progress window's `DLGPROC`; it is `WPARAM` now (on x86 `WPARAM` *is*
+  `UINT`, so nothing changes there).
+- `CGca::SetUser`/`GetUser` took a `DWORD`, so `(DWORD)this` came back
+  truncated -- a real x64 crash.  `ULONG_PTR` now (`GcaSDK.h`,
+  `GcaTool.cpp`).  On x86 `ULONG_PTR` is `DWORD`.
+- the UnRAR callbacks: `dll.hpp` declares
+  `int (CALLBACK *UNRARCALLBACK)(UINT, LPARAM, LPARAM, LPARAM)`, so
+  `unrar_callback` (`Rar3Tool.cpp/.h`) and `rar5_callback`
+  (`OpenArchive/OpenRar.cpp`) take `LPARAM` and `this` is passed as
+  `(LPARAM)this`.  The password buffer arrives in `p1`, so `LONG` would
+  truncate it.
+- `strcmpi` -> `stricmp` in `JakTool.cpp` / `OpenJak.cpp`: the 2003 SDK
+  CRT has `_stricmp` but not `_strcmpi`, and `OLDNAMES.lib(strcmpi.obj)`
+  is unresolvable there.
+
+**Shift-JIS literals are a BUILD-MACHINE property.**  CL 14.00 decodes
+narrow string literals with the host's ANSI code page, so a high-bit
+byte pair that is invalid in that code page becomes `?`: measured on a
+cp950 host, `"  \x81\x9b  "` compiled to `20 20 3F 3F 20 20`, while
+`"Ace \x93W\x8aJ"` survived byte-exact (valid cp950).  VC6 passes
+everything through.  `#pragma setlocale("japanese")` was measured and
+**rejected**: it makes the compiler decode the source as 932 but still
+encodes to the machine code page, which mangles literals that survive
+today (`93 57 8A 4A` came out `F8 9A 3F`).  Of the 149 high-bit literals
+outside the vendored trees (audited), every one is display-only: the
+`"<Tool> <SJIS>"` titles, the JAK/REZ `szMode` markers and two message
+boxes; nothing compares against them.  So: build the Win64 target on a
+Japanese (932) system for byte-exact titles, or accept `?` there.
+
+**Verified**: 250/250 `XacRett.dsp` units and 49/49 UnRAR units compile
+for AMD64.  The DLL is 1582080 bytes, machine AMD64, has the same 11
+exports **with the same ordinals** as the x86 build and the official
+binary, `FileVersion 0.49.17`, and imports KERNEL32 145 / USER32 35 /
+ADVAPI32 3 -- no new DLL dependency, the only name changes being
+`GetWindowLongA`/`SetWindowLongA` -> `...PtrA` plus the x64 CRT's own
+imports.  A/B harness `%TEMP%\opencode\x64ab.py` runs both DLLs over a
+fixture tree and compares the listing text and the extracted trees by
+sha256 (`x64ab.py <root>`): over `fixtures/` **370 archives identical**
+of the 372 that both open (27 more are skipped: neither DLL opens them,
+e.g. the LZH expected-output texts), over the TEMP corpora (7z 25,
+zip methods, lzma/xz/zst/tar/cpio/aes/ain/jc1) **158 more identical**.
+The 2 stragglers are `JAK` `LICENCE1/2.jak`, whose `szMode` is the SJIS
+label above -- the extracted trees are still byte-identical, only the
+two label bytes differ.
+
+Two harness rules, both learned the hard way: every call passes
+`-p...`, so an encrypted fixture fails loudly on both sides instead of
+opening the password dialog (a headless run that reaches it HANGS, and
+a hung child needs `taskkill /T`, not `TerminateProcess`); and the
+cases must run SERIALLY or at least be re-checked serially -- the
+tar/cpio delegation providers decode through a FIXED temporary file
+name, so two cases in parallel delete each other's temp and report a
+spurious routing difference (`arch.tar.xz` as type 65 vs 67, a tar
+member list instead of a single member, and so on).  All 10 such
+"failures" reproduced as `ok` when rerun one at a time
+(`x64ab_serial.py <files...>`).
+
+VC4 still compiles every touched unit (16 dsp units, 49 unrar
+units, `sevenz/Aes.c`, `sevenz/Sha256.c`), and the x86 full build
+stays at 0 FAIL with the same 11 exports and the same import set.
+
+Four traps worth keeping:
+
+- **`Makefile.x64` (like every nmake here) tracks timestamps only.**
+  After changing a *flag* (`/FI`, `/D`, `/Zc:`) or a header, delete
+  `$(OUTDIR)\obj` and `$(OUTDIR)\unrar` or the old objects are silently
+  reused -- a stale `OpenJak.obj` kept the non-SJIS literals through two
+  rebuilds while the pragma was being chased.
+- `/FI"<dir>\<file>.h"` resolves relative to the **source file's**
+  directory, so it works for root units and fails with
+  `C1083` for `unrar\*.cpp`; use the bare file name plus `/I`.
+- With the 03sp1 set, `cl file.c /Fe:out.exe` compiled but did **not**
+  link (no output, rc 0).  Compile with `/c` and call `link` (or pass
+  `/link ...`).
+- The 49 UnRAR units are the same set as the VC6 lib: `model.cpp`,
+  `suballoc.cpp` and `compress.cpp` are **not** units (they are included
+  by `unpack.cpp`), so do not add them to the list.
+
+One shared-code fix came out of the port's A/B: `COpenZip::get_cdhead`
+kept the previous -- never initialised -- `ZipCDHeader` when the stored
+central-directory offset points past the end of the file (`pkz090.zip`
+stores one), and pushed it into `cdhead`, so the listing printed stack
+garbage as the attribute string, differently per architecture.  It now
+zeroes the header and stops on a short `fread`, which leaves the listing
+on the existing `"A---W"` fallback.  Deliberate `-` only for archives
+whose offset is already broken.
+
 ## MSVC4 compatibility (full build + link + extract, all green)
 
 Question answered by experiment: **can this tree build under MSVC 4.x?**

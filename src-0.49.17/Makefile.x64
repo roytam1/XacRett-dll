@@ -1,0 +1,1308 @@
+# Makefile.x64 - XacRett.dll Win64 (AMD64) build.
+#
+# Usage (run from this directory):
+#   call C:\AMD64sdk\VCVARS_AMD64.BAT
+#   set PATH=C:\AMD64sdk\Bin\Win64-03sp1;%PATH%
+#   set LIB=C:\AMD64sdk\Lib\Win64-03sp1;C:\AMD64sdk\Lib\Win64
+#   nmake -f Makefile.x64                  (objects, resource, UnRAR.lib, DLL)
+#   nmake -f Makefile.x64 OUTDIR=C:\x64out
+#   nmake -f Makefile.x64 clean
+#
+# VCVARS_AMD64.BAT is VCVARS32 + SetWin64.Bat.  The two lines after it are
+# MANDATORY: bin\Win64 cannot run (its c1xx.dll wants MSVCP70.dll, which the
+# package does not ship) and SetWin64.Bat points LIB at the Beta-1 CRT, whose
+# C++ name mangling does not match the 03sp1 compiler (dozens of unresolved
+# operator new / _Lockit instead of a real error).  See AGENTS.md, "Win64
+# (AMD64) build".
+#
+# The VC6 (XacRett.dsp via build.bat/link.bat) and VC4 (Makefile.vc4)
+# builds are untouched: they never see x64compat/ and their sources are
+# the same files, so every Win64 specific change is inside #ifdef _WIN64
+# or in a guard that already covered 1200/1000.
+#
+# Toolchain note: the compiler set shipped in C:\AMD64sdk\bin\Win64 is
+# incomplete (its c1xx.dll needs MSVCP70.dll, which is not shipped).
+# bin\Win64-03sp1 is complete and reports 14.00.40310.41; put it FIRST
+# on the PATH after SetWin64.Bat.
+#
+# The link line names the 2003 SDK x64 CRT explicitly (libcmt/libcpmt/
+# oldnames) because these objects carry no /DEFAULTLIB for it, plus
+# bufferoverflowu.lib, which is where that SDK keeps the /GS cookie
+# (__security_cookie / __security_check_cookie).
+#
+# Generated from XacRett.dsp SOURCE lines + the 49 UnRAR units; re-run
+# the generator (TEMP/opencode/genmakex64.py) when sources change.
+
+!IFNDEF OUTDIR
+OUTDIR = $(TEMP)\x64build
+!ENDIF
+OBJDIR = $(OUTDIR)\obj
+UNRAR_OBJDIR = $(OUTDIR)\unrar
+UNRARLIB = $(OUTDIR)\UnRAR.lib
+UNRAR_RSP = $(OUTDIR)\unrar.rsp
+LINK_RSP = $(OUTDIR)\link.rsp
+
+CC = cl
+RC = rc
+
+# Same defines as the VC6 production flags, minus the x86-only bits:
+#   /EHsc           instead of /GX (/GX is deprecated from 14.00 on)
+#   /Ix64compat     intrin.h and friends, missing from the 2003 SDK CRT
+#
+# Shift-JIS literals: 14.00 decodes narrow literals with the BUILD MACHINE
+# ANSI code page, so a high-bit byte pair that is invalid in that code page
+# (e.g. 81 9B under cp950) becomes "?"; pairs that are valid there round-trip.
+# " #pragma setlocale(\"japanese\")" was measured and REJECTED: it decodes the
+# source as 932 but still encodes to the machine code page, which mangles
+# literals that survive today (93 57 8A 4A came out F8 9A 3F).  Build the
+# Win64 target on a Japanese (932) system for byte-exact titles; the affected
+# literals are display-only -- 149 of them, all tool titles, the JAK/REZ mode
+# markers and two message boxes; nothing compares against them.
+#   /Zc:wchar_t-    the 2003 SDK headers assume wchar_t is unsigned short
+#   nullptr=NULL    C++11 keyword the vendored UnRAR still spells
+CFLAGS = /nologo /MT /W3 /O2 /c /EHsc /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS /D _USRDLL /D XACRETT_EXPORTS /D NO_GZCOMPRESS /I"x64compat" /I"." /I"lhasa" $(CEXTRA)
+CFLAGS_CPP = $(CFLAGS)
+CFLAGS_UNSQX = $(CFLAGS) /I"unsqx" /D __SQX_OS_WIN32__
+CFLAGS_LHASA = $(CFLAGS) /I"lhasa"
+RCFLAGS = /l 0x411 /d NDEBUG
+
+OBJS = \
+    $(OBJDIR)\AceBlock_cpp.obj \
+    $(OBJDIR)\AceTool_cpp.obj \
+    $(OBJDIR)\AinCodec_cpp.obj \
+    $(OBJDIR)\AinTool_cpp.obj \
+    $(OBJDIR)\AlzDecode_cpp.obj \
+    $(OBJDIR)\AlzTool_cpp.obj \
+    $(OBJDIR)\aPLibTool_cpp.obj \
+    $(OBJDIR)\ArcTool_cpp.obj \
+    $(OBJDIR)\ArgTool_cpp.obj \
+    $(OBJDIR)\ArjTool_cpp.obj \
+    $(OBJDIR)\ArTool_cpp.obj \
+    $(OBJDIR)\AsdTool_cpp.obj \
+    $(OBJDIR)\AskTool_cpp.obj \
+    $(OBJDIR)\AtoBTool_cpp.obj \
+    $(OBJDIR)\BelTool_cpp.obj \
+    $(OBJDIR)\BgaTool_cpp.obj \
+    $(OBJDIR)\BlzTool_cpp.obj \
+    $(OBJDIR)\BooTool_cpp.obj \
+    $(OBJDIR)\Bz2Tool_cpp.obj \
+    $(OBJDIR)\CabDecode_cpp.obj \
+    $(OBJDIR)\CabLzx_cpp.obj \
+    $(OBJDIR)\CabQuantum_cpp.obj \
+    $(OBJDIR)\CabTool_cpp.obj \
+    $(OBJDIR)\CompactCTool_cpp.obj \
+    $(OBJDIR)\complib_cpp.obj \
+    $(OBJDIR)\CompressZTool_cpp.obj \
+    $(OBJDIR)\CpioTool_cpp.obj \
+    $(OBJDIR)\CptTool_cpp.obj \
+    $(OBJDIR)\DgcCrypt_cpp.obj \
+    $(OBJDIR)\DgcDecode_cpp.obj \
+    $(OBJDIR)\DgcTool_cpp.obj \
+    $(OBJDIR)\DgdDecode_cpp.obj \
+    $(OBJDIR)\BsaCodec_cpp.obj \
+    $(OBJDIR)\BsaDecode_cpp.obj \
+    $(OBJDIR)\BsaTool_cpp.obj \
+    $(OBJDIR)\DgdTool_cpp.obj \
+    $(OBJDIR)\DmgTool_cpp.obj \
+    $(OBJDIR)\DzTool_cpp.obj \
+    $(OBJDIR)\EggAzo_cpp.obj \
+    $(OBJDIR)\EggCrypt_cpp.obj \
+    $(OBJDIR)\EggDecode_cpp.obj \
+    $(OBJDIR)\EggTool_cpp.obj \
+    $(OBJDIR)\FishTool_cpp.obj \
+    $(OBJDIR)\FrzTool_cpp.obj \
+    $(OBJDIR)\GcaSDK_gca_api_cpp.obj \
+    $(OBJDIR)\GcaSDK_gca_arc_cpp.obj \
+    $(OBJDIR)\GcaSDK_gca_bwt_cpp.obj \
+    $(OBJDIR)\GcaSDK_gca_cod_cpp.obj \
+    $(OBJDIR)\GcaSDK_gca_crypt_cpp.obj \
+    $(OBJDIR)\GcaSDK_gca_numb_cpp.obj \
+    $(OBJDIR)\GcaSDK_gca_numv_cpp.obj \
+    $(OBJDIR)\GcaSDK_gca_sha1_cpp.obj \
+    $(OBJDIR)\GcaSDK_gca_stage_cpp.obj \
+    $(OBJDIR)\GcaTool_cpp.obj \
+    $(OBJDIR)\GzTool_cpp.obj \
+    $(OBJDIR)\HqxTool_cpp.obj \
+    $(OBJDIR)\ImpTool_cpp.obj \
+    $(OBJDIR)\IshTool_cpp.obj \
+    $(OBJDIR)\IsoTool_cpp.obj \
+    $(OBJDIR)\IsTool_cpp.obj \
+    $(OBJDIR)\JakTool_cpp.obj \
+    $(OBJDIR)\JamTool_cpp.obj \
+    $(OBJDIR)\Jc1Tool_cpp.obj \
+    $(OBJDIR)\kiutil_cpp.obj \
+    $(OBJDIR)\LbrTool_cpp.obj \
+    $(OBJDIR)\Lea_cpp.obj \
+    $(OBJDIR)\LzDecode_cpp.obj \
+    $(OBJDIR)\LzhDecoder2_cpp.obj \
+    $(OBJDIR)\LzhTool_cpp.obj \
+    $(OBJDIR)\LzmaDecode_cpp.obj \
+    $(OBJDIR)\LzmaTool_cpp.obj \
+    $(OBJDIR)\LzTool_cpp.obj \
+    $(OBJDIR)\LzxTool_cpp.obj \
+    $(OBJDIR)\MacBinTool_cpp.obj \
+    $(OBJDIR)\MimeTool_cpp.obj \
+    $(OBJDIR)\MsCompress_cpp.obj \
+    $(OBJDIR)\MSCompressTool_cpp.obj \
+    $(OBJDIR)\PackzTool_cpp.obj \
+    $(OBJDIR)\PitTool_cpp.obj \
+    $(OBJDIR)\QPakTool_cpp.obj \
+    $(OBJDIR)\Rar3Tool_cpp.obj \
+    $(OBJDIR)\RarTool_cpp.obj \
+    $(OBJDIR)\RezTool_cpp.obj \
+    $(OBJDIR)\SevenZCore_cpp.obj \
+    $(OBJDIR)\SevenZDecode_cpp.obj \
+    $(OBJDIR)\SevenZTool_cpp.obj \
+    $(OBJDIR)\SharTool_cpp.obj \
+    $(OBJDIR)\SplitCmdLine_cpp.obj \
+    $(OBJDIR)\SplTool_cpp.obj \
+    $(OBJDIR)\SqxPpmd_cpp.obj \
+    $(OBJDIR)\SqxUltra_cpp.obj \
+    $(OBJDIR)\SqxTool_cpp.obj \
+    $(OBJDIR)\StdAfx_cpp.obj \
+    $(OBJDIR)\TarTool_cpp.obj \
+    $(OBJDIR)\Tool_cpp.obj \
+    $(OBJDIR)\UnixDecoderTool_cpp.obj \
+    $(OBJDIR)\XacRett_cpp.obj \
+    $(OBJDIR)\XzDecode_cpp.obj \
+    $(OBJDIR)\XzTool_cpp.obj \
+    $(OBJDIR)\YncTool_cpp.obj \
+    $(OBJDIR)\Yz1Tool_cpp.obj \
+    $(OBJDIR)\ZacTool_cpp.obj \
+    $(OBJDIR)\ZipCrypto_cpp.obj \
+    $(OBJDIR)\ZipPpmd_cpp.obj \
+    $(OBJDIR)\ZipTool_cpp.obj \
+    $(OBJDIR)\ZooTool_cpp.obj \
+    $(OBJDIR)\ZstdTool_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenBsa_cpp.obj \
+    $(OBJDIR)\zlib_adler32_c.obj \
+    $(OBJDIR)\zlib_crc32_c.obj \
+    $(OBJDIR)\zlib_gzclose_c.obj \
+    $(OBJDIR)\zlib_gzlib_c.obj \
+    $(OBJDIR)\zlib_gzread_c.obj \
+    $(OBJDIR)\zlib_inffast_c.obj \
+    $(OBJDIR)\zlib_inflate_c.obj \
+    $(OBJDIR)\zlib_inftrees_c.obj \
+    $(OBJDIR)\zlib_uncompr_c.obj \
+    $(OBJDIR)\zlib_zutil_c.obj \
+    $(OBJDIR)\OpenArchive_OpenAce_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenAin_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenAlz_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenaPLib_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenAr_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenArc_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenArchive_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenArg_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenArj_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenAsd_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenAsk_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenAtoB_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenBel_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenBga_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenBlz_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenBoo_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenBz2_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenCab_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenCompactC_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenCompressZ_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenCpio_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenCpt_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenDgc_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenDgd_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenDmg_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenDummy_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenDz_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenEgg_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenFish_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenFrz_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenGca_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenGz_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenHqx_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenImp_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenIs_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenIsh_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenJak_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenJam_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenJc1_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenLbr_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenLz_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenLzh_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenLzma_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenLzx_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenMacBin_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenMime_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenMSCompress_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenPackz_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenQPak_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenRar_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenRez_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenSevenZ_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenShar_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenSpl_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenSqx_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenTar_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenUnixDecoder_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenXz_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenYnc_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenYz1_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenZac_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenZip_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenZoo_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenZstd_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenIso_cpp.obj \
+    $(OBJDIR)\unsqx_arcio_c.obj \
+    $(OBJDIR)\unsqx_ctab_c.obj \
+    $(OBJDIR)\unsqx_cx_audio_c.obj \
+    $(OBJDIR)\fdi_fdi_cpp.obj \
+    $(OBJDIR)\jcalg1lib_jcalg1_cpp.obj \
+    $(OBJDIR)\unsqx_mm_coder_c.obj \
+    $(OBJDIR)\unsqx_rcoder_c.obj \
+    $(OBJDIR)\unsqx_sqx_dec_c.obj \
+    $(OBJDIR)\unsqx_sqx_vars_c.obj \
+    $(OBJDIR)\unsqx_SQXcrc32_c.obj \
+    $(OBJDIR)\unsqx_t_coder_c.obj \
+    $(OBJDIR)\unsqx_uarde_c.obj \
+    $(OBJDIR)\unsqx_WIN32_INC_C.obj \
+    $(OBJDIR)\yz32lib_yz32lib_v1_cpp.obj \
+    $(OBJDIR)\ZData_zdata_c.obj \
+    $(OBJDIR)\unsqx_crypt_aes_aes_c_c.obj \
+    $(OBJDIR)\unsqx_crypt_aes_aescrypt_c.obj \
+    $(OBJDIR)\unsqx_crypt_aes_aeskey_c.obj \
+    $(OBJDIR)\unsqx_crypt_aes_aestab_c.obj \
+    $(OBJDIR)\unsqx_crypt_bf_bf_crypt_c.obj \
+    $(OBJDIR)\unsqx_crypt_md5c_c.obj \
+    $(OBJDIR)\libbzip2_bzlib_c.obj \
+    $(OBJDIR)\libbzip2_crctable_c.obj \
+    $(OBJDIR)\libbzip2_decompress_c.obj \
+    $(OBJDIR)\libbzip2_huffman_c.obj \
+    $(OBJDIR)\libbzip2_randtable_c.obj \
+    $(OBJDIR)\pkdcl_pkdcl_c.obj \
+    $(OBJDIR)\lzma_Lzma2Dec_c.obj \
+    $(OBJDIR)\lzma_LzmaDec_c.obj \
+    $(OBJDIR)\wzaes_izsha1_c.obj \
+    $(OBJDIR)\wzaes_wzaes_c.obj \
+    $(OBJDIR)\ppmd8_ppmd8_c.obj \
+    $(OBJDIR)\ppmd8_ppmd8dec_c.obj \
+    $(OBJDIR)\xceedbwt_xceedbwt_c.obj \
+    $(OBJDIR)\zstd_common_entropy_common_c.obj \
+    $(OBJDIR)\zstd_common_error_private_c.obj \
+    $(OBJDIR)\zstd_common_fse_decompress_c.obj \
+    $(OBJDIR)\zstd_decompress_huf_decompress_c.obj \
+    $(OBJDIR)\zstd_common_zstd_common_c.obj \
+    $(OBJDIR)\zstd_decompress_zstd_ddict_c.obj \
+    $(OBJDIR)\zstd_decompress_zstd_decompress_c.obj \
+    $(OBJDIR)\zstd_decompress_zstd_decompress_block_c.obj \
+    $(OBJDIR)\sevenz_Aes_c.obj \
+    $(OBJDIR)\sevenz_Bcj2_c.obj \
+    $(OBJDIR)\sevenz_Bra_c.obj \
+    $(OBJDIR)\sevenz_Bra86_c.obj \
+    $(OBJDIR)\sevenz_CpuArch_c.obj \
+    $(OBJDIR)\sevenz_Delta_c.obj \
+    $(OBJDIR)\sevenz_Ppmd7_c.obj \
+    $(OBJDIR)\sevenz_Ppmd7Dec_c.obj \
+    $(OBJDIR)\sevenz_Sha256_c.obj \
+    $(OBJDIR)\yz32lib_yz32lib_cpp.obj \
+    $(OBJDIR)\lhasa_crc16_c.obj \
+    $(OBJDIR)\lhasa_lh1_decoder_c.obj \
+    $(OBJDIR)\lhasa_lh5_decoder_c.obj \
+    $(OBJDIR)\lhasa_lh6_decoder_c.obj \
+    $(OBJDIR)\lhasa_lx1_decoder_c.obj \
+    $(OBJDIR)\lhasa_lh7_decoder_c.obj \
+    $(OBJDIR)\lhasa_lha_decoder_c.obj \
+    $(OBJDIR)\LhasaBridge_cpp.obj \
+    $(OBJDIR)\lhasa_lhx_decoder_c.obj \
+    $(OBJDIR)\lhasa_lk7_decoder_c.obj \
+    $(OBJDIR)\lhasa_lz5_decoder_c.obj \
+    $(OBJDIR)\lhasa_lzs_decoder_c.obj \
+    $(OBJDIR)\lhasa_null_decoder_c.obj \
+    $(OBJDIR)\lhasa_pm1_decoder_c.obj \
+    $(OBJDIR)\lhasa_pm2_decoder_c.obj
+
+all : dirs $(OBJS) $(OBJDIR)\XacRett.res $(UNRARLIB) $(OUTDIR)\XacRett.dll
+
+dirs :
+	if not exist "$(OUTDIR)" mkdir "$(OUTDIR)"
+	if not exist "$(OBJDIR)" mkdir "$(OBJDIR)"
+	if not exist "$(UNRAR_OBJDIR)" mkdir "$(UNRAR_OBJDIR)"
+
+$(OBJDIR)\AceBlock_cpp.obj : AceBlock.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\AceTool_cpp.obj : AceTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\AinCodec_cpp.obj : AinCodec.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\AinTool_cpp.obj : AinTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\AlzDecode_cpp.obj : AlzDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\AlzTool_cpp.obj : AlzTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\aPLibTool_cpp.obj : aPLibTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\ArcTool_cpp.obj : ArcTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\ArgTool_cpp.obj : ArgTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\ArjTool_cpp.obj : ArjTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\ArTool_cpp.obj : ArTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\AsdTool_cpp.obj : AsdTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\AskTool_cpp.obj : AskTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\AtoBTool_cpp.obj : AtoBTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\BelTool_cpp.obj : BelTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\BgaTool_cpp.obj : BgaTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\BlzTool_cpp.obj : BlzTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\BooTool_cpp.obj : BooTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\Bz2Tool_cpp.obj : Bz2Tool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\CabDecode_cpp.obj : CabDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\CabLzx_cpp.obj : CabLzx.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\CabQuantum_cpp.obj : CabQuantum.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\CabTool_cpp.obj : CabTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\CompactCTool_cpp.obj : CompactCTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\complib_cpp.obj : complib.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\CompressZTool_cpp.obj : CompressZTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\CpioTool_cpp.obj : CpioTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\CptTool_cpp.obj : CptTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\DgcCrypt_cpp.obj : DgcCrypt.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\DgcDecode_cpp.obj : DgcDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\DgcTool_cpp.obj : DgcTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\DgdDecode_cpp.obj : DgdDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\BsaCodec_cpp.obj : BsaCodec.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\BsaDecode_cpp.obj : BsaDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\BsaTool_cpp.obj : BsaTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\DgdTool_cpp.obj : DgdTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\DmgTool_cpp.obj : DmgTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\DzTool_cpp.obj : DzTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\EggAzo_cpp.obj : EggAzo.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\EggCrypt_cpp.obj : EggCrypt.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\EggDecode_cpp.obj : EggDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\EggTool_cpp.obj : EggTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\FishTool_cpp.obj : FishTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\FrzTool_cpp.obj : FrzTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\GcaSDK_gca_api_cpp.obj : GcaSDK\gca_api.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\GcaSDK_gca_arc_cpp.obj : GcaSDK\gca_arc.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\GcaSDK_gca_bwt_cpp.obj : GcaSDK\gca_bwt.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\GcaSDK_gca_cod_cpp.obj : GcaSDK\gca_cod.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\GcaSDK_gca_crypt_cpp.obj : GcaSDK\gca_crypt.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\GcaSDK_gca_numb_cpp.obj : GcaSDK\gca_numb.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\GcaSDK_gca_numv_cpp.obj : GcaSDK\gca_numv.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\GcaSDK_gca_sha1_cpp.obj : GcaSDK\gca_sha1.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\GcaSDK_gca_stage_cpp.obj : GcaSDK\gca_stage.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\GcaTool_cpp.obj : GcaTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\GzTool_cpp.obj : GzTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\HqxTool_cpp.obj : HqxTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\ImpTool_cpp.obj : ImpTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\IshTool_cpp.obj : IshTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\IsoTool_cpp.obj : IsoTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\IsTool_cpp.obj : IsTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\JakTool_cpp.obj : JakTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\JamTool_cpp.obj : JamTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\Jc1Tool_cpp.obj : Jc1Tool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\kiutil_cpp.obj : kiutil.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\LbrTool_cpp.obj : LbrTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\Lea_cpp.obj : Lea.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\LzDecode_cpp.obj : LzDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\LzhDecoder2_cpp.obj : LzhDecoder2.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\LzhTool_cpp.obj : LzhTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\LzmaDecode_cpp.obj : LzmaDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\LzmaTool_cpp.obj : LzmaTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\LzTool_cpp.obj : LzTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\LzxTool_cpp.obj : LzxTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\MacBinTool_cpp.obj : MacBinTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\MimeTool_cpp.obj : MimeTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\MsCompress_cpp.obj : MsCompress.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\MSCompressTool_cpp.obj : MSCompressTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\PackzTool_cpp.obj : PackzTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\PitTool_cpp.obj : PitTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QPakTool_cpp.obj : QPakTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\Rar3Tool_cpp.obj : Rar3Tool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\RarTool_cpp.obj : RarTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\RezTool_cpp.obj : RezTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\SevenZCore_cpp.obj : SevenZCore.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\SevenZDecode_cpp.obj : SevenZDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\SevenZTool_cpp.obj : SevenZTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\SharTool_cpp.obj : SharTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\SplitCmdLine_cpp.obj : SplitCmdLine.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\SplTool_cpp.obj : SplTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\SqxPpmd_cpp.obj : SqxPpmd.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\SqxUltra_cpp.obj : SqxUltra.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\SqxTool_cpp.obj : SqxTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\StdAfx_cpp.obj : StdAfx.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\TarTool_cpp.obj : TarTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\Tool_cpp.obj : Tool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\UnixDecoderTool_cpp.obj : UnixDecoderTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\XacRett_cpp.obj : XacRett.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\XzDecode_cpp.obj : XzDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\XzTool_cpp.obj : XzTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\YncTool_cpp.obj : YncTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\Yz1Tool_cpp.obj : Yz1Tool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\ZacTool_cpp.obj : ZacTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\ZipCrypto_cpp.obj : ZipCrypto.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\ZipPpmd_cpp.obj : ZipPpmd.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\ZipTool_cpp.obj : ZipTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\ZooTool_cpp.obj : ZooTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\ZstdTool_cpp.obj : ZstdTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenBsa_cpp.obj : OpenArchive\OpenBsa.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zlib_adler32_c.obj : zlib\adler32.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zlib_crc32_c.obj : zlib\crc32.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zlib_gzclose_c.obj : zlib\gzclose.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zlib_gzlib_c.obj : zlib\gzlib.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zlib_gzread_c.obj : zlib\gzread.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zlib_inffast_c.obj : zlib\inffast.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zlib_inflate_c.obj : zlib\inflate.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zlib_inftrees_c.obj : zlib\inftrees.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zlib_uncompr_c.obj : zlib\uncompr.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zlib_zutil_c.obj : zlib\zutil.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenAce_cpp.obj : OpenArchive\OpenAce.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenAin_cpp.obj : OpenArchive\OpenAin.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenAlz_cpp.obj : OpenArchive\OpenAlz.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenaPLib_cpp.obj : OpenArchive\OpenaPLib.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenAr_cpp.obj : OpenArchive\OpenAr.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenArc_cpp.obj : OpenArchive\OpenArc.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenArchive_cpp.obj : OpenArchive\OpenArchive.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenArg_cpp.obj : OpenArchive\OpenArg.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenArj_cpp.obj : OpenArchive\OpenArj.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenAsd_cpp.obj : OpenArchive\OpenAsd.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenAsk_cpp.obj : OpenArchive\OpenAsk.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenAtoB_cpp.obj : OpenArchive\OpenAtoB.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenBel_cpp.obj : OpenArchive\OpenBel.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenBga_cpp.obj : OpenArchive\OpenBga.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenBlz_cpp.obj : OpenArchive\OpenBlz.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenBoo_cpp.obj : OpenArchive\OpenBoo.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenBz2_cpp.obj : OpenArchive\OpenBz2.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenCab_cpp.obj : OpenArchive\OpenCab.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenCompactC_cpp.obj : OpenArchive\OpenCompactC.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenCompressZ_cpp.obj : OpenArchive\OpenCompressZ.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenCpio_cpp.obj : OpenArchive\OpenCpio.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenCpt_cpp.obj : OpenArchive\OpenCpt.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenDgc_cpp.obj : OpenArchive\OpenDgc.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenDgd_cpp.obj : OpenArchive\OpenDgd.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenDmg_cpp.obj : OpenArchive\OpenDmg.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenDummy_cpp.obj : OpenArchive\OpenDummy.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenDz_cpp.obj : OpenArchive\OpenDz.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenEgg_cpp.obj : OpenArchive\OpenEgg.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenFish_cpp.obj : OpenArchive\OpenFish.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenFrz_cpp.obj : OpenArchive\OpenFrz.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenGca_cpp.obj : OpenArchive\OpenGca.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenGz_cpp.obj : OpenArchive\OpenGz.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenHqx_cpp.obj : OpenArchive\OpenHqx.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenImp_cpp.obj : OpenArchive\OpenImp.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenIs_cpp.obj : OpenArchive\OpenIs.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenIsh_cpp.obj : OpenArchive\OpenIsh.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenJak_cpp.obj : OpenArchive\OpenJak.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenJam_cpp.obj : OpenArchive\OpenJam.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenJc1_cpp.obj : OpenArchive\OpenJc1.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenLbr_cpp.obj : OpenArchive\OpenLbr.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenLz_cpp.obj : OpenArchive\OpenLz.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenLzh_cpp.obj : OpenArchive\OpenLzh.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenLzma_cpp.obj : OpenArchive\OpenLzma.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenLzx_cpp.obj : OpenArchive\OpenLzx.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenMacBin_cpp.obj : OpenArchive\OpenMacBin.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenMime_cpp.obj : OpenArchive\OpenMime.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenMSCompress_cpp.obj : OpenArchive\OpenMSCompress.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenPackz_cpp.obj : OpenArchive\OpenPackz.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenQPak_cpp.obj : OpenArchive\OpenQPak.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenRar_cpp.obj : OpenArchive\OpenRar.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenRez_cpp.obj : OpenArchive\OpenRez.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenSevenZ_cpp.obj : OpenArchive\OpenSevenZ.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenShar_cpp.obj : OpenArchive\OpenShar.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenSpl_cpp.obj : OpenArchive\OpenSpl.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenSqx_cpp.obj : OpenArchive\OpenSqx.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenTar_cpp.obj : OpenArchive\OpenTar.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenUnixDecoder_cpp.obj : OpenArchive\OpenUnixDecoder.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenXz_cpp.obj : OpenArchive\OpenXz.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenYnc_cpp.obj : OpenArchive\OpenYnc.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenYz1_cpp.obj : OpenArchive\OpenYz1.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenZac_cpp.obj : OpenArchive\OpenZac.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenZip_cpp.obj : OpenArchive\OpenZip.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenZoo_cpp.obj : OpenArchive\OpenZoo.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenZstd_cpp.obj : OpenArchive\OpenZstd.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenIso_cpp.obj : OpenArchive\OpenIso.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\unsqx_arcio_c.obj : unsqx\arcio.c
+	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
+
+$(OBJDIR)\unsqx_ctab_c.obj : unsqx\ctab.c
+	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
+
+$(OBJDIR)\unsqx_cx_audio_c.obj : unsqx\cx_audio.c
+	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
+
+$(OBJDIR)\fdi_fdi_cpp.obj : fdi\fdi.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\jcalg1lib_jcalg1_cpp.obj : jcalg1lib\jcalg1.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\unsqx_mm_coder_c.obj : unsqx\mm_coder.c
+	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
+
+$(OBJDIR)\unsqx_rcoder_c.obj : unsqx\rcoder.c
+	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
+
+$(OBJDIR)\unsqx_sqx_dec_c.obj : unsqx\sqx_dec.c
+	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
+
+$(OBJDIR)\unsqx_sqx_vars_c.obj : unsqx\sqx_vars.c
+	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
+
+$(OBJDIR)\unsqx_SQXcrc32_c.obj : unsqx\SQXcrc32.c
+	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
+
+$(OBJDIR)\unsqx_t_coder_c.obj : unsqx\t_coder.c
+	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
+
+$(OBJDIR)\unsqx_uarde_c.obj : unsqx\uarde.c
+	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
+
+$(OBJDIR)\unsqx_WIN32_INC_C.obj : unsqx\WIN32_INC.C
+	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
+
+$(OBJDIR)\yz32lib_yz32lib_v1_cpp.obj : yz32lib\yz32lib_v1.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\ZData_zdata_c.obj : ZData\zdata.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\unsqx_crypt_aes_aes_c_c.obj : unsqx\crypt\aes\aes_c.c
+	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
+
+$(OBJDIR)\unsqx_crypt_aes_aescrypt_c.obj : unsqx\crypt\aes\aescrypt.c
+	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
+
+$(OBJDIR)\unsqx_crypt_aes_aeskey_c.obj : unsqx\crypt\aes\aeskey.c
+	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
+
+$(OBJDIR)\unsqx_crypt_aes_aestab_c.obj : unsqx\crypt\aes\aestab.c
+	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
+
+$(OBJDIR)\unsqx_crypt_bf_bf_crypt_c.obj : unsqx\crypt\bf\bf_crypt.c
+	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
+
+$(OBJDIR)\unsqx_crypt_md5c_c.obj : unsqx\crypt\md5c.c
+	$(CC) $(CFLAGS_UNSQX) /Fo$@ $**
+
+$(OBJDIR)\libbzip2_bzlib_c.obj : libbzip2\bzlib.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\libbzip2_crctable_c.obj : libbzip2\crctable.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\libbzip2_decompress_c.obj : libbzip2\decompress.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\libbzip2_huffman_c.obj : libbzip2\huffman.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\libbzip2_randtable_c.obj : libbzip2\randtable.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\pkdcl_pkdcl_c.obj : pkdcl\pkdcl.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\lzma_Lzma2Dec_c.obj : lzma\Lzma2Dec.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\lzma_LzmaDec_c.obj : lzma\LzmaDec.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\wzaes_izsha1_c.obj : wzaes\izsha1.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\wzaes_wzaes_c.obj : wzaes\wzaes.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\ppmd8_ppmd8_c.obj : ppmd8\ppmd8.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\ppmd8_ppmd8dec_c.obj : ppmd8\ppmd8dec.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\xceedbwt_xceedbwt_c.obj : xceedbwt\xceedbwt.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zstd_common_entropy_common_c.obj : zstd\common\entropy_common.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zstd_common_error_private_c.obj : zstd\common\error_private.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zstd_common_fse_decompress_c.obj : zstd\common\fse_decompress.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zstd_decompress_huf_decompress_c.obj : zstd\decompress\huf_decompress.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zstd_common_zstd_common_c.obj : zstd\common\zstd_common.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zstd_decompress_zstd_ddict_c.obj : zstd\decompress\zstd_ddict.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zstd_decompress_zstd_decompress_c.obj : zstd\decompress\zstd_decompress.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\zstd_decompress_zstd_decompress_block_c.obj : zstd\decompress\zstd_decompress_block.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\sevenz_Aes_c.obj : sevenz\Aes.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\sevenz_Bcj2_c.obj : sevenz\Bcj2.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\sevenz_Bra_c.obj : sevenz\Bra.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\sevenz_Bra86_c.obj : sevenz\Bra86.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\sevenz_CpuArch_c.obj : sevenz\CpuArch.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\sevenz_Delta_c.obj : sevenz\Delta.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\sevenz_Ppmd7_c.obj : sevenz\Ppmd7.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\sevenz_Ppmd7Dec_c.obj : sevenz\Ppmd7Dec.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\sevenz_Sha256_c.obj : sevenz\Sha256.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\yz32lib_yz32lib_cpp.obj : yz32lib\yz32lib.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\lhasa_crc16_c.obj : lhasa\crc16.c
+	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
+
+$(OBJDIR)\lhasa_lh1_decoder_c.obj : lhasa\lh1_decoder.c
+	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
+
+$(OBJDIR)\lhasa_lh5_decoder_c.obj : lhasa\lh5_decoder.c
+	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
+
+$(OBJDIR)\lhasa_lh6_decoder_c.obj : lhasa\lh6_decoder.c
+	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
+
+$(OBJDIR)\lhasa_lx1_decoder_c.obj : lhasa\lx1_decoder.c
+	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
+
+$(OBJDIR)\lhasa_lh7_decoder_c.obj : lhasa\lh7_decoder.c
+	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
+
+$(OBJDIR)\lhasa_lha_decoder_c.obj : lhasa\lha_decoder.c
+	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
+
+$(OBJDIR)\LhasaBridge_cpp.obj : LhasaBridge.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\lhasa_lhx_decoder_c.obj : lhasa\lhx_decoder.c
+	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
+
+$(OBJDIR)\lhasa_lk7_decoder_c.obj : lhasa\lk7_decoder.c
+	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
+
+$(OBJDIR)\lhasa_lz5_decoder_c.obj : lhasa\lz5_decoder.c
+	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
+
+$(OBJDIR)\lhasa_lzs_decoder_c.obj : lhasa\lzs_decoder.c
+	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
+
+$(OBJDIR)\lhasa_null_decoder_c.obj : lhasa\null_decoder.c
+	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
+
+$(OBJDIR)\lhasa_pm1_decoder_c.obj : lhasa\pm1_decoder.c
+	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
+
+$(OBJDIR)\lhasa_pm2_decoder_c.obj : lhasa\pm2_decoder.c
+	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
+
+$(OBJDIR)\XacRett.res : XacRett.rc
+	$(RC) $(RCFLAGS) /fo$@ $**
+
+clean :
+	-del /q "$(OBJDIR)\*.obj" 2>nul
+	-del /q "$(OBJDIR)\XacRett.res" 2>nul
+	-del /q "$(UNRAR_OBJDIR)\*.obj" 2>nul
+	-del /q "$(UNRARLIB)" 2>nul
+	-del /q "$(UNRAR_RSP)" 2>nul
+	-del /q "$(LINK_RSP)" 2>nul
+
+# --- vendored UnRAR (the same 49 units as the VC6 and VC4 builds) ---
+# Do NOT reuse unrar\UnRAR.lib: that one is VC6/x86.  The Win64 library
+# is built fresh into $(OUTDIR).  UNICODE/_UNICODE must be on the command
+# line because os.hpp includes windows.h before its own defines, and
+# /Zc:wchar_t- keeps the 2003 SDK headers (ComDef.h) consistent with the
+# rartypes.hpp wchar typedef the VC6 inheritance already has.
+UNRAR_CFLAGS = /nologo /MT /W3 /O2 /c /EHsc /Zc:wchar_t- /D WIN32 /D NDEBUG /D _CONSOLE /D _MBCS /D UNRAR /D RARDLL /D nullptr=NULL /D UNICODE /D _UNICODE /I"x64compat" /I"unrar" /I"unrar\vc6compat" $(CEXTRA)
+UNRAR_OBJS = \
+	$(UNRAR_OBJDIR)\archive.obj \
+	$(UNRAR_OBJDIR)\arcread.obj \
+	$(UNRAR_OBJDIR)\blake2s.obj \
+	$(UNRAR_OBJDIR)\cmddata.obj \
+	$(UNRAR_OBJDIR)\consio.obj \
+	$(UNRAR_OBJDIR)\crc.obj \
+	$(UNRAR_OBJDIR)\crypt.obj \
+	$(UNRAR_OBJDIR)\dll.obj \
+	$(UNRAR_OBJDIR)\encname.obj \
+	$(UNRAR_OBJDIR)\errhnd.obj \
+	$(UNRAR_OBJDIR)\extinfo.obj \
+	$(UNRAR_OBJDIR)\extract.obj \
+	$(UNRAR_OBJDIR)\filcreat.obj \
+	$(UNRAR_OBJDIR)\file.obj \
+	$(UNRAR_OBJDIR)\filefn.obj \
+	$(UNRAR_OBJDIR)\filestr.obj \
+	$(UNRAR_OBJDIR)\find.obj \
+	$(UNRAR_OBJDIR)\getbits.obj \
+	$(UNRAR_OBJDIR)\global.obj \
+	$(UNRAR_OBJDIR)\hash.obj \
+	$(UNRAR_OBJDIR)\headers.obj \
+	$(UNRAR_OBJDIR)\isnt.obj \
+	$(UNRAR_OBJDIR)\largepage.obj \
+	$(UNRAR_OBJDIR)\list.obj \
+	$(UNRAR_OBJDIR)\match.obj \
+	$(UNRAR_OBJDIR)\motw.obj \
+	$(UNRAR_OBJDIR)\options.obj \
+	$(UNRAR_OBJDIR)\pathfn.obj \
+	$(UNRAR_OBJDIR)\qopen.obj \
+	$(UNRAR_OBJDIR)\rarvm.obj \
+	$(UNRAR_OBJDIR)\rawread.obj \
+	$(UNRAR_OBJDIR)\rdwrfn.obj \
+	$(UNRAR_OBJDIR)\resource.obj \
+	$(UNRAR_OBJDIR)\rijndael.obj \
+	$(UNRAR_OBJDIR)\rs16.obj \
+	$(UNRAR_OBJDIR)\scantree.obj \
+	$(UNRAR_OBJDIR)\secpassword.obj \
+	$(UNRAR_OBJDIR)\sha1.obj \
+	$(UNRAR_OBJDIR)\sha256.obj \
+	$(UNRAR_OBJDIR)\smallfn.obj \
+	$(UNRAR_OBJDIR)\strfn.obj \
+	$(UNRAR_OBJDIR)\strlist.obj \
+	$(UNRAR_OBJDIR)\system.obj \
+	$(UNRAR_OBJDIR)\threadpool.obj \
+	$(UNRAR_OBJDIR)\timefn.obj \
+	$(UNRAR_OBJDIR)\ui.obj \
+	$(UNRAR_OBJDIR)\unicode.obj \
+	$(UNRAR_OBJDIR)\unpack.obj \
+	$(UNRAR_OBJDIR)\volume.obj
+
+$(UNRAR_OBJDIR)\archive.obj : unrar\archive.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\arcread.obj : unrar\arcread.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\blake2s.obj : unrar\blake2s.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\cmddata.obj : unrar\cmddata.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\consio.obj : unrar\consio.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\crc.obj : unrar\crc.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\crypt.obj : unrar\crypt.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\dll.obj : unrar\dll.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\encname.obj : unrar\encname.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\errhnd.obj : unrar\errhnd.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\extinfo.obj : unrar\extinfo.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\extract.obj : unrar\extract.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\filcreat.obj : unrar\filcreat.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\file.obj : unrar\file.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\filefn.obj : unrar\filefn.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\filestr.obj : unrar\filestr.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\find.obj : unrar\find.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\getbits.obj : unrar\getbits.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\global.obj : unrar\global.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\hash.obj : unrar\hash.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\headers.obj : unrar\headers.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\isnt.obj : unrar\isnt.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\largepage.obj : unrar\largepage.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\list.obj : unrar\list.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\match.obj : unrar\match.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\motw.obj : unrar\motw.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\options.obj : unrar\options.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\pathfn.obj : unrar\pathfn.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\qopen.obj : unrar\qopen.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\rarvm.obj : unrar\rarvm.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\rawread.obj : unrar\rawread.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\rdwrfn.obj : unrar\rdwrfn.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\resource.obj : unrar\resource.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\rijndael.obj : unrar\rijndael.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\rs16.obj : unrar\rs16.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\scantree.obj : unrar\scantree.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\secpassword.obj : unrar\secpassword.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\sha1.obj : unrar\sha1.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\sha256.obj : unrar\sha256.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\smallfn.obj : unrar\smallfn.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\strfn.obj : unrar\strfn.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\strlist.obj : unrar\strlist.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\system.obj : unrar\system.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\threadpool.obj : unrar\threadpool.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\timefn.obj : unrar\timefn.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\ui.obj : unrar\ui.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\unicode.obj : unrar\unicode.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\unpack.obj : unrar\unpack.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+$(UNRAR_OBJDIR)\volume.obj : unrar\volume.cpp
+	$(CC) $(UNRAR_CFLAGS) /Fo$@ $**
+
+unrar : dirs $(UNRAR_OBJS) $(UNRARLIB)
+
+# 49 object paths overflow the command-line limit, so the list goes
+# through a response file.
+$(UNRARLIB) : dirs $(UNRAR_OBJS)
+	lib /machine:AMD64 /out:$@ @<<
+  /nologo $(UNRAR_OBJS)
+<<
+
+$(OUTDIR)\XacRett.dll : dirs $(OBJS) $(OBJDIR)\XacRett.res $(UNRARLIB)
+	link /machine:AMD64 /out:"$(OUTDIR)\XacRett.dll" $(LEXTRA) @<<
+  /nologo /dll /incremental:no /def:"XacRett.def" libcmt.lib libcpmt.lib oldnames.lib bufferoverflowu.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib $(UNRARLIB) $(OBJS) "$(OBJDIR)\XacRett.res"
+<<
+
+link : $(OUTDIR)\XacRett.dll
