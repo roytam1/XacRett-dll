@@ -74,7 +74,7 @@ static const char PropListDTD[] =
 	"<!DOCTYPE plist PUBLIC \"-//Apple Computer//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">";
 
 CDmgTool::CDmgTool()
-	: CTool( "Dmg “WŠJ" )
+	: CTool( "Dmg Extract" )
 {
 	base64Init();
 }

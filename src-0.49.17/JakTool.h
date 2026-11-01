@@ -10,7 +10,7 @@ class CJakTool : public CTool
 //
 
 public:
-	CJakTool() : CTool( "Jack åãçá" ){}
+	CJakTool() : CTool( "Jack Join" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"jak");}

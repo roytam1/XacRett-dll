@@ -14,7 +14,7 @@ class CAsdTool : public CTool
 //
 
 public:
-	CAsdTool() : CTool( "Asd “WŠJ" ){}
+	CAsdTool() : CTool( "Asd Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"asd");}

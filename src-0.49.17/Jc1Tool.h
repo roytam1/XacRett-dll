@@ -36,7 +36,7 @@ extern "C" DWORD _stdcall JCALG1_Decompress_Fast(
 class CJc1Tool : public CTool
 {
 public:
-	CJc1Tool() : CTool( "Jcalg1 “WŠJ" ){}
+	CJc1Tool() : CTool( "Jcalg1 Extract" ){}
 	bool IsType( const char* ext ){
 		if(!strcmp(ext,"jcalg1")||!strcmp(ext,"jc")||!strcmp(ext,"jc1"))
 			return true;

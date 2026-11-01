@@ -14,7 +14,7 @@ class CGcaTool : public CTool
 //
 
 public:
-	CGcaTool() : CTool( "Gca “WŠJ" ){}
+	CGcaTool() : CTool( "Gca Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"gca");}

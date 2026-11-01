@@ -14,7 +14,7 @@ class CBsaTool : public CTool
 //
 
 public:
-	CBsaTool() : CTool( "BSA/BSN “WŠJ" ){}
+	CBsaTool() : CTool( "BSA/BSN Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"bsa") || 0==stricmp(ext,"bsn");}

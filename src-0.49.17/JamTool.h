@@ -21,7 +21,7 @@ class CJamTool : public CTool
 //
 
 public:
-	CJamTool() : CTool( "Jam May/96 “WŠJ" ){}
+	CJamTool() : CTool( "Jam May/96 Extract" ){}
 	bool IsType( const char* ext )
 		{return ( 0==stricmp(ext,"jam") || 0==stricmp(ext,"jam5") || 0==stricmp(ext,"jam8") );}
 

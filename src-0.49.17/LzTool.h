@@ -7,7 +7,7 @@
 class CLzTool : public CTool
 {
 public:
-	CLzTool() : CTool( "LZIP “WŠJ" ){}
+	CLzTool() : CTool( "LZIP Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"lz") || 0==stricmp(ext,"tlz");}

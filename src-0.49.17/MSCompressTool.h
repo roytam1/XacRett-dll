@@ -10,7 +10,7 @@ class CMSCompressTool : public CTool
 //
 
 public:
-	CMSCompressTool() : CTool( "MS-Compress “WŠJ" ){}
+	CMSCompressTool() : CTool( "MS-Compress Extract" ){}
 
 	bool IsType( const char* ext )
 		{return ext[strlen(ext)-1]=='_';}

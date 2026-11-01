@@ -6,7 +6,7 @@
 class CAtoBTool : public CTool
 {
 public:
-	CAtoBTool()	: CTool( "Ascii to Binary •ÏŠ·" ){}
+	CAtoBTool()	: CTool( "Ascii to Binary Convert" ){}
 
 	bool Check( const char* fname, unsigned long fsize );
 	bool Extract( const char* fname, const char* ddir );

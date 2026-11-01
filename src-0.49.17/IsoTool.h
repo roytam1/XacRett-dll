@@ -7,7 +7,7 @@ class CIsoTool : public CTool
 {
 
 public:
-	CIsoTool() : CTool( "Iso “WŠJ" ){}
+	CIsoTool() : CTool( "Iso Extract" ){}
 	bool IsType( const char* ext ) {return 0==stricmp(ext,"iso");}
 	bool Check( const char* fname, unsigned long fsize );
 	bool Extract( const char* fname, const char* ddir );

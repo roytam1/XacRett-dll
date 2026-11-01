@@ -1190,115 +1190,115 @@ int MeltArchive(LPCSTR lpArchiveName , LPCSTR lpBaseDir ,std::vector<std::string
 
 int ArcNameToNum(LPCSTR buffer )
 {
-	if ( lstrcmp(buffer,"Ace “WŠJ")==0)
+	if ( lstrcmp(buffer,"Ace Extract")==0)
 		return ARCHIVETYPE_ACE;
-	else if ( lstrcmp(buffer,"Arc “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Arc Extract")==0)
 		return ARCHIVETYPE_ARC;
-	else if ( lstrcmp(buffer,"Arg “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Arg Extract")==0)
 		return ARCHIVETYPE_ARG;
-	else if ( lstrcmp(buffer,"Arj “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Arj Extract")==0)
 		return ARCHIVETYPE_ARJ;
-	else if ( lstrcmp(buffer,"Deb/Ar “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Deb/Ar Extract")==0)
 		return ARCHIVETYPE_AR;
-	else if ( lstrcmp(buffer,"Asd “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Asd Extract")==0)
 		return ARCHIVETYPE_ASD;
-	else if ( lstrcmp(buffer,"Ascii to Binary •ÏŠ·")==0)
+	else if ( lstrcmp(buffer,"Ascii to Binary Convert")==0)
 		return ARCHIVETYPE_ATOB;
-	else if ( lstrcmp(buffer,"Belon “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Belon Extract")==0)
 		return ARCHIVETYPE_BEL;
-	else if ( lstrcmp(buffer,"Bza/Gza “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Bza/Gza Extract")==0)
 		return ARCHIVETYPE_BGA;
 	else if ( lstrcmp(buffer,"Boo Decode")==0)
 		return ARCHIVETYPE_BOO;
-	else if ( lstrcmp(buffer,"Bzip2 “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Bzip2 Extract")==0)
 		return ARCHIVETYPE_BZ2;
-	else if ( lstrcmp(buffer,"Compact “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Compact Extract")==0)
 		return ARCHIVETYPE_COMPACT;
-	else if ( lstrcmp(buffer,"Compress “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Compress Extract")==0)
 		return ARCHIVETYPE_COMPRESSZ;
-	else if ( lstrcmp(buffer,"Cpio “WŠJ" )==0)
+	else if ( lstrcmp(buffer,"Cpio Extract" )==0)
 		return ARCHIVETYPE_CPIO;
-	else if ( lstrcmp(buffer,"Cpio.gz/Rpm “WŠJ" )==0)
+	else if ( lstrcmp(buffer,"Cpio.gz/Rpm Extract" )==0)
 		return ARCHIVETYPE_CPIOGZRPM;
-	else if ( lstrcmp(buffer,"Cpio.Z “WŠJ" )==0)
+	else if ( lstrcmp(buffer,"Cpio.Z Extract" )==0)
 		return ARCHIVETYPE_CPIOZ;
-	else if ( lstrcmp(buffer,"Cpio.bz2 “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Cpio.bz2 Extract")==0)
 		return ARCHIVETYPE_CPIOBZ2;
-	else if ( lstrcmp(buffer,"Cpio+LZMA “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Cpio+LZMA Extract")==0)
 		return ARCHIVETYPE_CPIOLZMA;
-	else if ( lstrcmp(buffer,"Cpio+XZ “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Cpio+XZ Extract")==0)
 		return ARCHIVETYPE_CPIOXZ;
-	else if ( lstrcmp(buffer,"Cpio+ZSTD “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Cpio+ZSTD Extract")==0)
 		return ARCHIVETYPE_CPIOZST;
-	else if ( lstrcmp(buffer,"Cpt “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Cpt Extract")==0)
 		return ARCHIVETYPE_CPT;
-	else if ( lstrcmp(buffer,"Dzip “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Dzip Extract")==0)
 		return ARCHIVETYPE_DZ;
 	else if ( lstrcmp(buffer,"Fish decode")==0)
 		return ARCHIVETYPE_FISH;
-	else if ( lstrcmp(buffer,"Freeze “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Freeze Extract")==0)
 		return ARCHIVETYPE_FRZ;
-	else if ( lstrcmp(buffer,"Gzip “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Gzip Extract")==0)
 		return ARCHIVETYPE_GZ;
-	else if ( lstrcmp(buffer,"Tar+XZ “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Tar+XZ Extract")==0)
 		return ARCHIVETYPE_TXZ;
-	else if ( lstrcmp(buffer,"Tar+LZIP “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Tar+LZIP Extract")==0)
 		return ARCHIVETYPE_TLZ;
-	else if ( lstrcmp(buffer,"Tar+LZMA “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Tar+LZMA Extract")==0)
 		return ARCHIVETYPE_TLZMA;
-	else if ( lstrcmp(buffer,"LZIP “WŠJ")==0)
+	else if ( lstrcmp(buffer,"LZIP Extract")==0)
 		return ARCHIVETYPE_LZIP;
-	else if ( lstrcmp(buffer,"LZMA “WŠJ")==0)
+	else if ( lstrcmp(buffer,"LZMA Extract")==0)
 		return ARCHIVETYPE_LZMA;
-	else if ( lstrcmp(buffer,"XZ “WŠJ")==0)
+	else if ( lstrcmp(buffer,"XZ Extract")==0)
 		return ARCHIVETYPE_XZ;
-	else if ( lstrcmp(buffer,"7z “WŠJ")==0)
+	else if ( lstrcmp(buffer,"7z Extract")==0)
 		return ARCHIVETYPE_7Z;
-	else if ( lstrcmp(buffer,"Tar+ZSTD “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Tar+ZSTD Extract")==0)
 		return ARCHIVETYPE_TZST;
-	else if ( lstrcmp(buffer,"ZSTD “WŠJ")==0)
+	else if ( lstrcmp(buffer,"ZSTD Extract")==0)
 		return ARCHIVETYPE_ZSTD;
 	else if ( lstrcmp(buffer,"BinHex Decode")==0)
 		return ARCHIVETYPE_HQX;
-	else if ( lstrcmp(buffer,"Imp “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Imp Extract")==0)
 		return ARCHIVETYPE_IMP;
 	else if ( lstrcmp(buffer,"Ish Decode")==0)
 		return ARCHIVETYPE_ISH;
-	else if ( lstrcmp(buffer,"Jack Œ‹‡")==0)
+	else if ( lstrcmp(buffer,"Jack Join")==0)
 		return ARCHIVETYPE_JAK;
-	else if ( lstrcmp(buffer,"Jam May/96 “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Jam May/96 Extract")==0)
 		return ARCHIVETYPE_JAM;
-	else if ( lstrcmp(buffer,"Lzh ‰ð“€")==0)
+	else if ( lstrcmp(buffer,"Lzh Extract")==0)
 		return ARCHIVETYPE_LZH;
 	else if ( lstrcmp(buffer,"MacBinary decode")==0)
 		return ARCHIVETYPE_MACBIN;
 	else if ( lstrcmp(buffer,"Base64 Decode")==0)
 		return ARCHIVETYPE_MIME;
-	else if ( lstrcmp(buffer,"MS-Compress “WŠJ")==0)
+	else if ( lstrcmp(buffer,"MS-Compress Extract")==0)
 		return ARCHIVETYPE_MSCOMPRESS;
-	else if ( lstrcmp(buffer,"Pack “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Pack Extract")==0)
 		return ARCHIVETYPE_PACKZ;
-	else if ( lstrcmp(buffer,"Pit “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Pit Extract")==0)
 		return ARCHIVETYPE_PIT;
-	else if ( lstrcmp(buffer,"QuakePak/WAD/Pff “WŠJ")==0)
+	else if ( lstrcmp(buffer,"QuakePak/WAD/Pff Extract")==0)
 		return ARCHIVETYPE_QPAC;
-	else if ( lstrcmp(buffer,"Rar “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Rar Extract")==0)
 		return ARCHIVETYPE_RAR;
-	else if ( lstrcmp(buffer,"Rez Œ‹‡")==0)
+	else if ( lstrcmp(buffer,"Rez Join")==0)
 		return ARCHIVETYPE_REZ;
-	else if ( lstrcmp(buffer,"Shar “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Shar Extract")==0)
 		return ARCHIVETYPE_SHAR;
-	else if ( lstrcmp(buffer,"Splint “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Splint Extract")==0)
 		return ARCHIVETYPE_SPL;
-	else if ( lstrcmp(buffer,"Tar “WŠJ" )==0)
+	else if ( lstrcmp(buffer,"Tar Extract" )==0)
 		return ARCHIVETYPE_TAR;
-	else if ( lstrcmp(buffer,"Tar+Bzip2 “WŠJ" )==0)
+	else if ( lstrcmp(buffer,"Tar+Bzip2 Extract" )==0)
 		return ARCHIVETYPE_TBZ;
-	else if ( lstrcmp(buffer,"Tar+Gzip “WŠJ" )==0)
+	else if ( lstrcmp(buffer,"Tar+Gzip Extract" )==0)
 		return ARCHIVETYPE_TGZ;
-	else if ( lstrcmp(buffer,"Tar+Compress “WŠJ" )==0)
+	else if ( lstrcmp(buffer,"Tar+Compress Extract" )==0)
 		return ARCHIVETYPE_TAZ;
-	else if ( lstrcmp(buffer,"Tar+Pack “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Tar+Pack Extract")==0)
 		return ARCHIVETYPE_TAz;
 	else if ( lstrcmp(buffer,"UUDecode")==0)
 		return ARCHIVETYPE_UUDECODE;
@@ -1306,49 +1306,49 @@ int ArcNameToNum(LPCSTR buffer )
 		return ARCHIVETYPE_XXDECODE;
 	else if ( lstrcmp(buffer,"yDecode")==0)
 		return ARCHIVETYPE_YNC;
-	else if ( lstrcmp(buffer,"Zac “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Zac Extract")==0)
 		return ARCHIVETYPE_ZAC;
-	else if ( lstrcmp(buffer,"Zip “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Zip Extract")==0)
 		return ARCHIVETYPE_ZIP;
-	else if ( lstrcmp(buffer,"Zoo “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Zoo Extract")==0)
 		return ARCHIVETYPE_ZOO;
-	else if ( lstrcmp(buffer,"Cab “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Cab Extract")==0)
 		return ARCHIVETYPE_CAB;
-	else if ( lstrcmp(buffer,"Gca “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Gca Extract")==0)
 		return ARCHIVETYPE_GCA;
-	else if ( lstrcmp(buffer,"InstallShield-Cab “WŠJ")==0)
+	else if ( lstrcmp(buffer,"InstallShield-Cab Extract")==0)
 		return ARCHIVETYPE_IS;
-	else if ( lstrcmp(buffer,"Yz1 “WŠJ")==0)
+	else if ( lstrcmp(buffer,"Yz1 Extract")==0)
 		return ARCHIVETYPE_YZ1;
-	else if (lstrcmp(buffer,"BriefLZ “WŠJ")==0)
+	else if (lstrcmp(buffer,"BriefLZ Extract")==0)
 		return ARCHIVETYPE_BLZ;
-	else if (lstrcmp(buffer,"Alz “WŠJ")==0)
+	else if (lstrcmp(buffer,"Alz Extract")==0)
 		return ARCHIVETYPE_ALZ;
-	else if (lstrcmp(buffer,"Egg \x93W\x8aJ")==0)
+	else if (lstrcmp(buffer,"Egg Extract")==0)
 		return ARCHIVETYPE_EGG;
-	else if (lstrcmp(buffer,"Dmg “WŠJ")==0)
+	else if (lstrcmp(buffer,"Dmg Extract")==0)
 		return ARCHIVETYPE_DMG;
-	else if (lstrcmp(buffer,"Iso “WŠJ")==0)
+	else if (lstrcmp(buffer,"Iso Extract")==0)
 		return ARCHIVETYPE_ISO;
-	else if (lstrcmp(buffer,"Lzx “WŠJ")==0)
+	else if (lstrcmp(buffer,"Lzx Extract")==0)
 		return ARCHIVETYPE_LZX;
-	else if (lstrcmp(buffer,"Jcalg1 “WŠJ")==0)
+	else if (lstrcmp(buffer,"Jcalg1 Extract")==0)
 		return ARCHIVETYPE_JC1;
-	else if (lstrcmp(buffer,"aPLib “WŠJ")==0)
+	else if (lstrcmp(buffer,"aPLib Extract")==0)
 		return ARCHIVETYPE_APK;
-	else if (lstrcmp(buffer,"Sqx “WŠJ")==0)
+	else if (lstrcmp(buffer,"Sqx Extract")==0)
 		return ARCHIVETYPE_SQX;
-	else if (lstrcmp(buffer,"Neo_ASK “WŠJ")==0)
+	else if (lstrcmp(buffer,"Neo_ASK Extract")==0)
 		return ARCHIVETYPE_ASK;
-	else if (lstrcmp(buffer,"Ain “WŠJ")==0)
+	else if (lstrcmp(buffer,"Ain Extract")==0)
 		return ARCHIVETYPE_AIN;
-	else if (lstrcmp(buffer,"Lbr “WŠJ")==0)
+	else if (lstrcmp(buffer,"Lbr Extract")==0)
 		return ARCHIVETYPE_LBR;
-	else if (lstrcmp(buffer,"Dgc “WŠJ")==0)
+	else if (lstrcmp(buffer,"Dgc Extract")==0)
 		return ARCHIVETYPE_DGC;
-	else if (lstrcmp(buffer,"Dgd “WŠJ")==0)
+	else if (lstrcmp(buffer,"Dgd Extract")==0)
 		return ARCHIVETYPE_DGD;
-	else if (lstrcmp(buffer,"BSA/BSN “WŠJ")==0)
+	else if (lstrcmp(buffer,"BSA/BSN Extract")==0)
 		return ARCHIVETYPE_BSA;
 	else
 		return ARCHIVETYPE_UNKNOWN ;

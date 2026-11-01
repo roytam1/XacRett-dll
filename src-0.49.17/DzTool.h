@@ -63,7 +63,7 @@ Copyright notice:
 //
 
 public:
-	CDzTool() : CTool( "Dzip “WŠJ" ){}
+	CDzTool() : CTool( "Dzip Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"dz");}

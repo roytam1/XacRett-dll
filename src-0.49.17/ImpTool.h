@@ -64,7 +64,7 @@ class CImpTool : public CTool
 //
 
 public:
-	CImpTool() : CTool( "Imp “WŠJ" )
+	CImpTool() : CTool( "Imp Extract" )
 	{
 		for( unsigned long c,crc,i=0; i!=256; i++ )
 		{

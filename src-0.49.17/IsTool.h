@@ -20,7 +20,7 @@ class CIsTool : public CTool
 
 public:
 
-	CIsTool() : CTool( "InstallShield-Cab “WŠJ" ){}
+	CIsTool() : CTool( "InstallShield-Cab Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"hdr");}

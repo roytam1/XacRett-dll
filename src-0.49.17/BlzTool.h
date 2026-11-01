@@ -37,7 +37,7 @@
 class CBlzTool : public CTool
 {
 public:
-	CBlzTool() : CTool( "BriefLZ “WŠJ" ){}
+	CBlzTool() : CTool( "BriefLZ Extract" ){}
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"blz");}
 

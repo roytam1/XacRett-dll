@@ -39,7 +39,7 @@ int CALLBACK unrar_callback(UINT msg, LPARAM usr_dat, LPARAM p1, LPARAM p2)
 
 // --- コンストラクタ ---
 CRar3Tool::CRar3Tool(void)
-     : CTool("Rar 展開")
+     : CTool("Rar Extract")
 {
 }
 

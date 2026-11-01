@@ -45,7 +45,7 @@ If you do not agree with these terms or if your jurisdiction does not allow the 
 class CaPLibTool : public CTool
 {
 public:
-	CaPLibTool() : CTool( "aPLib “WŠJ" ){}
+	CaPLibTool() : CTool( "aPLib Extract" ){}
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"apk");}
 

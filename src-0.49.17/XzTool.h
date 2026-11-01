@@ -6,7 +6,7 @@
 class CXzTool : public CTool
 {
 public:
-	CXzTool() : CTool( "XZ “WŠJ" ){}
+	CXzTool() : CTool( "XZ Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"xz") || 0==stricmp(ext,"txz");}

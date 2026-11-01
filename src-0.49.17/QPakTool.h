@@ -21,7 +21,7 @@ class CQPakTool : public CTool
 //
 
 public:
-	CQPakTool()	: CTool( "QuakePak/WAD/Pff “WŠJ" )
+	CQPakTool()	: CTool( "QuakePak/WAD/Pff Extract" )
 		{pak=NULL,entry=NULL;}
 
 	~CQPakTool()

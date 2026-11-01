@@ -11,7 +11,7 @@
 class CDgdTool : public CTool
 {
 public:
-	CDgdTool() : CTool( "Dgd “WŠJ" ){}
+	CDgdTool() : CTool( "Dgd Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"dgd") || 0==stricmp(ext,"dgdr");}

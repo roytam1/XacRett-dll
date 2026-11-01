@@ -1195,19 +1195,47 @@ them:**
   CRT has `_stricmp` but not `_strcmpi`, and `OLDNAMES.lib(strcmpi.obj)`
   is unresolvable there.
 
-**Shift-JIS literals are a BUILD-MACHINE property.**  CL 14.00 decodes
-narrow string literals with the host's ANSI code page, so a high-bit
-byte pair that is invalid in that code page becomes `?`: measured on a
-cp950 host, `"  \x81\x9b  "` compiled to `20 20 3F 3F 20 20`, while
-`"Ace \x93W\x8aJ"` survived byte-exact (valid cp950).  VC6 passes
-everything through.  `#pragma setlocale("japanese")` was measured and
-**rejected**: it makes the compiler decode the source as 932 but still
-encodes to the machine code page, which mangles literals that survive
-today (`93 57 8A 4A` came out `F8 9A 3F`).  Of the 149 high-bit literals
-outside the vendored trees (audited), every one is display-only: the
-`"<Tool> <SJIS>"` titles, the JAK/REZ `szMode` markers and two message
-boxes; nothing compares against them.  So: build the Win64 target on a
-Japanese (932) system for byte-exact titles, or accept `?` there.
+**Shift-JIS: literals are code-page independent, comments are not.**
+CL 14.00 decodes narrow string literals with the host's ANSI code page,
+so on a cp950 machine `"  \x81\x9b  "` compiled to `20 20 3F 3F 20 20`
+while `"Ace \x93W\x8aJ"` survived (valid cp950); VC6 passes
+everything through.  That was not cosmetic: **`FishTool.cpp`'s
+`fish[]`/`nish[]` byte tables** (64 SJIS pairs each -- the whole SJIS
+layer of the Fish decoder) came out as `3F 3F 3F ...` in the x64 build,
+and so did the Japanese twin of the BinHex header line.
+`#pragma setlocale("japanese")` was measured and **rejected**: it makes
+the compiler decode the source as 932 but still encodes to the machine
+code page, turning `93 57 8A 4A` into `F8 9A 3F`, i.e. mangling
+literals that used to survive.
+
+So the literals are gone instead (TEMP `opencode/sjislit.py`):
+
+- the 141 **tool identity strings** are English now -- `"Ace
+  Extract"`, `"Jack Join"`, `"Ascii to Binary Convert"`.  Both sides
+  of the pair were rewritten: the `CTool("...")` in each `XxxTool.h`
+  and the `ArcNameToNum` comparison in `XacRett.cpp`.  That string is
+  an INTERNAL key (only `ArcNameToNum` reads it, no export returns a
+  name), so nothing user visible changed and all 399 fixture types are
+  identical before and after.  `Rar Extract` is deliberately
+  duplicated by the dead `CRarTool` in `RarTool.h`; both map to the
+  same type.
+- every other high-bit literal is written with `\xNN` escapes, which
+  the compiler passes through: the fish/nish tables, the two BinHex
+  header match strings (the ASCII line has a Japanese twin), and the
+  JAK/REZ `szMode` marks (`"  \x81\x9b  "` = the circle).  An escape
+  followed by a hex digit is split as `""` (`"\x83""C"`), otherwise
+  `\x83C` would be one over-long escape.
+
+Verified: the `fish[]`/`nish[]` bytes in `FishTool.obj` (VC6) and
+`FishTool_cpp.obj` (x64) are identical to each other AND to the
+pre-change VC6 table (including the `83 5C` pair, which used to rely
+on an invalid escape being passed through); **0 high-bit literals
+remain anywhere in the tree**, vendored trees included, and there are
+no high-bit char constants or wide literals either; the comments are
+still Shift-JIS and untouched (audited by blanking every literal and
+comparing the remaining bytes in all 63 files); the x86/x64 A/B is now
+**372/372 with zero differences**; VC4 compiles every touched unit;
+both full builds are 0 FAIL.
 
 **Verified**: 250/250 `XacRett.dsp` units and 49/49 UnRAR units compile
 for AMD64.  The DLL is 1582080 bytes, machine AMD64, has the same 11
@@ -1221,9 +1249,9 @@ sha256 (`x64ab.py <root>`): over `fixtures/` **370 archives identical**
 of the 372 that both open (27 more are skipped: neither DLL opens them,
 e.g. the LZH expected-output texts), over the TEMP corpora (7z 25,
 zip methods, lzma/xz/zst/tar/cpio/aes/ain/jc1) **158 more identical**.
-The 2 stragglers are `JAK` `LICENCE1/2.jak`, whose `szMode` is the SJIS
-label above -- the extracted trees are still byte-identical, only the
-two label bytes differ.
+The 2 that used to differ (`JAK` `LICENCE1/2.jak`, whose `szMode` is
+a SJIS label) were fixed by the literal rewrite below: the sweep is
+clean now, **372/372 with zero differences**.
 
 Two harness rules, both learned the hard way: every call passes
 `-p...`, so an encrypted fixture fails loudly on both sides instead of

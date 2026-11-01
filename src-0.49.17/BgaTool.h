@@ -43,7 +43,7 @@ class CBgaTool : public CTool
 //
 
 public:
-	CBgaTool() : CTool( "Bza/Gza “WŠJ" ){}
+	CBgaTool() : CTool( "Bza/Gza Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"gza") || 0==stricmp(ext,"bza");}

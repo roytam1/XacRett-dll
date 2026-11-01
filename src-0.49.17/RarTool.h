@@ -241,7 +241,7 @@ class CRarTool : public CTool
 // by Eugene Roshal
 //
 public:
-	CRarTool() : CTool( "Rar “WŠJ" )
+	CRarTool() : CTool( "Rar Extract" )
 		{
 			InitCRC();
 			MDPtr[0]=&MD[0],MDPtr[1]=&MD[1],MDPtr[2]=&MD[2],MDPtr[3]=&MD[3];

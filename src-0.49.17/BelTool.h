@@ -14,7 +14,7 @@ class CBelTool : public CTool
 //
 
 public:
-	CBelTool() : CTool( "Belon “WŠJ" ){}
+	CBelTool() : CTool( "Belon Extract" ){}
 
 	bool Check( const char* fname, unsigned long fsize );
 	bool Extract( const char* fname, const char* ddir );

@@ -6,7 +6,7 @@
 class CRezTool : public CTool
 {
 public:
-	CRezTool() : CTool( "Rez åãçá" ){}
+	CRezTool() : CTool( "Rez Join" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"rez");}

@@ -16,7 +16,7 @@ class CBz2Tool : public CTool
 //
 
 public:
-	CBz2Tool() : CTool( "Bzip2 “WŠJ" ){}
+	CBz2Tool() : CTool( "Bzip2 Extract" ){}
 
 	bool Check( const char* fname, unsigned long fsize );
 	bool Extract( const char* fname, const char* ddir );

@@ -8,7 +8,7 @@ class CPackzTool : public CTool
 // see complib.h
 
 public:
-	CPackzTool() : CTool( "Pack “WŠJ" ){}
+	CPackzTool() : CTool( "Pack Extract" ){}
 
 	bool Check( const char* fname, unsigned long fsize );
 	bool Extract( const char* fname, const char* ddir );

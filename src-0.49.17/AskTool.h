@@ -14,7 +14,7 @@ class CAskTool : public CTool
 //
 
 public:
-	CAskTool() : CTool( "Neo_ASK “WŠJ" ){}
+	CAskTool() : CTool( "Neo_ASK Extract" ){}
 
 	bool Check( const char* fname, unsigned long fsize );
 	bool Extract( const char* fname, const char* ddir );

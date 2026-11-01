@@ -16,7 +16,7 @@ class CDgcTool : public CTool
 //
 
 public:
-	CDgcTool() : CTool( "Dgc “WŠJ" ){}
+	CDgcTool() : CTool( "Dgc Extract" ){}
 
 	// the .dgcr file is an archive with the recovery data appended
 	bool IsType( const char* ext )

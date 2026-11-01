@@ -6,7 +6,7 @@
 class CLbrTool : public CTool
 {
 public:
-	CLbrTool() : CTool( "Lbr “WŠJ" ){}
+	CLbrTool() : CTool( "Lbr Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"lbr");}

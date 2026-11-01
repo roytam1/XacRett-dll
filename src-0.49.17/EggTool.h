@@ -11,7 +11,7 @@
 class CEggTool : public CTool
 {
 public:
-	CEggTool() : CTool( "Egg \x93W\x8aJ" )
+	CEggTool() : CTool( "Egg Extract" )
 		{}
 
 	bool IsType( const char* ext )

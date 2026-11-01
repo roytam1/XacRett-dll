@@ -33,7 +33,7 @@ struct TarSparsePair
 class CTarTool : public CTool
 {
 public:
-	CTarTool() : CTool( "Tar “WŠJ" ){fp=NULL;}
+	CTarTool() : CTool( "Tar Extract" ){fp=NULL;}
 	CTarTool(const char* r)	: CTool(r) {fp=NULL;}
 
 	bool IsType( const char* ext )
@@ -81,7 +81,7 @@ class CTbzTool : public CTarTool
 //
 
 public:
-	CTbzTool() : CTarTool("Tar+Bzip2 “WŠJ") {bfp=NULL;};
+	CTbzTool() : CTarTool("Tar+Bzip2 Extract") {bfp=NULL;};
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"bz2") || 0==stricmp(ext,"tbz");}
 protected:
@@ -105,7 +105,7 @@ class CTgzTool : public CTarTool
 //
 
 public:
-	CTgzTool() : CTarTool("Tar+Gzip “WŠJ") {gfp=NULL;};
+	CTgzTool() : CTarTool("Tar+Gzip Extract") {gfp=NULL;};
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"gz") || 0==stricmp(ext,"tgz");}
 protected:
@@ -121,7 +121,7 @@ class CTaZTool : public CTarTool
 // see complib.h
 
 public:
-	CTaZTool() : CTarTool("Tar+Compress “WŠJ") {zfp=NULL;};
+	CTaZTool() : CTarTool("Tar+Compress Extract") {zfp=NULL;};
 	bool IsType( const char* ext )
 		{return 0==strcmp(ext,"Z") || 0==strcmp(ext,"taZ");}
 protected:
@@ -140,7 +140,7 @@ class CTlzmaTarTool : public CTarTool
 // on open/close); a cancel between open and close can leave one
 // stale file behind at most, deleted on the next open.
 public:
-	CTlzmaTarTool() : CTarTool("Tar+LZMA “WŠJ") {tmpPath[0]=0; tmpLive=false;};
+	CTlzmaTarTool() : CTarTool("Tar+LZMA Extract") {tmpPath[0]=0; tmpLive=false;};
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"lzma") || 0==stricmp(ext,"tlz");}
 protected:
@@ -157,7 +157,7 @@ class CTxzTool : public CTarTool
 // .tar.xz via whole-file XZ decode to a temp file (same design
 // as CTlzmaTarTool: full container validation reused).
 public:
-	CTxzTool() : CTarTool("Tar+XZ “WŠJ") {tmpPath[0]=0; tmpLive=false;};
+	CTxzTool() : CTarTool("Tar+XZ Extract") {tmpPath[0]=0; tmpLive=false;};
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"xz") || 0==stricmp(ext,"txz");}
 protected:
@@ -174,7 +174,7 @@ class CLzTarTool : public CTarTool
 // .tar.lz via whole-file lzip decode to a temp file (same design
 // as CTxzTool: the full container validation is reused).
 public:
-	CLzTarTool() : CTarTool("Tar+LZIP “WŠJ") {tmpPath[0]=0; tmpLive=false;};
+	CLzTarTool() : CTarTool("Tar+LZIP Extract") {tmpPath[0]=0; tmpLive=false;};
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"lz") || 0==stricmp(ext,"tlz");}
 protected:
@@ -191,7 +191,7 @@ class CTzstTool : public CTarTool
 // .tar.zst via whole-file ZSTD decode to a temp file (same design
 // as CTxzTool: full container validation reused).
 public:
-	CTzstTool() : CTarTool("Tar+ZSTD “WŠJ") {tmpPath[0]=0; tmpLive=false;};
+	CTzstTool() : CTarTool("Tar+ZSTD Extract") {tmpPath[0]=0; tmpLive=false;};
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"zst") || 0==stricmp(ext,"tzst");}
 protected:
@@ -208,7 +208,7 @@ class CTazTool : public CTarTool
 // see complib.h
 
 public:
-	CTazTool() : CTarTool("Tar+Pack “WŠJ") {pfp=NULL;};
+	CTazTool() : CTarTool("Tar+Pack Extract") {pfp=NULL;};
 	bool IsType( const char* ext )
 		{return 0==strcmp(ext,"z") || 0==strcmp(ext,"taz");}
 protected:

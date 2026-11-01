@@ -10,7 +10,7 @@
 class CCpioTool : public CTool
 {
 public:
-	CCpioTool() : CTool( "Cpio “WŠJ" ){fp=NULL;}
+	CCpioTool() : CTool( "Cpio Extract" ){fp=NULL;}
 	CCpioTool(const char* r) : CTool(r) {fp=NULL;}
 
 	bool IsType( const char* ext )
@@ -56,7 +56,7 @@ class CCpioGzTool : public CCpioTool
 //
 
 public:
-	CCpioGzTool() : CCpioTool("Cpio.gz/Rpm “WŠJ") {gfp=NULL;};
+	CCpioGzTool() : CCpioTool("Cpio.gz/Rpm Extract") {gfp=NULL;};
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"gz") || 0==stricmp(ext,"rpm");}
 protected:
@@ -73,7 +73,7 @@ class CCpioZTool : public CCpioTool
 // see complib.h
 
 public:
-	CCpioZTool() : CCpioTool("Cpio.Z “WŠJ") {zfp=NULL;};
+	CCpioZTool() : CCpioTool("Cpio.Z Extract") {zfp=NULL;};
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"Z");}
 protected:
@@ -98,7 +98,7 @@ class CCpioBzTool : public CCpioTool
 //
 
 public:
-	CCpioBzTool() : CCpioTool("Cpio.bz2 “WŠJ") {bfp=NULL;};
+	CCpioBzTool() : CCpioTool("Cpio.bz2 Extract") {bfp=NULL;};
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"bz2");}
 protected:
@@ -117,7 +117,7 @@ private:
 class CCpioLzmaTool : public CCpioTool
 {
 public:
-	CCpioLzmaTool() : CCpioTool("Cpio+LZMA “WŠJ") {tmpPath[0]=0; tmpLive=false;};
+	CCpioLzmaTool() : CCpioTool("Cpio+LZMA Extract") {tmpPath[0]=0; tmpLive=false;};
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"lzma");}
 protected:
@@ -137,7 +137,7 @@ private:
 class CCpioXzTool : public CCpioTool
 {
 public:
-	CCpioXzTool() : CCpioTool("Cpio+XZ “WŠJ") {tmpPath[0]=0; tmpLive=false;};
+	CCpioXzTool() : CCpioTool("Cpio+XZ Extract") {tmpPath[0]=0; tmpLive=false;};
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"xz");}
 protected:
@@ -157,7 +157,7 @@ private:
 class CCpioZstTool : public CCpioTool
 {
 public:
-	CCpioZstTool() : CCpioTool("Cpio+ZSTD “WŠJ") {tmpPath[0]=0; tmpLive=false;};
+	CCpioZstTool() : CCpioTool("Cpio+ZSTD Extract") {tmpPath[0]=0; tmpLive=false;};
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"zst");}
 protected:

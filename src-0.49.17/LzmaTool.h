@@ -6,7 +6,7 @@
 class CLzmaTool : public CTool
 {
 public:
-	CLzmaTool() : CTool( "LZMA “WŠJ" ){}
+	CLzmaTool() : CTool( "LZMA Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"lzma") || 0==stricmp(ext,"tlz");}

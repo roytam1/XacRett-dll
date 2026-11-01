@@ -6,7 +6,7 @@
 class CSharTool : public CTool
 {
 public:
-	CSharTool()	: CTool( "Shar “WŠJ" ){}
+	CSharTool()	: CTool( "Shar Extract" ){}
 
 	bool Check( const char* fname, unsigned long fsize );
 	bool Extract( const char* fname, const char* ddir );

@@ -19,7 +19,7 @@ class CPitTool : public CTool
 //
 
 public:
-	CPitTool() : CTool( "Pit “WŠJ" ){}
+	CPitTool() : CTool( "Pit Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"pit");}

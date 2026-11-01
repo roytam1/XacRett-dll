@@ -14,7 +14,7 @@ class CArgTool : public CTool
 //
 
 public:
-	CArgTool() : CTool( "Arg “WŠJ" ){}
+	CArgTool() : CTool( "Arg Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"arg");}

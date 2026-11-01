@@ -13,7 +13,7 @@ class CFrzTool : public CTool
 //
 
 public:
-	CFrzTool() : CTool( "Freeze “WŠJ" )
+	CFrzTool() : CTool( "Freeze Extract" )
 	{
 		Table1[0]=Table1[1]=Table1[2]=0;
 		Table1[3]=1;Table1[4]=3;Table1[5]=8;

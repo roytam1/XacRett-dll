@@ -71,8 +71,8 @@ bool COpenJak::FindNext(INDIVIDUALINFO *lpSubInfo)
 	FindClose( h );
 	if( h==INVALID_HANDLE_VALUE )
 	{
-		strcpy( lpSubInfo->szFileName,"ƒtƒ@ƒCƒ‹‚ª‘«‚è‚Ü‚¹‚ñ");
-		lstrcpy(lpSubInfo->szMode,"  ~  ");
+		strcpy( lpSubInfo->szFileName,"\x83t\x83@\x83""C\x83\x8b\x82\xaa\x91\xab\x82\xe8\x82\xdc\x82\xb9\x82\xf1");
+		lstrcpy(lpSubInfo->szMode,"  \x81~  ");
 		lpSubInfo->dwCompressedSize=0;
 		lpSubInfo->wDate=NULL;
 		lpSubInfo->wTime=NULL;
@@ -82,7 +82,7 @@ bool COpenJak::FindNext(INDIVIDUALINFO *lpSubInfo)
 
 	strcpy( lpSubInfo->szFileName,find.cFileName);
 	lpSubInfo->dwCompressedSize=find.nFileSizeLow;
-	lstrcpy(lpSubInfo->szMode,"  ›  ");
+	lstrcpy(lpSubInfo->szMode,"  \x81\x9b  ");
 	findfilesize+=find.nFileSizeLow;
 	//lstrcpy(lpSubInfo->szMode,"");
 

@@ -6,7 +6,7 @@
 class CAinTool : public CTool
 {
 public:
-	CAinTool() : CTool( "Ain “WŠJ" ){}
+	CAinTool() : CTool( "Ain Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"ain");}

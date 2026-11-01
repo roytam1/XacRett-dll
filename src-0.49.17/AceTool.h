@@ -127,7 +127,7 @@ class CAceTool : public CTool
 //
 
 public:
-	CAceTool() : CTool( "Ace “WŠJ" )
+	CAceTool() : CTool( "Ace Extract" )
 	{
 		buf_rd = new DWORD[size_rdb];
 		buf = new char[size_buf];

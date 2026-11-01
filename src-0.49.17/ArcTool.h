@@ -38,7 +38,7 @@ class CArcTool : public CTool
 //
 
 public:
-	CArcTool() : CTool( "Arc “WŠJ" ){}
+	CArcTool() : CTool( "Arc Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"arc");}

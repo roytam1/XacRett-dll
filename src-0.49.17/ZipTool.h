@@ -133,7 +133,7 @@ freely, subject to the following restrictions:
 
 public: //-- CTool 共通インターフェイス -----------
 
-	CZipTool() : CTool( "Zip 展開" )
+	CZipTool() : CTool( "Zip Extract" )
 		{}
 
 	bool IsType( const char* ext )

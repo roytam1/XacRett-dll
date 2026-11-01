@@ -16,7 +16,7 @@ class CGzTool : public CTool
 //
 
 public:
-	CGzTool() : CTool( "Gzip “WŠJ" ){}
+	CGzTool() : CTool( "Gzip Extract" ){}
 
 	bool Check( const char* fname, unsigned long fsize );
 	bool Extract( const char* fname, const char* ddir );

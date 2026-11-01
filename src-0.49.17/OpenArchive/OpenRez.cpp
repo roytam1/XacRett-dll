@@ -72,13 +72,13 @@ bool COpenRez::FindNext(INDIVIDUALINFO *lpSubInfo)
 	if( h==INVALID_HANDLE_VALUE )
 	{
 		lpSubInfo->dwOriginalSize = 0;
-		lstrcpy(lpSubInfo->szMode,"  ~  ");
+		lstrcpy(lpSubInfo->szMode,"  \x81~  ");
 	}else{
 		lpSubInfo->dwOriginalSize = find.nFileSizeLow;
 		if (lpSubInfo->dwOriginalSize==lpSubInfo->dwCompressedSize)
-			lstrcpy(lpSubInfo->szMode,"  ›  ");
+			lstrcpy(lpSubInfo->szMode,"  \x81\x9b  ");
 		else
-			lstrcpy(lpSubInfo->szMode,"  ¢  ");
+			lstrcpy(lpSubInfo->szMode,"  \x81\xa2  ");
 	}
 	FindClose( h );
 	

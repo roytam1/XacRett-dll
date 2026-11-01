@@ -16,7 +16,7 @@ class CArjTool : public CTool
 //
 
 public:
-	CArjTool() : CTool( "Arj “WŠJ" )
+	CArjTool() : CTool( "Arj Extract" )
 		{
 			for( DWORD r,j,i=0; i!=256; i++ )
 			{

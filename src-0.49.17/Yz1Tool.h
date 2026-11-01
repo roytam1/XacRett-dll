@@ -13,7 +13,7 @@ class CYz1Tool : public CTool
 //
 
 public:
-	CYz1Tool() : CTool( "Yz1 “WŠJ" ){}
+	CYz1Tool() : CTool( "Yz1 Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"yz1");}

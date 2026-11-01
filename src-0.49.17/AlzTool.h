@@ -71,7 +71,7 @@ freely, subject to the following restrictions:
 
 public: //-- CTool 共通インターフェイス -----------
 
-	CAlzTool() : CTool( "Alz 展開" )
+	CAlzTool() : CTool( "Alz Extract" )
 		{}
 
 	bool IsType( const char* ext )

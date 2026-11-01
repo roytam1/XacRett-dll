@@ -14,7 +14,7 @@ class CCabTool : public CTool
 //
 
 public:
-	CCabTool() : CTool( "Cab “WŠJ" ){}
+	CCabTool() : CTool( "Cab Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"cab");}

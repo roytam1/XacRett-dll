@@ -6,7 +6,7 @@
 class CZacTool : public CTool
 {
 public:
-	CZacTool() : CTool( "Zac “WŠJ" ){}
+	CZacTool() : CTool( "Zac Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"zac");}

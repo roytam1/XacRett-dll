@@ -10,7 +10,7 @@ class CLzhTool : public CTool
 //
 
 public:
-	CLzhTool() : CTool( "Lzh ‰ğ“€" )
+	CLzhTool() : CTool( "Lzh Extract" )
 	{
 		// CRCƒe[ƒuƒ‹‰Šú‰»
 		for( WORD i=0,j,r; i!=256; i++ )

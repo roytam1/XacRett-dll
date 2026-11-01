@@ -6,7 +6,7 @@
 class CZstdTool : public CTool
 {
 public:
-	CZstdTool() : CTool( "ZSTD “WŠJ" ){}
+	CZstdTool() : CTool( "ZSTD Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"zst") || 0==stricmp(ext,"tzst");}

@@ -44,7 +44,7 @@ class CCompactCTool : public CTool
 //
 
 public:
-	CCompactCTool() : CTool( "Compact “WŠJ" ){}
+	CCompactCTool() : CTool( "Compact Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==strcmp(ext,"C");}

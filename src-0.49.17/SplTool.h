@@ -22,7 +22,7 @@ class CSplTool : public CTool
 // Copyright (C)1988, 1989 by Kenji Rikitake and Naoshi Wakatabe. All rights reserved.
 //
 public:
-	CSplTool() : CTool( "Splint “WŠJ" ){}
+	CSplTool() : CTool( "Splint Extract" ){}
 
 	bool IsType( const char* ext )
 		{return 0==stricmp(ext,"sp") || 0==stricmp(ext,"spl");}

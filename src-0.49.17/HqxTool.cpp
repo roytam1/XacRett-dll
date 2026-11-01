@@ -118,7 +118,7 @@ bool CHqxTool::FindBeginning(int limit)
 		kiutil::getline( str,sizeof(str),fp );
 		if( 0==strcmp(str,"(This file must be converted with BinHex 4.0)") )
 			return true;
-		if( 0==strcmp(str,"（このファイルは BinHex4.0 で変換される必要があります。）") )
+		if( 0==strcmp(str,"\x81i\x82\xb1\x82\xcc\x83t\x83@\x83""C\x83\x8b\x82\xcd BinHex4.0 \x82\xc5\x95\xcf\x8a\xb7\x82\xb3\x82\xea\x82\xe9\x95K\x97v\x82\xaa\x82\xa0\x82\xe8\x82\xdc\x82\xb7\x81""B\x81j") )
 			return true;
 	}
 	return false;

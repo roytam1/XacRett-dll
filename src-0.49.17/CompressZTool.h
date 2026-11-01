@@ -8,7 +8,7 @@ class CCompressZTool : public CTool
 // see complib.h
 
 public:
-	CCompressZTool() : CTool( "Compress “WŠJ" ){}
+	CCompressZTool() : CTool( "Compress Extract" ){}
 
 	bool Check( const char* fname, unsigned long fsize );
 	bool Extract( const char* fname, const char* ddir );

@@ -25,7 +25,7 @@ class CCptTool : public CTool
 //
 
 public:
-	CCptTool() : CTool( "Cpt “WŠJ" )
+	CCptTool() : CTool( "Cpt Extract" )
 		{cptindex=NULL;make_crc_table();}
 	~CCptTool()
 		{delete [] cptindex;}

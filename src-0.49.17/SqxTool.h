@@ -98,7 +98,7 @@ and fitness for purpose.
 //Unsqxのソースコード「そのもの」はlibでしか配布できません。
 
 public:
-	CSqxTool() : CTool( "Sqx 展開" ){}
+	CSqxTool() : CTool( "Sqx Extract" ){}
 	bool IsType( const char* ext ) {return 0==stricmp(ext,"sqx");}
 	bool Check( const char* fname, unsigned long fsize );
 	bool Extract( const char* fname, const char* ddir );
