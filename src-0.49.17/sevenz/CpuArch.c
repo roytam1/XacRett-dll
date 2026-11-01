@@ -129,7 +129,7 @@ UInt32 Z7_FASTCALL z7_x86_cpuid_GetMaxFunc(void)
 
 #undef ASM_LN
 
-#elif !defined(_MSC_VER) || (defined(_MSC_VER) && (_MSC_VER < 1200))
+#elif !defined(_MSC_VER) || (defined(_MSC_VER) && (_MSC_VER < 1500))
 /* (VC4 takes this branch too: its inline assembler cannot compile
    the naked-__asm MSVC path below (C2400).  Zeroed results mean
    "no HW features", which callers already handle.) */
