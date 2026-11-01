@@ -91,7 +91,7 @@ bool COpenAr::FindSub(INDIVIDUALINFO *lpSubInfo)
 	lpSubInfo->dwOriginalSize=origsiz;
 	lstrcpy(lpSubInfo->szMode,"stored");
 
-	struct tm* time=localtime((long*)&date);
+	struct tm* time=kiutil::localtime32(date);
 	if( time!=NULL )
 	{
 		FILETIME ft;

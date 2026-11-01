@@ -348,7 +348,7 @@ read:
 		lstrcpy(lpSubInfo->szMode,"sparse");
 		lstrcpy(lpSubInfo->szFileName,mname);
 		{
-			struct tm* time=localtime((long*)&sUpdate);
+			struct tm* time=kiutil::localtime32(sUpdate);
 			if( time!=NULL )
 			{
 				FILETIME ft;
@@ -440,7 +440,7 @@ read:
 		lstrcpy(lpSubInfo->szMode, isSparse10 ? "sparse" : "stored");
 		lstrcpy(lpSubInfo->szFileName,realfname);
 
-		struct tm* time=localtime((long*)&realupdate);
+		struct tm* time=kiutil::localtime32(realupdate);
 		if( time!=NULL )
 		{
 			FILETIME ft;

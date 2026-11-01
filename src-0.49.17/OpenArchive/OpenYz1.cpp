@@ -101,7 +101,7 @@ void COpenYz1::FindHeader(yzFileDecode* dec)
 	}
 	for (i =0; i !=COpenYz1::File_Count;i++,n+=4){
 		memcpy(&h_Update,&COpenYz1::common_buf[n],4);
-		struct tm* time=localtime((long*)&h_Update);
+		struct tm* time=kiutil::localtime32(h_Update);
 		if( time!=NULL )
 		{
 			FILETIME ft;

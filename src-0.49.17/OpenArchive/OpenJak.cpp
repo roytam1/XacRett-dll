@@ -42,7 +42,7 @@ bool COpenJak::FindFirst(INDIVIDUALINFO *lpSubInfo)
 
 	char* p;
 	for( p=bodyname; *p!=0; p=CharNext(p) )
-		if( 0==strcmpi(p,tmp) )
+		if( 0==stricmp(p,tmp) )
 			break;
 	*p='\0';
 	return true;

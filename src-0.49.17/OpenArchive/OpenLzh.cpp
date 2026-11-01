@@ -70,7 +70,7 @@ bool COpenLzh::FindSub(INDIVIDUALINFO *lpSubInfo)
 		lpSubInfo->wTime = (WORD)(h_Update);
 	}else{
 
-		struct tm* time=localtime((long*)&h_Update);
+		struct tm* time=kiutil::localtime32(h_Update);
 		if( time!=NULL )
 		{
 			FILETIME ft;

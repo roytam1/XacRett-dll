@@ -346,7 +346,7 @@ DWORD COpenRar::UpdateChecker( DWORD StartVal,BYTE *ptr,DWORD Size,bool b32Bit )
 
 
 // --- RAR 5.0 listing via UnRAR API (added for UnRAR 7.x) ---
-static int CALLBACK rar5_callback(UINT msg, LONG usr_dat, LONG p1, LONG p2)
+static int CALLBACK rar5_callback(UINT msg, LPARAM usr_dat, LPARAM p1, LPARAM p2)
 {
 	(void)usr_dat; (void)p1; (void)p2;
 	if (msg == UCM_PROCESSDATA)

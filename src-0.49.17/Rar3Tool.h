@@ -9,7 +9,7 @@
 
 class CRar3Tool : public CTool
 {
-  friend int CALLBACK unrar_callback(UINT, LONG, LONG, LONG);
+  friend int CALLBACK unrar_callback(UINT, LPARAM, LPARAM, LPARAM);
 
   int check_archive(const unsigned char *buf, size_t buf_size);
   int check_sfx(const unsigned char *buf, size_t buf_size, const char *fname);

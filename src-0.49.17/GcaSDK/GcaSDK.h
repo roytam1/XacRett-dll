@@ -29,7 +29,7 @@ namespace nsGcaSDK{
   enum ArcType{ GCA0 = 0, GCA1, };
  private:
   void *m_pContext; // (GcaSession*)
-  DWORD m_dwUser;
+  ULONG_PTR m_dwUser;
   BOOL (*m_pfnProgress)(DWORD dwProgress, DWORD dwAll, void *pContext);
   int (*m_pfnMessage)(int nNum, string strFileName, void *pContext);
  private:
@@ -74,8 +74,8 @@ namespace nsGcaSDK{
   BOOL ExtractFile(int n);
   BOOL ExtractFileToMemory(int n, BYTE *pBuffer);
 
-  void SetUser(DWORD dwUser) {m_dwUser = dwUser;}
-  DWORD GetUser(void) const {return m_dwUser;}
+  void SetUser(ULONG_PTR dwUser) {m_dwUser = dwUser;}
+  ULONG_PTR GetUser(void) const {return m_dwUser;}
 
  private:
   CGca(const CGca&);

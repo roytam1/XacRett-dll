@@ -18,6 +18,11 @@ public:
 	static void timeSet( const char* fname, WORD date, WORD time );
 	// UNIX( sec from 1970.1.1 )
 	static void timeSet( const char* fname, DWORD sec );
+	// The same two, but taking a 32 bit archive time stamp through a
+	// time_t: time_t is 64 bits on Win64 while the archives store 32,
+	// and gmtime/localtime take a time_t*.
+	static struct tm* gmtime32( DWORD sec );
+	static struct tm* localtime32( DWORD sec );
 
 // ƒpƒX•¶Žš—ñ
 

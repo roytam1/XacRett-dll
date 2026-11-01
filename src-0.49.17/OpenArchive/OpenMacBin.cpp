@@ -72,7 +72,7 @@ bool COpenMacBin::Find_sub(INDIVIDUALINFO *lpSubInfo)
 			lpSubInfo->dwCompressedSize=siz+126;//126‚Íƒwƒbƒ_[•ª
 			lpSubInfo->dwOriginalSize=siz;
 			dtime-=2082844800l;
-			struct tm* time=localtime((long*)&dtime);
+			struct tm* time=kiutil::localtime32(dtime);
 			if( time!=NULL )
 			{
 				FILETIME ft;

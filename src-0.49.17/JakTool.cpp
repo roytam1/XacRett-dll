@@ -110,7 +110,7 @@ bool CJakTool::Extract( const char* fname, const char* ddir )
 	sprintf( tmp, "%d.%s", pHead->No, kiutil::pathExt(fname) );
 	char* p;
 	for( p=bodyname; *p!=0; p=CharNext(p) )
-		if( 0==strcmpi(p,tmp) )
+		if( 0==stricmp(p,tmp) )
 			break;
 	*p='\0';
 

@@ -8,7 +8,20 @@
 #define XACR_BUFSIZE (0x100000)
 // Å™ must be bigger than 0x100000 !! ( for RAR )
 
-typedef BOOL (CALLBACK *ARCHIVERPROC)(HWND _hwnd, UINT _uMsg,UINT _nState, LPARAM _lpEis);
+// The third parameter is a WPARAM so that the dialog procedure of the
+// progress window (a DLGPROC) can be stored in it; on x86 WPARAM is
+// UINT, so nothing changes there.
+typedef BOOL (CALLBACK *ARCHIVERPROC)(HWND _hwnd, UINT _uMsg,WPARAM _nState, LPARAM _lpEis);
+
+// A pointer round-tripped through the window user data needs the
+// pointer-sized entry points on Win64 (Get/SetWindowLong truncate it).
+#ifdef _WIN64
+#define XR_SET_USERDATA(h,p) SetWindowLongPtr(h,GWLP_USERDATA,(LONG_PTR)(p))
+#define XR_GET_USERDATA(h)   GetWindowLongPtr(h,GWLP_USERDATA)
+#else
+#define XR_SET_USERDATA(h,p) SetWindowLong(h,GWL_USERDATA,(LONG)(p))
+#define XR_GET_USERDATA(h)   GetWindowLong(h,GWL_USERDATA)
+#endif
 
 class CTool
 {

@@ -46,7 +46,7 @@ bool COpenGz::FindFirst(INDIVIDUALINFO *lpSubInfo)
 			lstrcpy(&lpSubInfo->szFileName[i],"#");
 	}
 	if (head.Update!=0){
-		struct tm* time=localtime((long*)&head.Update);
+		struct tm* time=kiutil::localtime32(head.Update);
 		if( time!=NULL )
 		{
 			FILETIME ft;

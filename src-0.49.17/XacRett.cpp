@@ -312,7 +312,7 @@ public:
 			{
 				flgEND=FALSE;
 				CInfoDlg* p = (CInfoDlg*)lp;
-				SetWindowLong( dlg,GWL_USERDATA,lp );
+				XR_SET_USERDATA( dlg,lp );
 				SetWindowText( dlg,p->m_RName );
 				//SetWindowText( GetDlgItem(dlg,IDC_FNAME), p->m_FName );
 				SetDlgItemPathCompat(dlg,IDC_FNAME,p->m_FName);

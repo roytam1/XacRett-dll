@@ -53,7 +53,7 @@ BOOL CALLBACK CTool::PassProc( HWND dlg,UINT msg,WPARAM wp,LPARAM lp )
 {
 	if( msg==WM_INITDIALOG )
 	{
-		SetWindowLong( dlg, GWL_USERDATA, lp );
+		XR_SET_USERDATA( dlg, lp );
 		SendDlgItemMessage( dlg, IDC_MASK, BM_SETCHECK, BST_CHECKED, 0 );
 		SetFocus( GetDlgItem(dlg,IDC_PASSWORD) );
 		kiutil::wndFront( dlg );
@@ -66,7 +66,7 @@ BOOL CALLBACK CTool::PassProc( HWND dlg,UINT msg,WPARAM wp,LPARAM lp )
 			int len = SendDlgItemMessage( dlg,IDC_PASSWORD,
 										WM_GETTEXTLENGTH,0,0);
 
-			char** ppPass=(char**)GetWindowLong(dlg,GWL_USERDATA);
+			char** ppPass=(char**)XR_GET_USERDATA(dlg);
 			*ppPass=new char[1+len];
 
 			SendDlgItemMessage(dlg,IDC_PASSWORD,WM_GETTEXT,

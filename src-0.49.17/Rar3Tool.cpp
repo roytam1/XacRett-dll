@@ -10,7 +10,7 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 // --- コールバック関数 ---
-int CALLBACK unrar_callback(UINT msg, LONG usr_dat, LONG p1, LONG p2)
+int CALLBACK unrar_callback(UINT msg, LPARAM usr_dat, LPARAM p1, LPARAM p2)
 {
   CRar3Tool  *rartool = (CRar3Tool *)usr_dat;
 
@@ -88,7 +88,7 @@ bool CRar3Tool::Extract(const char *fname, const char * /*ddir*/)
 	if (NULL == arc_h)
 		return false;
 
-	RARSetCallback(arc_h, unrar_callback, (LONG)this);
+	RARSetCallback(arc_h, unrar_callback, (LPARAM)this);
 
 	RARHeaderData  hdr;
 	FILE* out=NULL;

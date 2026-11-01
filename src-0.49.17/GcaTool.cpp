@@ -105,7 +105,7 @@ bool CGcaTool::Extract( const char* fname,const char* ddir )
 	gca.SetArcFilePath( nm );
 	gca.SetOutputPath( dst );
 	gca.SetMessageProc( dummy_msg_proc );
-	gca.SetUser( (DWORD)this );
+	gca.SetUser( (ULONG_PTR)this );
 
 	m_cryptoError = false;
 

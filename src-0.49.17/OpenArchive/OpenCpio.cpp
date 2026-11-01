@@ -136,7 +136,7 @@ bool COpenCpio::Find_sub(INDIVIDUALINFO *lpSubInfo)
 
 	lstrcpy(lpSubInfo->szFileName,outname);
 	
-	struct tm* time=localtime((long*)&mtime);
+	struct tm* time=kiutil::localtime32(mtime);
 	if( time!=NULL )
 	{
 		FILETIME ft;

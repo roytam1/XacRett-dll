@@ -21,9 +21,26 @@ void kiutil::timeSet( const char* fname, FILETIME* pft )
 	CloseHandle( han );
 }
 
+// See kiutil.h.  The time_t has to outlive the call, and gmtime and
+// localtime already return a pointer into their own static buffer, so
+// a single file-scope time_t has exactly the same lifetime rules.
+static time_t ki_sec32;
+
+struct tm* kiutil::gmtime32( DWORD sec )
+{
+	ki_sec32 = (time_t)sec;
+	return gmtime( &ki_sec32 );
+}
+
+struct tm* kiutil::localtime32( DWORD sec )
+{
+	ki_sec32 = (time_t)sec;
+	return localtime( &ki_sec32 );
+}
+
 void kiutil::timeSet( const char* fname, DWORD sec )
 {
-	struct tm* time=gmtime((long*)&sec);
+	struct tm* time=kiutil::gmtime32(sec);
 	if( time!=NULL )
 	{
 		FILETIME ft;
