@@ -76,7 +76,7 @@ static Byte InvS[256];
   /* VC6 port: upstream enables the AES-NI paths for any _MSC_VER,
      but VC6 has no AES intrinsics and the _HW entry points are
      assembly-only; use the pure-C tables. */
-  #elif defined(_MSC_VER) && (_MSC_VER > 1200)
+  #elif defined(_MSC_VER) && (_MSC_VER > 1500)
     #define USE_HW_AES
     #define USE_HW_VAES
   #endif

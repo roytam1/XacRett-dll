@@ -52,7 +52,7 @@ extern "C" {
  * typically with -Wno-deprecated-declarations for gcc or _CRT_SECURE_NO_WARNINGS in Visual.
  * Otherwise, it's also possible to define ZSTD_DISABLE_DEPRECATE_WARNINGS.
  */
-#if defined(ZSTD_DISABLE_DEPRECATE_WARNINGS) || (defined(_MSC_VER) && (_MSC_VER < 1400))
+#if defined(ZSTD_DISABLE_DEPRECATE_WARNINGS) || (defined(_MSC_VER) && (_MSC_VER < 1500))
 #  define ZSTD_DEPRECATED(message) /* disabled (VC6: no declspec(deprecated)) */
 #else
 #  if defined (__cplusplus) && (__cplusplus >= 201402) /* C++14 or greater */

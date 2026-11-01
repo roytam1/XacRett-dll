@@ -48,14 +48,14 @@ class DataHash
     uint gfExpCRC(uint N);
 
     // Speed gain seems to vanish above 8 CRC32 threads.
-    #if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+    #if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
     enum { CRC32_POOL_THREADS=8 };
     #else
     static const uint CRC32_POOL_THREADS=8;
     #endif /* VC6 */
 
     // Thread pool must allow at least BLAKE2_THREADS_NUMBER threads.
-    #if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+    #if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
     enum { HASH_POOL_THREADS=Max(BLAKE2_THREADS_NUMBER,CRC32_POOL_THREADS) };
     #else
     static const uint HASH_POOL_THREADS=Max(BLAKE2_THREADS_NUMBER,CRC32_POOL_THREADS);

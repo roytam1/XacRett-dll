@@ -18,10 +18,10 @@ struct RarLocalTime
 class RarTime
 {
   private:
-    #if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+    #if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
     enum { TICKS_PER_SECOND = 1000000000 }; // Internal precision.
     #else
-    #if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+    #if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
     enum { TICKS_PER_SECOND = 1000000000 }; // Internal precision.
     #else
     static const uint TICKS_PER_SECOND = 1000000000; // Internal precision.
@@ -47,10 +47,10 @@ class RarTime
   public:
     // RarLocalTime::Reminder precision. Must be equal to TICKS_PER_SECOND.
     // Unlike TICKS_PER_SECOND, it is a public field.
-    #if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+    #if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
     enum { REMINDER_PRECISION = TICKS_PER_SECOND };
     #else
-    #if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+    #if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
     enum { REMINDER_PRECISION = TICKS_PER_SECOND };
     #else
     static const uint REMINDER_PRECISION = TICKS_PER_SECOND;

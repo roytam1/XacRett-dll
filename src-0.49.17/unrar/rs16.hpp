@@ -4,7 +4,7 @@
 class RSCoder16
 {
   private:
-#if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+#if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
     enum { gfSize=65535 };
     #else
         static const uint gfSize=65535;   // Galois field size.

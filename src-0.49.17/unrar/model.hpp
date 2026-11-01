@@ -10,7 +10,7 @@
 
 struct RARPPM_DEF
 {
-#if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+#if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
   enum { INT_BITS=7, PERIOD_BITS=7, TOT_BITS=INT_BITS+PERIOD_BITS,
     INTERVAL=1 << INT_BITS, BIN_SCALE=1 << TOT_BITS, MAX_FREQ=124 };
   #else

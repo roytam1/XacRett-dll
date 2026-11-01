@@ -12,7 +12,7 @@ This code is based on public domain code from Wei Dai's Crypto++ library. */
 
 /* VC6 port: _MSC_VER is 1200 on VC6, which upstream's >= 1200 test
    wrongly accepts; VC6 has no SHA intrinsics, so keep the C path. */
-#if defined(MY_CPU_X86_OR_AMD64) && (Z7_MSC_VER_ORIGINAL > 1200)
+#if defined(MY_CPU_X86_OR_AMD64) && (Z7_MSC_VER_ORIGINAL > 1500)
   #if   defined(Z7_LLVM_CLANG_VERSION)  && (Z7_LLVM_CLANG_VERSION  >= 30800) \
      || defined(Z7_APPLE_CLANG_VERSION) && (Z7_APPLE_CLANG_VERSION >= 50100) \
      || defined(Z7_GCC_VERSION)         && (Z7_GCC_VERSION         >= 40900) \

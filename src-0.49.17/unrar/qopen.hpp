@@ -30,7 +30,7 @@ class QuickOpen
     QuickOpenItem *ListEnd;
     
     byte *Buf; // Read quick open data here.
-#if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+#if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
     enum { MaxBufSize=0x10000 };
     #else
         static const size_t MaxBufSize=0x10000; // Buf size, must be multiple of CRYPT_BLOCK_SIZE.

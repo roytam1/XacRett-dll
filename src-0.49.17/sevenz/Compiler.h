@@ -164,7 +164,7 @@ typedef void (*Z7_void_Function)(void);
 #pragma warning(disable : 4514) // unreferenced inline function has been removed
 #endif
     
-#if _MSC_VER < 1300
+#if _MSC_VER < 1500
 // #pragma warning(disable : 4702) // unreachable code
 // Bra.c : -O1:
 #pragma warning(disable : 4714) // function marked as __forceinline not inlined

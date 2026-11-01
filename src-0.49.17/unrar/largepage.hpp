@@ -4,7 +4,7 @@
 class LargePageAlloc
 {
   private:
-    #if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+    #if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
     static const wchar *LOCKMEM_SWITCH; /* def in .cpp (VC6_LP) */
     #else
     static constexpr const wchar *LOCKMEM_SWITCH=L"isetup_privilege_lockmem";

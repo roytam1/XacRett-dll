@@ -16,10 +16,10 @@ class CommandData;
 class ScanTree
 {
   private:
-    #if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+    #if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
 enum { MAXSCANDEPTH = MAXPATHSIZE/2 };
 #else
-#if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+#if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
 enum { MAXSCANDEPTH = MAXPATHSIZE/2 };
 #else
 static constexpr size_t MAXSCANDEPTH = MAXPATHSIZE/2;

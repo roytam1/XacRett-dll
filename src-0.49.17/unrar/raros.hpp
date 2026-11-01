@@ -1,7 +1,7 @@
 #ifndef _RAR_RAROS_
 #define _RAR_RAROS_
 
-#if defined(_MSC_VER) && (_MSC_VER < 1300)
+#if defined(_MSC_VER) && (_MSC_VER < 1500)
 #define override /* VC6/VC4: C++11 contextual keyword (_VC6_OVERRIDE) */
 #ifndef _WCHAR_T_DEFINED
 typedef unsigned short wchar_t; /* VC6 has no native wchar_t (_VC6_WCHAR_T) */

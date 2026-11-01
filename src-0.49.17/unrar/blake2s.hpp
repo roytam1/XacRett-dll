@@ -6,7 +6,7 @@
 #define BLAKE2_THREADS_NUMBER 8
 
 // Use constexpr instead of enums for -std=c++20 compatibility.
-#if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+#if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
 const size_t BLAKE2S_BLOCKBYTES = 64; /* VC6: no constexpr (VC6_CONSTEXPR) */
 const size_t BLAKE2S_OUTBYTES = 32;
 #else
@@ -26,7 +26,7 @@ struct blake2s_state
   // Use constexpr instead of enums, because otherwise clang -std=c++20
   // issues a warning about "arithmetic between different enumeration types"
   // in ubuf[BLAKE_DATA_SIZE + BLAKE_ALIGNMENT] declaration.
-  #if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+  #if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
   enum { BLAKE_ALIGNMENT = 64 };
   #else
   static constexpr size_t BLAKE_ALIGNMENT = 64;
@@ -36,7 +36,7 @@ struct blake2s_state
   // buffer and uint32 h[8], t[2], f[2];
   // 2 * BLAKE2S_BLOCKBYTES is the buf size in blake2_code_20140114.zip.
   // It might differ in later versions.
-  #if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+  #if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
   enum { BLAKE_DATA_SIZE = 48 + 2 * BLAKE2S_BLOCKBYTES };
   #else
   static constexpr size_t BLAKE_DATA_SIZE = 48 + 2 * BLAKE2S_BLOCKBYTES;

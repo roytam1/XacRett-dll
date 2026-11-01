@@ -100,7 +100,7 @@ int stricomp(const char *s1,const char *s2)
 }
 
 
-#if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6: no strnlen */
+#if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6: no strnlen */
 static size_t vc6_strnlen(const char *s,size_t n)
 { const char *p=(const char*)memchr(s,0,n); return p==NULL ? n:(size_t)(p-s); }
 #define strnlen vc6_strnlen

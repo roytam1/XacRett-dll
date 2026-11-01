@@ -99,7 +99,7 @@ void _force_has_format_string(const char *format, ...) {
  * debug.h already turns into a no-op call at DEBUGLEVEL 0, so the
  * tail can be dropped here.  VC6 accepts (and merely warns about)
  * surplus actual macro parameters, so no call site needs editing. */
-#if defined(_MSC_VER) && (_MSC_VER < 1400)
+#if defined(_MSC_VER) && (_MSC_VER < 1500)
 #  pragma warning(disable : 4002)  /* too many actual parameters for macro */
 #  define _FORCE_HAS_FORMAT_STRING()  do { } while (0)
 #  define RETURN_ERROR(err)          return ERROR(err)
@@ -180,7 +180,7 @@ void _force_has_format_string(const char *format, ...) {
         }                                                                          \
     } while(0)
 
-#endif  /* !(_MSC_VER < 1400) : upstream C99 variadic macros */
+#endif  /* !(_MSC_VER < 1500) : upstream C99 variadic macros */
 
 #if defined (__cplusplus)
 }

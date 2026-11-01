@@ -29,7 +29,7 @@
 #define FSE_STATIC_LINKING_ONLY
 #include "fse.h"
 #include "huf.h"
-#if defined(_MSC_VER) && (_MSC_VER < 1400)
+#if defined(_MSC_VER) && (_MSC_VER < 1500)
 #  include "xxhash64.h"  /* VC6 port: minimal XXH64 subset, see xxhash64.h */
 #else
 #  ifndef XXH_STATIC_LINKING_ONLY

@@ -45,13 +45,13 @@ struct RARPPM_MEM_BLK
 class SubAllocator
 {
   private:
-#if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+#if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
     enum { N1=4, N2=4, N3=4, N4=(128+3-1*N1-2*N2-3*N3)/4 };
     #else
     static const int N1=4, N2=4, N3=4, N4=(128+3-1*N1-2*N2-3*N3)/4;
     #endif /* VC6 */
 
-#if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+#if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
     enum { N_INDEXES=N1+N2+N3+N4 };
     #else
     static const int N_INDEXES=N1+N2+N3+N4;

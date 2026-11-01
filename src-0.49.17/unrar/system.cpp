@@ -196,7 +196,7 @@ HMODULE WINAPI LoadSysLibrary(const wchar *Name)
 }
 
 
-#if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 SDK lacks decl (VC6_CTM) */
+#if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 SDK lacks decl (VC6_CTM) */
 BOOL WINAPI CheckTokenMembership(HANDLE TokenHandle,PSID SidToCheck,PBOOL IsMember);
 #endif
 bool IsUserAdmin()

@@ -122,7 +122,7 @@ const wchar *uiGetWeekDayName(uint Day);
 class uiMsgStore
 {
   private:
-#if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+#if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
     enum { MAX_MSG = 8 };
     #else
         static const size_t MAX_MSG = 8;
@@ -166,7 +166,7 @@ class uiMsgStore
 };
 
 
-#if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6: no variadic templates / rvalue refs (VC6_UIMSG) */
+#if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6: no variadic templates / rvalue refs (VC6_UIMSG) */
 inline void uiMsgBase(uiMsgStore &Store)
 {
   // Called last, when no parameters are left.

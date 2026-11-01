@@ -1,5 +1,5 @@
 #include "rar.hpp"
-#if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6 */
+#if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 */
 const wchar *LargePageAlloc::LOCKMEM_SWITCH=L"isetup_privilege_lockmem";
 #endif /* VC6 */
 

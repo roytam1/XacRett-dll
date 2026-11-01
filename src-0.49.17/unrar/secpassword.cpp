@@ -56,7 +56,7 @@ static CryptLoader GlobalCryptLoader;
 
 SecPassword::SecPassword()
 {
-#if defined(_MSC_VER) && (_MSC_VER < 1300) /* VC6: no NSDMI (VC6_NSDMI) */
+#if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6: no NSDMI (VC6_NSDMI) */
   Password.resize(MAXPASSWORD);
 #endif
   Set(L"");

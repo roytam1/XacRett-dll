@@ -48,7 +48,7 @@
 #define WIN32_LEAN_AND_MEAN
 
 #include <windows.h>
-#if defined(_MSC_VER) && (_MSC_VER < 1300)
+#if defined(_MSC_VER) && (_MSC_VER < 1500)
 #include <richedit.h> /* VC6: sole SDK home of NMHDR (for shlobj/prsht/commctrl) */
 #endif
 #if defined(_MSC_VER) && (_MSC_VER < 1300)
@@ -99,7 +99,7 @@ typedef ULONG DWORD_PTR; /* VC6: no basetsd.h (VC6_DWORDPTR) */
 #if (defined(_M_IX86) || defined(_M_X64)) && (!defined(_MSC_VER) || (_MSC_VER >= 1400))
   #define USE_SSE
   #define SSE_ALIGNMENT 16
-#endif /* VC6 (_MSC_VER<1400) has no SSE intrinsics */
+#endif /* VC6 (_MSC_VER < 1500) has no SSE intrinsics */
 
 #include <stdio.h>
 #include <stdlib.h>
