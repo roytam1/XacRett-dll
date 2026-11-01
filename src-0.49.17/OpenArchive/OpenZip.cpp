@@ -263,7 +263,9 @@ void COpenZip::get_cdhead(long offset)
 	ZipCDHeader h;
 	while(fseek(fp,offset,SEEK_SET)==0)
 	{
-		fread(&h,1,sizeof(ZipCDHeader),fp);
+		memset(&h,0,sizeof(ZipCDHeader));
+		if( fread(&h,1,sizeof(ZipCDHeader),fp)!=sizeof(ZipCDHeader) )
+			break;
 		offset+=sizeof(ZipCDHeader)+h.fnl+h.exl+h.fcl-2;
 		if(h.sig[0]==0x50 && h.sig[1]==0x4b && h.sig[2]==0x05 && h.sig[3]==0x06)
 			break;
