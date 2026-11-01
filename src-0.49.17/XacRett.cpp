@@ -1162,7 +1162,7 @@ int MeltArchive(LPCSTR lpArchiveName , LPCSTR lpBaseDir ,std::vector<std::string
 	FindClose( h );
 	// 状況表示ダイアログ準備
 	CInfoDlg inf( find.cFileName, p );
-	p->arcproc=inf.Proc;
+	p->arcproc=(ARCHIVERPROC)inf.Proc;
 	inf.m_write=scd->m_write;
 	inf.m_Msg=p->Msg;
 	if(scd->m_show)
