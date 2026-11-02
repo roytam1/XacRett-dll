@@ -27,14 +27,6 @@ LINK_RSP = $(OUTDIR)\link.rsp
 ARCH = x86
 !ENDIF
 
-!IFNDEF CEXTRA
-CEXTRA = 
-!ENDIF
-
-!IFNDEF LEXTRA
-LEXTRA = 
-!ENDIF
-
 CC = cl
 RC = rc
 

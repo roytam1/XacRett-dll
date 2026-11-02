@@ -42,6 +42,10 @@ UNRARLIB = $(OUTDIR)\UnRAR.lib
 UNRAR_RSP = $(OUTDIR)\unrar.rsp
 LINK_RSP = $(OUTDIR)\link.rsp
 
+!IFNDEF ARCH
+ARCH = amd64
+!ENDIF
+
 CC = cl
 RC = rc
 
@@ -1296,12 +1300,12 @@ unrar : dirs $(UNRAR_OBJS) $(UNRARLIB)
 # 49 object paths overflow the command-line limit, so the list goes
 # through a response file.
 $(UNRARLIB) : dirs $(UNRAR_OBJS)
-	lib /machine:AMD64 /out:$@ @<<
+	lib /machine:$(ARCH) /out:$@ @<<
   /nologo $(UNRAR_OBJS)
 <<
 
 $(OUTDIR)\XacRett.dll : dirs $(OBJS) $(OBJDIR)\XacRett.res $(UNRARLIB)
-	link /machine:AMD64 /out:"$(OUTDIR)\XacRett.dll" $(LEXTRA) @<<
+	link /machine:$(ARCH) /out:"$(OUTDIR)\XacRett.dll" $(LEXTRA) @<<
   /nologo /dll /incremental:no /def:"XacRett.def" libcmt.lib libcpmt.lib oldnames.lib bufferoverflowu.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib $(UNRARLIB) $(OBJS) "$(OBJDIR)\XacRett.res"
 <<
 
