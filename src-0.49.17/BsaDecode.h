@@ -77,6 +77,13 @@ void BsaClose( BsaArchive* arc );
 // Extract one entry.  The caller decides the output path.
 bool BsaExtractFile( BsaArchive* arc, int index, const char* outpath );
 
+// Decode an entry without writing anything, for its side effect only: the
+// sliding windows of the LZ coders are shared by every entry of one
+// archive, so a member that is not extracted still has to be decoded or a
+// later member that refers back into it decodes to garbage.  A store entry
+// feeds nothing (the store path does not touch the window either).
+bool BsaDecodeDiscard( BsaArchive* arc, int index );
+
 // The name of a method for the listing ("stored", "m2", "m7", "m9", ...).
 const char* BsaMethodName( int method );
 

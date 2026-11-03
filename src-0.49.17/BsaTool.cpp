@@ -42,6 +42,7 @@ bool CBsaTool::Extract( const char* fname,const char* ddir )
 {
 	BsaArchive arc;
 	int i;
+	int pending = -1;	// the first entry skipped but not decoded yet
 //--------------------------------------------------------------------//
 
 	if( !BsaOpen( fname, &arc ) )
@@ -57,28 +58,70 @@ bool CBsaTool::Extract( const char* fname,const char* ddir )
 
 		lstrcpyn( outname, e->name, (int)sizeof(outname) );
 
-		// a directory entry only makes its directory
+		// A directory entry only makes its directory: never with -j
+		// (the name would be flattened, and zip makes none either), and
+		// only when the entry itself was asked for -- otherwise an
+		// extraction of one file would still leave the archive's empty
+		// directories behind.
 		if( e->isdir )
 		{
-			name = kiutil::pathMake( outname );
-			if( name )
-				CreateDirectory( name, NULL );
+			if( !kiutil::m_nodir && CheckStr(outname) )
+			{
+				name = kiutil::pathMake( outname );
+				if( name )
+					CreateDirectory( name, NULL );
+			}
 			continue;
 		}
 
+		// The LZ windows are shared by the entries of one archive, so a
+		// member that is not wanted still has to be decoded before the
+		// next one is, or a later member that refers back into it fails
+		// its checksum.  Deferred, so that a selection that matches
+		// nothing decodes nothing.
 		if( !CheckStr(outname) )
+		{
+			if( pending < 0 )
+				pending = i;
 			continue;
+		}
+
+		// The name is flattened BEFORE the overwrite test, so that with
+		// -j an existing output file is found under the name it is
+		// really written to.  (Zip flattens first as well, through
+		// CTool::fopen.)
+		name = kiutil::pathMake( outname );
+		if( !name )
+		{
+			if( pending < 0 )
+				pending = i;
+			continue;
+		}
+
 		if( arcproc )//SetOwnerWindow
 		{
 			static EXTRACTINGINFO	info;
 			::memset(&info,0,sizeof(EXTRACTINGINFO));
-			lstrcpy(info.szSourceFileName,outname);
+			lstrcpy(info.szSourceFileName,name);
 			if(arcproc(hWnd,Msg,ARCEXTRACT_WRITEFILE_OPEN,(WPARAM)&info))
+			{
+				// the file is kept, but the member still has to be
+				// decoded for the members that come after it
+				if( pending < 0 )
+					pending = i;
 				continue;
+			}
 		}
-		name = kiutil::pathMake( outname );
-		if( !name )
-			continue;
+
+		// catch up with the entries that were skipped
+		if( pending >= 0 )
+		{
+			int j;
+			for( j=pending; j<i; j++ )
+				BsaDecodeDiscard( &arc, j );
+			pending = -1;
+		}
+
 		if( !BsaExtractFile( &arc, i, name ) )
 		{
 			// an unsupported method, a decode failure or a checksum

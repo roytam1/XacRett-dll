@@ -3929,6 +3929,51 @@ for each method, flipped AES ciphertext, tampered zip member, truncated
 archive) fail loudly with zero output and no hang.  VC6 and VC4 compile
 the new units clean.
 
+## BSA/BSN: a response-list subset, and `-j`
+
+Extracting a *subset* of a BSA/BSN member list (`@listfile`, or any
+wildcard) used to fail the whole archive with 0x8013 as soon as the
+selection skipped a compressed member, and the `-j` runs left stray
+directories behind.  Three separate defects, all in `CBsaTool::Extract`:
+
+- **The LZ windows are shared by every entry of one archive, so a member
+  that is not written still has to be decoded.**  A stream may refer back
+  into the bytes an earlier member produced -- PTSDOS.BSN does -- and
+  both `BsaDecodeMethod7`'s 128 KiB ring and the 64 KiB ring of
+  `BsaDecodeMethod23` are persistent by design (the original never
+  clears them; `BsaCodecReset` runs once per archive in `BsaOpen`).
+  Skipping a member therefore desynchronises the window and every later
+  member fails its checksum, which the provider reports as 0x8013 with no
+  output at all.  This hit BOTH skip paths: a wildcard/response-list
+  mismatch AND the existing-file skip of `-o2`/the overwrite prompt.
+  `BsaDecodeDiscard` now runs a skipped entry through its decoder with
+  nothing written, and `Extract` catches up lazily -- only when a wanted
+  member follows, so a selection that matches nothing decodes nothing and
+  returns 0 in about 10 ms.  A store entry is not decoded: the store path
+  does not touch the window in the original either.
+  Measured: `fixtures/bsa/PTSDOS.BSN` with a response file naming only
+  `ptsdos\append.com` went 0x8013 / 0 files -> rc=0 and 2234 bytes
+  byte-identical to `bsn_unpack`'s output, with and without `-j`; the
+  three multi-member archives of the recon corpus (PTSDOS.BSN,
+  `pk/mb.bsa`, `pk/multi.bsn`) each match the oracle member for member.
+- **`pathMake` now runs before the overwrite callback**, so the name the
+  callback tests is the name that is actually written.  With `-j` the old
+  code tested `ptsdos\append.com` while writing `append.com`, so `-o2`
+  never saw the existing file and overwrote it.  Zip gets this for free
+  by going through `CTool::fopen` after `pathMake`.
+- **A directory entry is dropped with `-j`** -- there is no directory to
+  make once the name is flattened, and zip makes none either -- and
+  otherwise it is only created when the entry itself was selected, so
+  extracting one file no longer leaves the archive's empty directories
+  behind.  PTSDOS.BSN + `-j` used to create four stray top-level
+  directories (`ptsdos`, `cp`, `games`, `util`).
+
+No regression: all 86 archives of the recon corpus and the nine
+`fixtures/bsa` archives still extract byte-identical to `bsn_unpack`
+(`bsacmp2.ps1` in TEMP), `dlltest list` spot checks on RAR/CAB/GCA/LZH
+are unchanged, the full VC6 build reports 0 FAIL, and VC4 compiles both
+touched units (`vc4one.bat BsaTool` / `BsaDecode`).
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).

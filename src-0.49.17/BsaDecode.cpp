@@ -618,3 +618,31 @@ bool BsaExtractFile( BsaArchive* arc, int index, const char* outpath )
 		ok = false;
 	return ok;
 }
+
+// The members of one archive share the LZ windows of the coders, so a
+// member whose output is not wanted still has to be run through its
+// decoder before the members that follow it: a stream may refer back
+// into the bytes an earlier member produced (PTSDOS.BSN is such an
+// archive).  Nothing is written; only the window state matters.
+bool BsaDecodeDiscard( BsaArchive* arc, int index )
+{
+	BsaEntry* e;
+	unsigned long produced = 0;
+	int used_ppm = 0;
+	unsigned char* buf;
+
+	if( index < 0 || index >= arc->nentry )
+		return false;
+	e = &arc->entries[index];
+
+	if( e->isdir || e->method == BSA_METHOD_STORED || e->orig == 0 )
+		return true;
+	if( e->method == BSA_METHOD_UNKNOWN || e->orig > BSA_MAX_MEMBER )
+		return false;
+
+	buf = BsaDecodeMember( arc, e, &produced, &used_ppm );
+	if( !buf )
+		return false;
+	free( buf );
+	return produced == e->orig;
+}
