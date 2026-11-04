@@ -1273,7 +1273,7 @@ $(UNRARLIB) : dirs $(UNRAR_OBJS)
 # GetProcAddress-only), so the result stays 95/NT4-loadable by design.
 $(OUTDIR)\XacRett.dll : dirs $(OBJS) $(OBJDIR)\XacRett.res $(UNRARLIB)
 	link /machine:$(ARCH) /out:"$(OUTDIR)\XacRett.dll" $(LEXTRA) @<<
-  /nologo /dll /incremental:no /def:"XacRett.def" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib $(UNRARLIB) $(OBJS) "$(OBJDIR)\XacRett.res"
+  /nologo /dll /incremental:no /def:"XacRett.def" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib $(UNRARLIB) $(OBJS) "$(OBJDIR)\XacRett.res"
 <<
 
 # `link` is the explicit spelling of the same thing.

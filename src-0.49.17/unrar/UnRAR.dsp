@@ -1,24 +1,24 @@
 # Microsoft Developer Studio Project File - Name="UnRAR" - Package Owner=<4>
 # Microsoft Developer Studio Generated Build File, Format Version 6.00
-# ** 編集しないでください **
+# ** DO NOT EDIT **
 
 # TARGTYPE "Win32 (x86) Static Library" 0x0104
 
-CFG=UnRAR - Win32 Debug
-!MESSAGE これは有効なﾒｲｸﾌｧｲﾙではありません。 このﾌﾟﾛｼﾞｪｸﾄをﾋﾞﾙﾄﾞするためには NMAKE を使用してください。
-!MESSAGE [ﾒｲｸﾌｧｲﾙのｴｸｽﾎﾟｰﾄ] ｺﾏﾝﾄﾞを使用して実行してください
+CFG=UnRAR - Win32 Release
+!MESSAGE This is not a valid makefile. To build this project using NMAKE,
+!MESSAGE use the Export Makefile command and run
 !MESSAGE 
 !MESSAGE NMAKE /f "UnRAR.mak".
 !MESSAGE 
-!MESSAGE NMAKE の実行時に構成を指定できます
-!MESSAGE ｺﾏﾝﾄﾞ ﾗｲﾝ上でﾏｸﾛの設定を定義します。例:
+!MESSAGE You can specify a configuration when running NMAKE
+!MESSAGE by defining the macro CFG on the command line. For example:
 !MESSAGE 
-!MESSAGE NMAKE /f "UnRAR.mak" CFG="UnRAR - Win32 Debug"
+!MESSAGE NMAKE /f "UnRAR.mak" CFG="UnRAR - Win32 Release"
 !MESSAGE 
-!MESSAGE 選択可能なﾋﾞﾙﾄﾞ ﾓｰﾄﾞ:
+!MESSAGE Possible choices for configuration are:
 !MESSAGE 
-!MESSAGE "UnRAR - Win32 Release" ("Win32 (x86) Static Library" 用)
-!MESSAGE "UnRAR - Win32 Debug" ("Win32 (x86) Static Library" 用)
+!MESSAGE "UnRAR - Win32 Release" (based on "Win32 (x86) Static Library")
+!MESSAGE "UnRAR - Win32 Debug" (based on "Win32 (x86) Static Library")
 !MESSAGE 
 
 # Begin Project
@@ -40,8 +40,8 @@ RSC=rc.exe
 # PROP Output_Dir "Obj/Release"
 # PROP Intermediate_Dir "Obj/Release"
 # PROP Target_Dir ""
-# ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_MBCS" /D "_LIB" /YX /FD /c
-# ADD CPP /nologo /Gz /W3 /GX /O1 /D "WIN32" /D "NDEBUG" /D "_MBCS" /D "_LIB" /D "RARDLL" /D "SILENT" /D "UNRAR" /FR /FD /c
+# ADD BASE CPP /nologo /W3 /GX /O2 /I "unrar\vc6compat" /D "WIN32" /D "NDEBUG" /D "_MBCS" /D "_LIB" /YX /FD /c
+# ADD CPP /nologo /Gz /W3 /GX /O1 /I "vc6compat" /D "WIN32" /D "NDEBUG" /D "_MBCS" /D "_LIB" /D "RARDLL" /D "SILENT" /D "UNRAR" /D nullptr=NULL /FR /FD /c
 # ADD BASE RSC /l 0x411 /d "NDEBUG"
 # ADD RSC /l 0x411 /d "NDEBUG"
 BSC32=bscmake.exe
@@ -63,8 +63,8 @@ LIB32=link.exe -lib
 # PROP Output_Dir "Obj/Debug"
 # PROP Intermediate_Dir "Obj/Debug"
 # PROP Target_Dir ""
-# ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_MBCS" /D "_LIB" /YX /FD /GZ /c
-# ADD CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_MBCS" /D "_LIB" /D "RARDLL" /D "SILENT" /D "UNRAR" /FR /YX /FD /GZ /c
+# ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /I "unrar\vc6compat" /D "WIN32" /D "_DEBUG" /D "_MBCS" /D "_LIB" /YX /FD /GZ /c
+# ADD CPP /nologo /W3 /Gm /GX /ZI /Od /I "unrar\vc6compat" /D "WIN32" /D "_DEBUG" /D "_MBCS" /D "_LIB" /D "RARDLL" /D "SILENT" /D "UNRAR" /FR /YX /FD /GZ /c
 # ADD BASE RSC /l 0x411 /d "_DEBUG"
 # ADD RSC /l 0x411 /d "_DEBUG"
 BSC32=bscmake.exe
@@ -91,6 +91,11 @@ SOURCE=.\archive.cpp
 # Begin Source File
 
 SOURCE=.\arcread.cpp
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\blake2s.cpp
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
@@ -175,12 +180,20 @@ SOURCE=.\global.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\int64.cpp
-# SUBTRACT CPP /YX /Yc /Yu
+SOURCE=.\hash.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\headers.cpp
 # End Source File
 # Begin Source File
 
 SOURCE=.\isnt.cpp
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\largepage.cpp
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
@@ -195,6 +208,11 @@ SOURCE=.\match.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\motw.cpp
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
 SOURCE=.\options.cpp
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
@@ -205,7 +223,7 @@ SOURCE=.\pathfn.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\rar.cpp
+SOURCE=.\qopen.cpp
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
@@ -225,11 +243,6 @@ SOURCE=.\rdwrfn.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\recvol.cpp
-# SUBTRACT CPP /YX /Yc /Yu
-# End Source File
-# Begin Source File
-
 SOURCE=.\resource.cpp
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
@@ -240,12 +253,7 @@ SOURCE=.\rijndael.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\rs.cpp
-# SUBTRACT CPP /YX /Yc /Yu
-# End Source File
-# Begin Source File
-
-SOURCE=.\savepos.cpp
+SOURCE=.\rs16.cpp
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
@@ -255,7 +263,22 @@ SOURCE=.\scantree.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\secpassword.cpp
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
 SOURCE=.\sha1.cpp
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\sha256.cpp
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
+SOURCE=.\smallfn.cpp
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
@@ -275,12 +298,17 @@ SOURCE=.\system.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\threadpool.cpp
+# SUBTRACT CPP /YX /Yc /Yu
+# End Source File
+# Begin Source File
+
 SOURCE=.\timefn.cpp
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File
 
-SOURCE=.\ulinks.cpp
+SOURCE=.\ui.cpp
 # SUBTRACT CPP /YX /Yc /Yu
 # End Source File
 # Begin Source File

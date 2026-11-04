@@ -53,7 +53,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /dll /machine:I386
-# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /dll /machine:I386 /nodefaultlib:"libc.lib"
+# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib unrar/unrar.lib /nologo /dll /machine:I386 /nodefaultlib:"libc.lib"
 
 !ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
 
@@ -164,6 +164,18 @@ SOURCE=.\BooTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\BsaCodec.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\BsaDecode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\BsaTool.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\Bz2Tool.cpp
 # End Source File
 # Begin Source File
@@ -217,19 +229,6 @@ SOURCE=.\DgcTool.cpp
 # Begin Source File
 
 SOURCE=.\DgdDecode.cpp
-# End Source File
-
-# Begin Source File
-
-SOURCE=.\BsaCodec.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\BsaDecode.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\BsaTool.cpp
 # End Source File
 # Begin Source File
 
@@ -463,11 +462,11 @@ SOURCE=.\SqxPpmd.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\SqxUltra.cpp
+SOURCE=.\SqxTool.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\SqxTool.cpp
+SOURCE=.\SqxUltra.cpp
 # End Source File
 # Begin Source File
 
@@ -608,6 +607,18 @@ SOURCE=.\BooTool.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\BsaCodec.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\BsaDecode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\BsaTool.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\Bz2Tool.h
 # End Source File
 # Begin Source File
@@ -665,26 +676,6 @@ SOURCE=.\DgdDecode.h
 # Begin Source File
 
 SOURCE=.\DgdTool.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\BsaCodec.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\BsaDecode.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\BsaTool.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\OpenArchive\OpenBsa.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\OpenArchive\OpenBsa.h
 # End Source File
 # Begin Source File
 
@@ -816,6 +807,14 @@ SOURCE=.\MSCompressTool.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\OpenArchive\OpenBsa.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenBsa.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\PackzTool.h
 # End Source File
 # Begin Source File
@@ -868,11 +867,11 @@ SOURCE=.\SqxPpmd.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\SqxUltra.h
+SOURCE=.\SqxTool.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\SqxTool.h
+SOURCE=.\SqxUltra.h
 # End Source File
 # Begin Source File
 
@@ -2260,19 +2259,6 @@ SOURCE=.\lhasa\lh6_decoder.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\lhasa\lx1_decoder.c
-
-!IF  "$(CFG)" == "XacRett - Win32 Release"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
-
-!ENDIF 
-
-# End Source File
-# Begin Source File
-
 SOURCE=.\lhasa\lh7_decoder.c
 
 !IF  "$(CFG)" == "XacRett - Win32 Release"
@@ -2334,6 +2320,19 @@ SOURCE=.\lhasa\lhx_decoder.c
 # Begin Source File
 
 SOURCE=.\lhasa\lk7_decoder.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\lhasa\lx1_decoder.c
 
 !IF  "$(CFG)" == "XacRett - Win32 Release"
 
