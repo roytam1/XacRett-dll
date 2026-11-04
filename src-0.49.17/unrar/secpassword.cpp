@@ -84,7 +84,7 @@ void cleandata(void *data,size_t size)
 {
   if (data==nullptr || size==0)
     return;
-#if defined(_WIN_ALL) && defined(_MSC_VER) && (_MSC_VER >= 1400) /* VC6: no SecureZeroMemory (VC6_SZM) */
+#if defined(_WIN_ALL) && (defined(_MSC_VER) && (_MSC_VER >= 1400) && !defined(OLDSDK)) /* VC6: no SecureZeroMemory (VC6_SZM) */
   SecureZeroMemory(data,size);
 #else
   // 'volatile' is required. Otherwise optimizers can remove this function

@@ -762,13 +762,13 @@ public:
 #  define __value_type__      Value
 #  define __key_type__        Key
 # else
-#  define __iterator__        rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::iterator
-#  define __const_iterator__  rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::const_iterator
-#  define __link_type__       rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::link_type
-#  define __size_type__       rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::size_type
-#  define __base_ptr__        rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::base_ptr
-#  define __value_type__      rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::value_type
-#  define __key_type__        rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::key_type
+#  define __iterator__        typename rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::iterator
+#  define __const_iterator__  typename rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::const_iterator
+#  define __link_type__       typename rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::link_type
+#  define __size_type__       typename rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::size_type
+#  define __base_ptr__        typename rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::base_ptr
+#  define __value_type__      typename rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::value_type
+#  define __key_type__        typename rb_tree<Key, Value, KeyOfValue, Compare, Alloc>::key_type
 # endif
 
 # if ! defined (__STL_COMPILE_TEMPLATE_BODY_ONLY)

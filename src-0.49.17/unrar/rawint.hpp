@@ -82,7 +82,7 @@ inline void RawPut8(uint64 Field,void *Data)
 // Load 4 big endian bytes from memory and return uint32.
 inline uint32 RawGetBE4(const byte *m)
 {
-#if defined(USE_MEM_BYTESWAP) && defined(_MSC_VER) && (_MSC_VER >= 1400) /* VC6: no _byteswap_* */
+#if defined(USE_MEM_BYTESWAP) && defined(_MSC_VER) && (_MSC_VER >= 1400) && !defined(OLDSDK) /* VC6: no _byteswap_* */
   return _byteswap_ulong(*(uint32 *)m);
 #elif defined(USE_MEM_BYTESWAP) && (defined(__clang__) || defined(__GNUC__))
   return __builtin_bswap32(*(uint32 *)m);
@@ -95,7 +95,7 @@ inline uint32 RawGetBE4(const byte *m)
 // Load 8 big endian bytes from memory and return uint64.
 inline uint64 RawGetBE8(const byte *m)
 {
-#if defined(USE_MEM_BYTESWAP) && defined(_MSC_VER) && (_MSC_VER >= 1400) /* VC6: no _byteswap_* */
+#if defined(USE_MEM_BYTESWAP) && defined(_MSC_VER) && (_MSC_VER >= 1400) && !defined(OLDSDK) /* VC6: no _byteswap_* */
   return _byteswap_uint64(*(uint64 *)m);
 #elif defined(USE_MEM_BYTESWAP) && (defined(__clang__) || defined(__GNUC__))
   return __builtin_bswap64(*(uint64 *)m);
@@ -109,7 +109,7 @@ inline uint64 RawGetBE8(const byte *m)
 // Save integer to memory as big endian.
 inline void RawPutBE4(uint i,byte *mem)
 {
-#if defined(USE_MEM_BYTESWAP) && defined(_MSC_VER) && (_MSC_VER >= 1400) /* VC6: no _byteswap_* */
+#if defined(USE_MEM_BYTESWAP) && defined(_MSC_VER) && (_MSC_VER >= 1400) && !defined(OLDSDK) /* VC6: no _byteswap_* */
   *(uint32*)mem = _byteswap_ulong((uint32)i);
 #elif defined(USE_MEM_BYTESWAP) && (defined(__clang__) || defined(__GNUC__))
   *(uint32*)mem = __builtin_bswap32((uint32)i);
@@ -125,7 +125,7 @@ inline void RawPutBE4(uint i,byte *mem)
 // Save integer to memory as big endian.
 inline void RawPutBE8(uint64 i,byte *mem)
 {
-#if defined(USE_MEM_BYTESWAP) && defined(_MSC_VER) && (_MSC_VER >= 1400) /* VC6: no _byteswap_* */
+#if defined(USE_MEM_BYTESWAP) && defined(_MSC_VER) && (_MSC_VER >= 1400) && !defined(OLDSDK) /* VC6: no _byteswap_* */
   *(uint64*)mem = _byteswap_uint64(i);
 #elif defined(USE_MEM_BYTESWAP) && (defined(__clang__) || defined(__GNUC__))
   *(uint64*)mem = __builtin_bswap64(i);
@@ -144,7 +144,7 @@ inline void RawPutBE8(uint64 i,byte *mem)
 
 inline uint32 ByteSwap32(uint32 i)
 {
-#if defined(_MSC_VER) && (_MSC_VER >= 1400) /* VC6: no _byteswap_* (VC6_BYTESWAP) */
+#if defined(_MSC_VER) && (_MSC_VER >= 1400) && !defined(OLDSDK) /* VC6: no _byteswap_* (VC6_BYTESWAP) */
   return _byteswap_ulong(i);
 #elif defined(__clang__) || defined(__GNUC__)
   return  __builtin_bswap32(i);

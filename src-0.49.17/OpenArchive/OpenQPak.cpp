@@ -20,7 +20,8 @@ bool COpenQPak::Find_sub(INDIVIDUALINFO *lpSubInfo)
 	memcpy(&entry,&COpenQPak::common_buf[nowpos*sizeof(PakIndex)],sizeof(PakIndex));
 
 	lstrcpy(lpSubInfo->szFileName,entry.fname);
-	for(int i = 0;lpSubInfo->szFileName[i]!=0x00;i++);
+	int i = 0;
+	for(;lpSubInfo->szFileName[i]!=0x00;i++);
 
 	lpSubInfo->dwCompressedSize=(DWORD)(entry.size+i+8);
 	lpSubInfo->dwOriginalSize=(DWORD)entry.size;

@@ -28,7 +28,7 @@ void RemoveNameFromPath(std::wstring &Path);
 bool GetAppDataPath(std::wstring &Path,bool Create);
 void GetRarDataPath(std::wstring &Path,bool Create);
 #endif
-#if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6: SDK lacks PCIDLIST_ABSOLUTE (VC6_PCID) */
+#if (defined(_MSC_VER) && (_MSC_VER < 1500)) || defined(OLDSDK) /* VC6: SDK lacks PCIDLIST_ABSOLUTE (VC6_PCID) */
 #define PCIDLIST_ABSOLUTE LPCITEMIDLIST
 #endif
 #ifdef _WIN_ALL

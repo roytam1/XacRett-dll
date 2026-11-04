@@ -802,9 +802,15 @@ BoolInt CPU_IsSupported_PageGB(void)
 
 #include "7zWindows.h"
 
+#if defined(OLDSDK)
+BoolInt CPU_IsSupported_CRC32(void)  { return 0; }
+BoolInt CPU_IsSupported_CRYPTO(void) { return 0; }
+BoolInt CPU_IsSupported_NEON(void)   { return 0; }
+#else
 BoolInt CPU_IsSupported_CRC32(void)  { return IsProcessorFeaturePresent(PF_ARM_V8_CRC32_INSTRUCTIONS_AVAILABLE) ? 1 : 0; }
 BoolInt CPU_IsSupported_CRYPTO(void) { return IsProcessorFeaturePresent(PF_ARM_V8_CRYPTO_INSTRUCTIONS_AVAILABLE) ? 1 : 0; }
 BoolInt CPU_IsSupported_NEON(void)   { return IsProcessorFeaturePresent(PF_ARM_NEON_INSTRUCTIONS_AVAILABLE) ? 1 : 0; }
+#endif
 
 #else
 

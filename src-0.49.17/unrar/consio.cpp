@@ -35,7 +35,7 @@ void InitConsole()
   StdoutRedirected=IsRedirected(STD_OUTPUT_HANDLE);
   StderrRedirected=IsRedirected(STD_ERROR_HANDLE);
   StdinRedirected=IsRedirected(STD_INPUT_HANDLE);
-#if defined(_MSC_VER) && (_MSC_VER >= 1500) /* no _O_U16TEXT before VC8 (VC6_U16TEXT) */
+#if (defined(_MSC_VER) && (_MSC_VER >= 1500) && !defined(OLDSDK)) /* no _O_U16TEXT before VC8 (VC6_U16TEXT) */
   if (!StdoutRedirected)
     _setmode(_fileno(stdout), _O_U16TEXT);
   if (!StderrRedirected)

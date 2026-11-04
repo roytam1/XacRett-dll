@@ -55,7 +55,7 @@
 typedef ULONG DWORD_PTR; /* VC6: no basetsd.h (VC6_DWORDPTR) */
 #endif
 /* VC6: prsht.h needs NMHDR (absent from VC98 SDK); unused by unrar, dropped */
-#if !defined(_MSC_VER) || (_MSC_VER >= 1200)
+#if (!defined(_MSC_VER) || (_MSC_VER >= 1200)) && !defined(OLDSDK)
 #include <shlwapi.h>
 #pragma comment(lib, "Shlwapi.lib")
 #endif
@@ -69,19 +69,19 @@ typedef ULONG DWORD_PTR; /* VC6: no basetsd.h (VC6_DWORDPTR) */
 #include <winioctl.h>
 #include <wincrypt.h>
 #include <wchar.h>
-#if !defined(_MSC_VER) || (_MSC_VER >= 1200)
+#if (!defined(_MSC_VER) || (_MSC_VER >= 1200) && !defined(OLDSDK))
 #include <wctype.h>
 #endif
 /* VC4: towupper/towlower are _UNIX-only here; _WIN_ALL uses CharUpper. */
 #include <Sddl.h>
-#if !defined(_MSC_VER) || (_MSC_VER >= 1200)
+#if (!defined(_MSC_VER) || (_MSC_VER >= 1200) && !defined(OLDSDK))
 #include <ntsecapi.h>
 #endif
 /* VC4: LSA_* is largepage-only under ALLOW_LARGE_PAGES (!RARDLL). */
 
 
 // For WMI requests.
-#if !defined(_MSC_VER) || (_MSC_VER >= 1200)
+#if (!defined(_MSC_VER) || (_MSC_VER >= 1200) && !defined(OLDSDK))
 #include <comdef.h>
 #include <Wbemidl.h>
 #endif

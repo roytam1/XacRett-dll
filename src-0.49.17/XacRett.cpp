@@ -184,8 +184,8 @@ enum { NOT_A_FILE, UNSUPPORTED, FAILED };
 #define DATALOADSIZE (65536*4)
 
 static unsigned char* g_pWorkSpace = NULL;
-static  HINSTANCE Instance = 0;//DLLハンドル
-static bRunning = false;//動作中のフラグ
+static HINSTANCE Instance = 0;//DLLハンドル
+static bool bRunning = false;//動作中のフラグ
 
 int ArcNameToNum(LPCSTR arckind );
 int MeltArchive(LPCSTR lpArchiveName , LPCSTR lpBaseDir ,std::vector<std::string>* wildcard,CSplitCmdLine* scd);

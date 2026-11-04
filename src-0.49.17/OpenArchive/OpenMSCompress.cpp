@@ -66,7 +66,8 @@ bool COpenMSCompress::GetLzFileName(LPSTR buf)
 		return true;
 	}
 	//Ž¸”s‚µ‚½‚È‚çŽ©•ª‚Å‚â‚ç‚È‚«‚á¥¥¥0x5C='\'
-	for(int i = FNAME_MAX32 + 1;str[i]!=0x5C;--i);
+	int i = FNAME_MAX32 + 1;
+	for(;str[i]!=0x5C;--i);
 	lstrcpy(buf2,&str[i+1]);
 	for(i = 0;buf2[i]!=0x00;i++);
 	if (buf2[i-1] = '_')

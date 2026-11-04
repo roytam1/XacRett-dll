@@ -122,7 +122,16 @@ void GetRnd(byte *RndBuf,size_t BufSize)
 {
   bool Success=false;
 #if defined(_WIN_ALL)
-#if defined(_MSC_VER) && (_MSC_VER < 1200)
+#if (defined(_MSC_VER) && (_MSC_VER < 1200) || defined(OLDSDK))
+#ifndef HCRYPTPROV
+#define HCRYPTPROV ULONG_PTR
+#endif
+#ifndef PROV_RSA_FULL
+#define PROV_RSA_FULL 1
+#endif
+#ifndef CRYPT_VERIFYCONTEXT
+#define CRYPT_VERIFYCONTEXT 0xF0000000
+#endif
   /* VC4 links no CryptoAPI import library (pre-CAPI SDK); resolve
      the three entry points at runtime like secpassword.cpp does
      for the newer ones.  No provider falls through to the

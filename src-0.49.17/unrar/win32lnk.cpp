@@ -1,10 +1,10 @@
 /* VC6: SDK REPARSE_DATA_BUFFER lacks Flags; use upstream layout renamed (VC6_REPARSE) */
-#if defined(_MSC_VER) && (_MSC_VER < 1500)
+#if (defined(_MSC_VER) && (_MSC_VER < 1500) || defined(OLDSDK))
 #ifndef IO_REPARSE_TAG_SYMLINK
 #define IO_REPARSE_TAG_SYMLINK (0xA000000C)
 #endif
 #endif
-#if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6 SDK lacks it (VC6_PRIV) */
+#if (defined(_MSC_VER) && (_MSC_VER < 1500) || defined(OLDSDK)) /* VC6 SDK lacks it (VC6_PRIV) */
 #ifndef SE_CREATE_SYMBOLIC_LINK_NAME
 #define SE_CREATE_SYMBOLIC_LINK_NAME TEXT("SeCreateSymbolicLinkPrivilege")
 #endif

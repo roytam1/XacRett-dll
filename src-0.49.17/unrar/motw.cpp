@@ -17,7 +17,7 @@ Where ZoneId can be:
 */
 
 MarkOfTheWeb::MarkOfTheWeb()
-#if defined(_MSC_VER) && (_MSC_VER < 1500) /* VC6: no NSDMI */
+#if (defined(_MSC_VER) && (_MSC_VER < 1500) || defined(OLDSDK)) /* VC6: no NSDMI */
   : MOTW_STREAM_MAX_SIZE(1024), MOTW_STREAM_NAME(L":Zone.Identifier")
 #endif
 {

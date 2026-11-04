@@ -108,7 +108,8 @@ void CCptTool::ReadFileHdr(BYTE* hdr)
 		foldersize = ((hdr[33]<<8)|hdr[34]);
 	}else{
 		lstrcpy(FileName,path);
-		for(int i = 0;FileName[i]!=0x00;i++);
+		int i = 0;
+		for(;FileName[i]!=0x00;i++);
 		memcpy(&FileName[i],hdr+1,hdr[0]);
 		FileName[ hdr[0]+i ]=0;
 

@@ -818,7 +818,7 @@ bool __deque_iterator<T, Ref, Ptr, BufSize>::nonsingular(const __safe_server* o 
 #   define size_type              size_t
 #   define value_type             T
 # else
-#  define __iterator__           deque<T, Alloc, BufSize>::iterator
+#  define __iterator__           typename deque<T, Alloc, BufSize>::iterator
 # endif
 
 // Non-inline member functions

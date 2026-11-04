@@ -216,7 +216,7 @@
 // <NBulteau@jouve.fr> : suppressed "truncated debug info" warning
 #   pragma warning(disable:4786)
 
-#   if ( _MSC_VER<=1010 )
+#   if ( _MSC_VER<=1010 || defined(OLDSDK) )
 // "bool" is reserved in MSVC 4.1 while <yvals.h> absent, so :
 #    define __STL_RESERVED_BOOL_KEYWORD 1
 #    define __STL_USE_ABBREVS           1

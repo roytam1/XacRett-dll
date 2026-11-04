@@ -39,7 +39,8 @@ bool COpenGz::FindFirst(INDIVIDUALINFO *lpSubInfo)
 			0==stricmp(kiutil::pathExt(COpenGz::szArcFileName),"gz") ? NULL : "ungzip" );
 		lstrcpy(lpSubInfo->szFileName,outname );
 
-		for (int i =0 ; lpSubInfo->szFileName[i]!=0;i++);
+		int i=0;
+		for (; lpSubInfo->szFileName[i]!=0;i++);
 		if (i <FNAME_MAX32-7)
 			lstrcpy(&lpSubInfo->szFileName[i],".ungzip");
 		else if (i <FNAME_MAX32-1)

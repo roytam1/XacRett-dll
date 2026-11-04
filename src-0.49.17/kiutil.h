@@ -1,6 +1,7 @@
 #ifndef AFX_KIUTIL_H__D2E1F380_468E_11D3_8D94_ECF8CA9E4339__INCLUDED_
 #define AFX_KIUTIL_H__D2E1F380_468E_11D3_8D94_ECF8CA9E4339__INCLUDED_
 
+#include <stdio.h>
 // ちょっと便利かも知れない関数群「kiutil」
 //
 // VC++ のツリーでひとまとめで表示させるためにクラス化

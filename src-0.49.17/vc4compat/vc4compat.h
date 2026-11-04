@@ -35,10 +35,10 @@
 #include <ole2.h>
 #include <objidl.h>
 
-#if defined(_MSC_VER) && (_MSC_VER < 1200)
+#if (defined(_MSC_VER) && (_MSC_VER < 1200) || defined(OLDSDK))
 
 #ifndef bool
-#define bool  unsigned char
+#define bool  int
 #endif
 #ifndef true
 #define true  1
@@ -119,7 +119,9 @@ typedef DWORD EXECUTION_STATE;
 #else
 /* no shlwapi here by design - see the note above */
 #endif
+#endif /* _MSC_VER < 1200 */
 
+#if (defined(_MSC_VER) && (_MSC_VER < 1200) || defined(OLDSDK))
 /* STLport v2 needs bool to exist before it will parse at all.  These are
  * the headers the tree actually pulls in.  C++ only: the .c files
  * are force-included with this header too, and C has no namespaces
@@ -136,6 +138,6 @@ typedef DWORD EXECUTION_STATE;
 #include <new>
 #include <stdexcept>
 #endif /* __cplusplus */
-
 #endif /* _MSC_VER < 1200 */
+
 #endif /* VC4COMPAT_H */

@@ -18,7 +18,7 @@
 
 #include "mem.h"
 
-#if defined(_MSC_VER) && (_MSC_VER >= 1400) /* VC6 port: no intrin.h */
+#if (defined(_MSC_VER) && (_MSC_VER >= 1400)) && !defined(OLDSDK) /* VC6 port: no intrin.h */
 #include <intrin.h>
 #endif
 

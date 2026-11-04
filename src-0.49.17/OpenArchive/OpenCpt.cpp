@@ -29,7 +29,8 @@ bool COpenCpt::Find_sub(INDIVIDUALINFO *lpSubInfo)
 		return Find_sub(lpSubInfo);
 	}
 	lstrcpy(lpSubInfo->szFileName,path);
-	for(int i = 0;lpSubInfo->szFileName[i]!=0x00;i++);
+	int i = 0;
+	for(;lpSubInfo->szFileName[i]!=0x00;i++);
 
 	memcpy(&lpSubInfo->szFileName[i],hdr+1,hdr[0]);
 	lpSubInfo->szFileName[ hdr[0]+i ]=0;

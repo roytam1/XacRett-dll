@@ -25,7 +25,8 @@ bool COpenJak::FindFirst(INDIVIDUALINFO *lpSubInfo)
 	lpSubInfo->dwOriginalSize = pHead->FileSize;
 	COpenJak::OriginalSize = pHead->FileSize;
 
-	for(int j = 0;COpenJak::szArcFileName[j]!=0;j++);
+	int j = 0;
+	for(;COpenJak::szArcFileName[j]!=0;j++);
 	for(;COpenJak::szArcFileName[j]!='\\';j--);
 	lstrcpy(COpenJak::basedir,COpenJak::szArcFileName);
 	COpenJak::basedir[j+1]=0;

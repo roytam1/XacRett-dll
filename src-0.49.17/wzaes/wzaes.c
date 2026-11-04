@@ -34,6 +34,15 @@
 #ifndef CRYPT_SILENT
 #define CRYPT_SILENT 0x00000040
 #endif
+#ifndef HCRYPTPROV
+#define HCRYPTPROV ULONG_PTR
+#endif
+#ifndef PROV_RSA_FULL
+#define PROV_RSA_FULL 1
+#endif
+#ifndef CRYPT_VERIFYCONTEXT
+#define CRYPT_VERIFYCONTEXT 0xF0000000
+#endif
 /* Resolve advapi32 at runtime so ordinary Win32 builds don't need to add
  * an import library just to gain the built-in AES feature. */
 typedef BOOL (WINAPI *iz_acquire_fn)(HCRYPTPROV *, LPCSTR, LPCSTR, DWORD,

@@ -160,6 +160,9 @@ uint GetNumberOfCPU()
 #endif
 
   /* VC6/retro: GetProcessAffinityMask may be missing, assume 1 CPU then (VC6_GPA). */
+#ifndef DWORD_PTR
+#define DWORD_PTR ULONG_PTR
+#endif
   typedef BOOL (WINAPI *GPAFUNC)(HANDLE,DWORD_PTR*,DWORD_PTR*); /* GetProcessAffinityMask takes two pointers */
   HMODULE hKrnl=GetModuleHandle(L"kernel32.dll");
   GPAFUNC pGpa=hKrnl==NULL ? NULL : (GPAFUNC)GetProcAddress(hKrnl,"GetProcessAffinityMask");

@@ -28,7 +28,7 @@ bool COpenRar::FindNext(INDIVIDUALINFO *lpSubInfo)
 
 bool COpenRar::FindSub(INDIVIDUALINFO *lpSubInfo)
 {
-	static bNeedNextVol=false;
+	static bool bNeedNextVol=false;
 	static bool bFirstVol=true,bFirstFile=true;
 
 	int Size=ReadBlock(FILE_HEAD|READSUBBLOCK);

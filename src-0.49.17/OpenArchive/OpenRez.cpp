@@ -62,7 +62,8 @@ bool COpenRez::FindNext(INDIVIDUALINFO *lpSubInfo)
 	WIN32_FIND_DATA find;
 	char FileName[512+1];
 
-	for(int j = 0;COpenRez::szArcFileName[j]!=0;j++);
+	int j = 0;
+	for(;COpenRez::szArcFileName[j]!=0;j++);
 	for(;COpenRez::szArcFileName[j]!='\\';j--);
 	lstrcpy(FileName,COpenRez::szArcFileName);
 	for(int k = 0;lpSubInfo->szFileName[k]!=0;FileName[++j]=lpSubInfo->szFileName[k],k++);
