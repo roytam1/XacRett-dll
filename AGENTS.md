@@ -1601,9 +1601,11 @@ Literals: 2 planes x 256 prev-byte contexts, each a 17 x 16-symbol
 nibble model (`hi = RC(16)`, `byte = 16*hi + RC(lo[hi])`; plane 0 after
 a literal, plane 1 after a match). After any match the prev-byte
 context reloads as `dict[(curr-pos - dist) & mask]` (the next source
-byte, NOT the last output byte); a solid archive keeps only the
-probability models across members (MRU, distances, state, prev byte and
-dict position reset per file, like the reference).
+byte, NOT the last output byte); a solid archive keeps the probability models across members (MRU,
+distances, state, prev byte) AND the dictionary position -- the
+window position continues across solid members (matches the LZH
+path and the original UnSqueez.exe); only the per-member range
+coder state and repeat queues reset per file.
 
 Traps, all real:
 - **the `*_ultra.sqx` file names lie for small files.** The Squeez

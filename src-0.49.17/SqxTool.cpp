@@ -237,6 +237,10 @@ bool CSqxTool::Extract( const char* fname, const char* ddir )
 	
 	if( ArcStruct.outfile != OS_INVALID_FILE )
 		os_close(ArcStruct.outfile);
+	if( ArcStruct.ArchiveStatus != SQX_EC_OK &&
+	    ArcStruct.iIgnoreWrite == OPTION_NONE && szOutFName[0] )
+		DeleteFile(szOutFName);
+
 	
 	if( ArcStruct.arcfile != OS_INVALID_FILE )
 		os_close(ArcStruct.arcfile);

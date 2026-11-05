@@ -87,6 +87,8 @@ struct SqxUltraSession
 	UBYTE *window;         /* dictionary window, dic bytes */
 	UWORD32 dic;
 	UWORD32 curr_pos;
+	UWORD32 write_pos;
+	int stream_started;   /* a member of this archive was already decoded */
 	int ready;
 	/* binary models: is_match[4][4][4] and is_rep[4][4] (f0,f1,tot) */
 	UWORD32 im_f0[4][4][4], im_f1[4][4][4], im_tot[4][4][4];
@@ -373,8 +375,11 @@ static void UltraFlush(SqxUltraSession *s, UWORD32 *wpos)
 /* ---- the symbol loop (reference sub_40D8B1).
    Returns 1 when exactly usz bytes were produced, 0 on a corrupt
    stream (or when the output path reports an error). Every iteration
-   emits at least one byte or fails, so the loop always terminates. */
-static int UltraDecodeBody(SqxUltraSession *s, UWORD32 usz)
+   emits at least one byte or fails, so the loop always terminates.
+   A solid member continues the window position of the previous
+   member (the dictionary state carries over, like the LZH path);
+   a non-solid member starts at position 0. */
+static int UltraDecodeBody(SqxUltraSession *s, UWORD32 usz, int solid)
 {
 	UWORD32 dist_mru[4];
 	UWORD32 last_len, last_dist_m1, state, prev_state, prev_byte, cur_dist;
@@ -385,7 +390,13 @@ static int UltraDecodeBody(SqxUltraSession *s, UWORD32 usz)
 	last_len = 0; last_dist_m1 = 0;
 	state = 0; prev_state = 0;
 	prev_byte = 0; cur_dist = 1;
-	s->curr_pos = 0; write_pos = 0;
+	if( !solid || !s->stream_started )
+	{
+		s->curr_pos = 0;
+		s->write_pos = 0;
+		s->stream_started = 1;
+	}
+	write_pos = s->write_pos;
 	remaining = usz; decoded = 0;
 
 	while( remaining > 0 && ArcStruct.ArchiveStatus == SQX_EC_OK )
@@ -590,6 +601,7 @@ static int UltraDecodeBody(SqxUltraSession *s, UWORD32 usz)
 	}
 
 	UltraFlush(s, &write_pos);
+	s->write_pos = write_pos;
 	return (remaining == 0 && ArcStruct.ArchiveStatus == SQX_EC_OK) ? 1 : 0;
 }
 
@@ -674,7 +686,12 @@ int SqxUnUltra(unsigned long dicSize, int solid, unsigned long compFlags)
 			ArcStruct.ArchiveStatus = SQX_EC_OUT_OF_MEMORY;
 			return 0;
 		}
+		/* fresh window: zero it and drop any stream position carried over */
+		memset(g_su.window, 0, dicSize);
 		g_su.dic = (UWORD32)dicSize;
+		g_su.curr_pos = 0;
+		g_su.write_pos = 0;
+		g_su.stream_started = 0;
 	}
 
 	UltraBitsInit(&g_su, comp, csz);
@@ -684,7 +701,7 @@ int SqxUnUltra(unsigned long dicSize, int solid, unsigned long compFlags)
 	for( i = 0; i < 4; i++ )
 		g_su.rCode = (g_su.rCode << 8) | UltraBitsGet(&g_su, 8);
 
-	if( !UltraDecodeBody(&g_su, usz) )
+	if( !UltraDecodeBody(&g_su, usz, solid) )
 	{
 		free(comp);
 		if( ArcStruct.ArchiveStatus == SQX_EC_OK )

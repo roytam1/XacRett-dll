@@ -702,11 +702,12 @@ void ExtractArcFile(ARC_NODE *ALNode)
 		SqxUnPpmd();
 	else if( ALNode->lMethod == SQX_C1_EX_GOOD && ALNode->lVersion >= 20 )
 	{
-		/* Ultra (method 7) is SQX 2.0 only; the dictionary is 8MB<<idx
-		   when the extended flag (bit 11) is set, else 32KB<<idx. */
-		unsigned long uIdx = (((unsigned long)ALNode->lFlags >> 8) & 15UL);
-		unsigned long uDic = (ALNode->lFlags & 0x0800)
-			? (0x800000UL << uIdx) : (0x8000UL << uIdx);
+		/* Ultra (method 7) is SQX 2.0 only. The dictionary is 32KB<<idx;
+		   when the 2.0 extended flag (bit 11) is set it doubles as idx
+		   bit 3, giving 8MB<<(idx&7) -- one uniform shift, same as the
+		   LZH path below. */
+		unsigned long uDic = (unsigned long)1 <<
+			((((unsigned long)ALNode->lFlags >> 8) & 15UL) + 15UL);
 		SqxUnUltra(uDic, (ALNode->lFlags & SQX_SOLID_FILE_FLAG) != 0,
 			(unsigned long)ALNode->lCompFlags);
 	}
