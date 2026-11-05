@@ -15,6 +15,11 @@
 #endif
 #endif
 
+#ifdef _ARM_
+#define NO_snprintf
+#define NO_vsnprintf
+#endif
+
 /* Local functions */
 local void gz_reset OF((gz_statep));
 local gzFile gz_open OF((const void *, int, const char *));

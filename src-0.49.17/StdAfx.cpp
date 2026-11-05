@@ -21,3 +21,10 @@ void LastErrorMsg()
 	LocalFree(lpMsgBuf);
 }
 
+#ifdef _ARM_
+extern "C"
+void __std_terminate()
+{
+    abort();
+}
+#endif
