@@ -15,9 +15,8 @@
 #endif
 #endif
 
-#ifdef _ARM_
-#define NO_snprintf
-#define NO_vsnprintf
+#ifdef _MSC_VER
+#define snprintf _snprintf
 #endif
 
 /* Local functions */
