@@ -285,7 +285,8 @@ typedef struct {
 #define ARCHIVETYPE_CPIOXZ	78
 #define ARCHIVETYPE_CPIOZST	79
 #define ARCHIVETYPE_BSA	80
+#define ARCHIVETYPE_UHA	81
 
-#define NUM_ARCHIVETYPE		80
+#define NUM_ARCHIVETYPE		81
 
 #endif

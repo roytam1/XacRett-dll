@@ -176,6 +176,22 @@ SOURCE=.\BsaTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\UhaTool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaCrypt.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDecode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDec0.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\Bz2Tool.cpp
 # End Source File
 # Begin Source File
@@ -619,6 +635,22 @@ SOURCE=.\BsaTool.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\UhaTool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaCrypt.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDecode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDec0.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\Bz2Tool.h
 # End Source File
 # Begin Source File
@@ -811,7 +843,15 @@ SOURCE=.\OpenArchive\OpenBsa.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\OpenArchive\OpenUha.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\OpenArchive\OpenBsa.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenUha.h
 # End Source File
 # Begin Source File
 

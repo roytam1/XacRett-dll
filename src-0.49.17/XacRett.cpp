@@ -160,6 +160,8 @@ using namespace std;   //こいつを入れないと使えません。
 
 #include "BsaTool.h"
 #include "OpenArchive\OpenBsa.h"
+#include "UhaTool.h"
+#include "OpenArchive\OpenUha.h"
 #include "OpenArchive\OpenDummy.h"//未対応用のダミー
 
 #ifndef _DEBUG
@@ -726,6 +728,10 @@ void DllSub(void)//ロードする
 
 	t=t->AddTail( new CBsaTool );
 	o=o->AddTail( new COpenBsa);
+	ArchiveListMap[t]=o;
+
+	t=t->AddTail( new CUhaTool );
+	o=o->AddTail( new COpenUha);
 	ArchiveListMap[t]=o;
 
 	g_pToolList->Msg=RegisterWindowMessage(WM_ARCEXTRACT);
@@ -1350,6 +1356,8 @@ int ArcNameToNum(LPCSTR buffer )
 		return ARCHIVETYPE_DGD;
 	else if (lstrcmp(buffer,"BSA/BSN Extract")==0)
 		return ARCHIVETYPE_BSA;
+	else if (lstrcmp(buffer,"Uha Extract")==0)
+		return ARCHIVETYPE_UHA;
 	else
 		return ARCHIVETYPE_UNKNOWN ;
 }

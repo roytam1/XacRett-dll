@@ -1,0 +1,23 @@
+UHARC (0.2-0.6) — clean-room port for XacRett.dll
+==================================================
+
+Provenance: written from FORMAT.md in the sibling `unuharc/` project
+(four binary reversals: Uharc02.exe, uharc_u.exe, UHARC04.EXE and
+UNUHARC06.EXE). No source from that project is copied here; its
+`uharc06_unpack.exe` is used only as a byte-exact oracle.
+
+Layout:
+
+  UhaCrypt.h/.cpp   header byte cipher + table S-box ciphers (0.2 own,
+                    0.3/0.4/0.6 shared, incl. -pw password form)
+  UhaDecode.h/.cpp  container: header parse, table decompress via the
+                    core layer, directory (backward size deltas),
+                    solid-stream split + per-file CRC32 verify
+  UhaDec0.h/.cpp    cores 0 STORE + 1 RLE (+ bit/byte pump)
+  UhaDec2.h/.cpp    core 2: MSB (0.6) + LSB (0.2/0.3/0.4) Huffman/LZW
+  UhaDec3.h/.cpp    core 3: ALZ/PPM, four version-specific coders
+  UhaDec4.h/.cpp    core 4: LZP/PPM (methods 22-39, version-specific)
+  UhaDec5.h/.cpp    core 5: PPM2/LZW (methods 36-87, version-specific)
+
+All code is C89-compatible, ASCII-only (SJIS-safe), no dependencies
+beyond the CRT; decoder state is per-instance.
