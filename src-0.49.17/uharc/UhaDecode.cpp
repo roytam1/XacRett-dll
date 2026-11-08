@@ -11,6 +11,7 @@
 #include "UhaCrypt.h"
 #include "UhaDec0.h"
 #include "UhaDec2.h"
+#include "UhaDec3.h"
 
 static unsigned long uha_crc_tab[256];
 static int uha_crc_ready = 0;
@@ -147,6 +148,25 @@ static int uha_decode_table(int method, int ver,
 	{
 		rc = UhaDec2(method, 1, uha_mem_read, &mr,
 			uha_out_write, &bw, dlen);
+		if( rc != 0 )
+		{
+			free(bw.b);
+			return rc == 2 ? 2 : (rc == 3 ? 7 : 5);
+		}
+	}
+	else if( method == 17 && ver == 6 )
+	{
+		void* ctx;
+		int irc;
+		irc = UhaDec3_06Init(&ctx, 17);
+		if( irc != 0 )
+		{
+			free(bw.b);
+			return irc == 2 ? 2 : 7;
+		}
+		rc = UhaDec3_06(ctx, NULL, 0, uha_mem_read, &mr,
+			uha_out_write, &bw, dlen);
+		UhaDec3_06Free(ctx);
 		if( rc != 0 )
 		{
 			free(bw.b);
@@ -503,6 +523,287 @@ static int uha02_open(const unsigned char* img, unsigned long flen,
 	return 0;
 }
 
+/* ---------- 0.6 header ---------- */
+typedef struct Uha06Hdr
+{
+	unsigned ndirs;
+	unsigned long total_unpacked;
+	unsigned long data_off;
+	unsigned long nfiles;
+	unsigned long tab1_dec;
+	unsigned long tab1_cmp;
+	unsigned long tab2_cmp;
+	unsigned tab1_crc;
+	unsigned tab2_crc;
+} Uha06Hdr;
+
+static int uha06_parse(const unsigned char raw[39], Uha06Hdr* h,
+	UhaArchive* arc)
+{
+	unsigned char b[39];
+	unsigned long crc;
+	memcpy(b, raw, 39);
+	UhaHeaderDecrypt(b, 31, b[37]);
+	crc = uha_crc_update(0xFFFFFFFFUL, b + 4, 31);
+	if( ((~crc & 0xFFFFUL)) != rd16le(b + 37) )
+		return 5;
+	arc->method = b[10];
+	arc->exe_filter = (b[9] & 1) ? 1 : 0;
+	arc->mm_filter = (b[9] & 2) ? 1 : 0;
+	arc->pw_tables = (b[8] & 4) ? 1 : 0;
+	arc->pw_stream = (b[8] & 2) ? 1 : 0;
+	h->ndirs = rd16le(b + 11);
+	h->total_unpacked = rd32le(b + 13);
+	h->data_off = rd32le(b + 17);
+	h->nfiles = rd24le(b + 21);
+	h->tab1_dec = rd24le(b + 24);
+	h->tab1_cmp = rd24le(b + 27);
+	h->tab2_cmp = rd24le(b + 30);
+	h->tab1_crc = rd16le(b + 33);
+	h->tab2_crc = rd16le(b + 35);
+	if( h->nfiles > UHA_MAX_FILES )
+		return 7;
+	return 0;
+}
+
+static int uha06_open(const unsigned char* img, unsigned long flen,
+	const char* pwd, UhaArchive* arc)
+{
+	Uha06Hdr h;
+	unsigned char* tab[3];
+	unsigned long tablen[3];
+	unsigned long crc;
+	unsigned long tab0_off, tab1_off, tab2_off;
+	unsigned long end;
+	unsigned long i, k;
+	int rc;
+
+	if( flen < 39 )
+		return 7;
+	rc = uha06_parse(img, &h, arc);
+	if( rc != 0 )
+		return rc;
+	arc->ver = 6;
+	arc->hdr_size = 39;
+	arc->total_unpacked = h.total_unpacked;
+	arc->packed_len = h.data_off;
+	if( arc->pw_tables )
+	{
+		if( !pwd || !*pwd )
+			return 8;
+	}
+	tab0_off = 39 + h.data_off;
+	tab1_off = tab0_off + 4 * h.nfiles;
+	tab2_off = tab1_off + h.tab1_cmp;
+	end = tab2_off + h.tab2_cmp;
+	if( end > flen )
+		return 7;
+
+	tab[0] = 0; tab[1] = 0; tab[2] = 0;
+	/* tab0: STORE, still encrypted with the table cipher (6.2;
+	 * password form when pw_tables is set). */
+	{
+		UhaSBox sb;
+		UhaSBoxInit(&sb, arc->pw_tables ? pwd : NULL, 0);
+		if( 4 * h.nfiles )
+		{
+			tab[0] = (unsigned char*)malloc(4 * h.nfiles);
+			if( !tab[0] )
+				return 2;
+			memcpy(tab[0], img + tab0_off, 4 * h.nfiles);
+			UhaSBoxUpdate(&sb, tab[0], 4 * h.nfiles);
+		}
+		tablen[0] = 4 * h.nfiles;
+	}
+	{
+		unsigned char* c;
+		UhaSBox sb;
+		c = (unsigned char*)malloc(h.tab1_cmp ? h.tab1_cmp : 1);
+		if( !c )
+		{
+			uha_free_tables(tab, 3);
+			return 2;
+		}
+		memcpy(c, img + tab1_off, h.tab1_cmp);
+		UhaSBoxInit(&sb, arc->pw_tables ? pwd : NULL, 0);
+		UhaSBoxUpdate(&sb, c, h.tab1_cmp);
+		crc = 0xFFFFFFFFUL;
+		if( tablen[0] )
+			crc = uha_crc_update(crc, tab[0], tablen[0]);
+		rc = uha_decode_table(17, 6, c, h.tab1_cmp, h.tab1_dec,
+			&tab[1], &tablen[1], &crc);
+		free(c);
+		if( rc != 0 )
+		{
+			uha_free_tables(tab, 3);
+			return rc;
+		}
+		if( ((~crc & 0xFFFFUL)) != h.tab1_crc )
+		{
+			uha_free_tables(tab, 3);
+			return 5;
+		}
+		c = (unsigned char*)malloc(h.tab2_cmp ? h.tab2_cmp : 1);
+		if( !c )
+		{
+			uha_free_tables(tab, 3);
+			return 2;
+		}
+		memcpy(c, img + tab2_off, h.tab2_cmp);
+		UhaSBoxInit(&sb, arc->pw_tables ? pwd : NULL, 0);
+		UhaSBoxUpdate(&sb, c, h.tab2_cmp);
+		crc = 0xFFFFFFFFUL;
+		rc = uha_decode_table(17, 6, c, h.tab2_cmp, 11 * h.nfiles,
+			&tab[2], &tablen[2], &crc);
+		free(c);
+		if( rc != 0 )
+		{
+			uha_free_tables(tab, 3);
+			return rc;
+		}
+		if( ((~crc & 0xFFFFUL)) != h.tab2_crc )
+		{
+			uha_free_tables(tab, 3);
+			return 5;
+		}
+	}
+	/* entries: tab1 = dirs + names; tab2 planes time/date/dir/size/method */
+	arc->entries = (UhaEntry*)calloc(h.nfiles ? h.nfiles : 1,
+		sizeof(UhaEntry));
+	if( !arc->entries )
+	{
+		uha_free_tables(tab, 3);
+		return 2;
+	}
+	arc->nfiles = h.nfiles;
+	{
+		unsigned long* diroffs = 0;
+		unsigned long p1, dirs_bytes, strs_bytes;
+		char* pool;
+		if( h.ndirs )
+		{
+			diroffs = (unsigned long*)malloc(sizeof(unsigned long) * h.ndirs);
+			if( !diroffs )
+			{
+				uha_free_tables(tab, 3);
+				UhaClose(arc);
+				return 2;
+			}
+		}
+		p1 = 0; dirs_bytes = 0; strs_bytes = 0;
+		for( k = 0; k < h.ndirs; k++ )
+		{
+			unsigned l;
+			if( p1 >= h.tab1_dec ) break;
+			l = tab[1][p1++];
+			if( p1 + l > h.tab1_dec ) break;
+			p1 += l;
+			dirs_bytes += l + 1;
+		}
+		for( i = 0; i < h.nfiles; i++ )
+		{
+			unsigned l;
+			if( p1 >= h.tab1_dec ) break;
+			l = tab[1][p1++];
+			if( p1 + l > h.tab1_dec ) break;
+			p1 += l;
+			strs_bytes += l + 1;
+		}
+		pool = (char*)malloc(dirs_bytes + strs_bytes + h.nfiles * 260 + 1024);
+		if( !pool )
+		{
+			free(diroffs);
+			uha_free_tables(tab, 3);
+			UhaClose(arc);
+			return 2;
+		}
+		p1 = 0;
+		{
+			unsigned long p2 = 0;
+			for( k = 0; k < h.ndirs; k++ )
+			{
+				unsigned l = tab[1][p1++];
+				diroffs[k] = p2;
+				memcpy(pool + p2, tab[1] + p1, l);
+				pool[p2 + l] = 0;
+				p1 += l; p2 += l + 1;
+			}
+		}
+		{
+			char* sp = pool + dirs_bytes;
+			unsigned long prev_sz = 0;
+			p1 = 0;
+			for( k = 0; k < h.ndirs; k++ )
+			{
+				unsigned l = tab[1][p1++];
+				p1 += l;
+			}
+			for( i = 0; i < h.nfiles; i++ )
+			{
+				UhaEntry* e = &arc->entries[i];
+				unsigned l = tab[1][p1++];
+				unsigned tt, dd, w0;
+				unsigned long var, sz;
+				memcpy(sp, tab[1] + p1, l);
+				sp[l] = 0;
+				p1 += l;
+				strncpy(e->name, sp, sizeof(e->name) - 1);
+				e->name[sizeof(e->name) - 1] = 0;
+				tt = rd16le(tab[2] + 2 * i);
+				dd = rd16le(tab[2] + 2 * h.nfiles + 2 * i);
+				w0 = (unsigned)(tab[2][4 * h.nfiles + i] |
+					(tab[2][5 * h.nfiles + i] << 8));
+				var = (unsigned long)(tab[2][6 * h.nfiles + i] | (tab[2][7 * h.nfiles + i] << 8) | (tab[2][8 * h.nfiles + i] << 16) | (tab[2][9 * h.nfiles + i] << 24));
+				e->time = tt;
+				e->date = dd;
+				e->method = tab[2][10 * h.nfiles + i];
+				e->crc = rd32le(tab[0] + 4 * i);
+				sz = (i == 0) ? (0UL - var) : (prev_sz - var);
+				e->size = sz & 0xFFFFFFFFUL;
+				prev_sz = e->size;
+				e->dir[0] = 0;
+				e->path[0] = 0;
+				if( (w0 & 0xFFFF) < h.ndirs && h.ndirs )
+				{
+					strncpy(e->dir, pool + diroffs[w0 & 0xFFFF],
+						sizeof(e->dir) - 1);
+					e->dir[sizeof(e->dir) - 1] = 0;
+				}
+				if( e->dir[0] )
+				{
+					char* dend;
+					strncpy(e->path, e->dir, sizeof(e->path) - 1);
+					e->path[sizeof(e->path) - 1] = 0;
+					dend = e->path + strlen(e->path);
+					while( dend > e->path &&
+						(dend[-1] == '/' || dend[-1] == '\\') )
+						*--dend = 0;
+					strncat(e->path, "/", sizeof(e->path) - strlen(e->path) - 1);
+					strncat(e->path, e->name, sizeof(e->path) - strlen(e->path) - 1);
+				}
+				else
+				{
+					strncpy(e->path, e->name, sizeof(e->path) - 1);
+					e->path[sizeof(e->path) - 1] = 0;
+				}
+				sp += l + 1;
+			}
+		}
+		{
+			unsigned long off = 0;
+			for( i = 0; i < h.nfiles; i++ )
+			{
+				arc->entries[i].offset = off;
+				off = (off + arc->entries[i].size) & 0xFFFFFFFFUL;
+			}
+		}
+		free(diroffs);
+		free(pool);
+	}
+	uha_free_tables(tab, 3);
+	return 0;
+}
+
 int UhaOpen(const char* path, const char* pwd, UhaArchive* arc)
 {
 	FILE* fp;
@@ -562,7 +863,9 @@ int UhaOpen(const char* path, const char* pwd, UhaArchive* arc)
 	ver = img[3];
 	if( ver == 2 )
 		rc = uha02_open(img, flen, pwd, arc);
-	else if( ver == 3 || ver == 4 || ver == 6 )
+	else if( ver == 6 )
+		rc = uha06_open(img, flen, pwd, arc);
+	else if( ver == 3 || ver == 4 )
 		rc = 7;	/* Phase 1b: container next */
 	else
 		rc = 4;
