@@ -84,6 +84,7 @@ OBJS = \
     $(OBJDIR)\UhaCrypt.obj \
     $(OBJDIR)\UhaDecode.obj \
     $(OBJDIR)\UhaDec0.obj \
+    $(OBJDIR)\UhaDec2.obj \
     $(OBJDIR)\CompactCTool.obj \
     $(OBJDIR)\complib.obj \
     $(OBJDIR)\CompressZTool.obj \
@@ -424,6 +425,8 @@ $(OBJDIR)\UhaCrypt.obj : uharc\UhaCrypt.cpp
 $(OBJDIR)\UhaDecode.obj : uharc\UhaDecode.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 $(OBJDIR)\UhaDec0.obj : uharc\UhaDec0.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+$(OBJDIR)\UhaDec2.obj : uharc\UhaDec2.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\BsaTool.obj : BsaTool.cpp
