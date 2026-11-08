@@ -47,6 +47,9 @@ typedef struct UhaArchive
 	int pw_stream;		/* -pw: packed stream encrypted */
 	UhaEntry* entries;
 	unsigned long nfiles;
+	/* the whole file image (owned; the packed stream lives in it) */
+	unsigned char* img;
+	unsigned long imgsize;
 } UhaArchive;
 
 /* Parse header + directory without extracting. pwd may be NULL (no
@@ -57,14 +60,25 @@ int UhaOpen(const char* path, const char* pwd, UhaArchive* arc);
 
 void UhaClose(UhaArchive* arc);
 
-/* Extract the solid stream and split it at cumulative file ends.
- * outpath is the full path the caller made via kiutil::pathMake
- * ("" entries are already filtered); with_paths=1 writes dir/name,
- * 0 writes the flat name. Returns 0 ok, 5 crc mismatch, 1 io, 7 data.
- * CRC is over the post-filter bytes (filter applied before verify).
+/* Decode the whole solid stream into one buffer (caller frees).
+ * packed holds packed_len cipher-decrypted bytes; cum is the
+ * cumulative file-end table (NULL = single block). Returns 0 ok,
+ * 6 unknown core, 7 data error, 2 nomem.
  */
-int UhaExtractAll(UhaArchive* arc, const char* path, unsigned long data_off,
-	int with_paths);
+int UhaDecodeSolid(UhaArchive* arc, const unsigned char* packed,
+	unsigned char** out, unsigned long* outlen);
+
+/* Apply the whole-file EXE post-filter (FORMAT 6.4) when the archive
+ * gates it on and the file is at least 0x400 bytes. 0.2: always
+ * gated on MZ/ZM + len (simpler E8/E9 pass). 0.3/0.4/0.6: header
+ * flag + len (MTF table + MZ relocation rebuild). Buffer is the
+ * file bytes (size bytes); filter modifies in place.
+ */
+void UhaExeFilter(UhaArchive* arc, unsigned char* buf, unsigned long len);
+
+/* CRC32 (zlib) of a decoded member; used by the provider for the
+ * per-file verify (post-filter bytes). */
+unsigned long UhaFileCrc(const unsigned char* d, unsigned long n);
 
 #ifdef __cplusplus
 }

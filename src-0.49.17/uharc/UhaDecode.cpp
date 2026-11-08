@@ -207,6 +207,10 @@ void UhaClose(UhaArchive* arc)
 		free(arc->entries);
 	arc->entries = 0;
 	arc->nfiles = 0;
+	if( arc->img )
+		free(arc->img);
+	arc->img = 0;
+	arc->imgsize = 0;
 }
 
 /* ---------- 0.2 header ---------- */
@@ -869,13 +873,125 @@ int UhaOpen(const char* path, const char* pwd, UhaArchive* arc)
 		rc = 7;	/* Phase 1b: container next */
 	else
 		rc = 4;
-	free(img);
+	if( rc == 0 )
+	{
+		arc->img = img;
+		arc->imgsize = flen;
+	}
+	else
+	{
+		free(img);
+	}
 	return rc;
 }
 
-int UhaExtractAll(UhaArchive* arc, const char* path, unsigned long data_off,
-	int with_paths)
+/* Solid decode dispatch: decode the whole stream into one buffer. */
+int UhaDecodeSolid(UhaArchive* arc, const unsigned char* packed,
+	unsigned char** out, unsigned long* outlen)
 {
-	(void)arc; (void)path; (void)data_off; (void)with_paths;
-	return 7;
+	UhaMem mr;
+	UhaOut bw;
+	unsigned long* cum = 0;
+	unsigned long ncum = 0;
+	unsigned long i, acc;
+	int core, rc;
+
+	if( !arc || !packed || !out || !outlen )
+		return 1;
+	*out = 0;
+	*outlen = 0;
+	if( arc->total_unpacked == 0 )
+	{
+		*outlen = 0;
+		return 0;
+	}
+	if( arc->total_unpacked > UHA_MAX_MEMBER )
+		return 7;
+	mr.b = packed;
+	mr.n = arc->packed_len;
+	mr.p = 0;
+	bw.b = 0; bw.n = 0; bw.cap = 0; bw.err = 0;
+
+	/* cumulative file-end table for model resets (cores 3/5) */
+	if( arc->nfiles && arc->nfiles <= UHA_MAX_FILES )
+	{
+		cum = (unsigned long*)malloc(sizeof(unsigned long) * arc->nfiles);
+		if( !cum )
+			return 2;
+		acc = 0;
+		for( i = 0; i < arc->nfiles; i++ )
+		{
+			acc = (acc + arc->entries[i].size) & 0xFFFFFFFFUL;
+			cum[i] = acc;
+		}
+		if( cum[arc->nfiles - 1] != arc->total_unpacked )
+			cum[arc->nfiles - 1] = arc->total_unpacked;
+		ncum = arc->nfiles;
+	}
+
+	core = UhaCoreOf(arc->method, arc->ver);
+	switch( core )
+	{
+	case 0:
+		rc = UhaDecStore(uha_mem_read, &mr, uha_out_write, &bw,
+			arc->total_unpacked);
+		break;
+	case 1:
+		rc = UhaDecRle(uha_mem_read, &mr, uha_out_write, &bw,
+			arc->total_unpacked);
+		break;
+	case 2:
+		rc = UhaDec2(arc->method, arc->ver == 6 ? 0 : 1,
+			uha_mem_read, &mr, uha_out_write, &bw,
+			arc->total_unpacked);
+		break;
+	case 3:
+		if( arc->ver == 6 )
+		{
+			void* ctx;
+			int irc = UhaDec3_06Init(&ctx, arc->method);
+			if( irc != 0 )
+			{
+				free(cum);
+				free(bw.b);
+				return irc == 2 ? 2 : 7;
+			}
+			rc = UhaDec3_06(ctx, cum, ncum, uha_mem_read, &mr,
+				uha_out_write, &bw, arc->total_unpacked);
+			UhaDec3_06Free(ctx);
+		}
+		else
+		{
+			rc = 6;
+		}
+		break;
+	default:
+		rc = 6;
+		break;
+	}
+	free(cum);
+	if( rc != 0 )
+	{
+		free(bw.b);
+		return rc == 2 ? 2 : (rc == 3 ? 7 : 5);
+	}
+	if( bw.n != arc->total_unpacked )
+	{
+		free(bw.b);
+		return 7;
+	}
+	*out = bw.b;
+	*outlen = bw.n;
+	return 0;
+}
+
+/* EXE post-filter placeholder (Phase 2 with core 1 RLE). */
+void UhaExeFilter(UhaArchive* arc, unsigned char* buf, unsigned long len)
+{
+	(void)arc; (void)buf; (void)len;
+}
+
+unsigned long UhaFileCrc(const unsigned char* d, unsigned long n)
+{
+	return uha_crc32(d, n);
 }
