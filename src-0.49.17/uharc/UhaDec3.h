@@ -36,6 +36,21 @@ int UhaDec3_02(void* ctx, Uha3ReadCb rcb, void* rctx,
 int UhaDec3_02Init(void** pctx, int method);
 void UhaDec3_02Free(void* ctx);
 
+/* 0.3 core 3 (methods 8..21, 24-bit range/offset, 328 contexts).
+ * First stream byte is a discarded ~out_len marker. */
+int UhaDec3_03(void* ctx, const unsigned long* cum, unsigned long ncum,
+	Uha3ReadCb rcb, void* rctx, Uha3WriteCb wcb, void* wctx,
+	unsigned long out_len);
+int UhaDec3_03Init(void** pctx, int method);
+void UhaDec3_03Free(void* ctx);
+
+/* 0.4 core 3 (methods 8..23, 5-byte range init, 330 contexts). */
+int UhaDec3_04(void* ctx, const unsigned long* cum, unsigned long ncum,
+	Uha3ReadCb rcb, void* rctx, Uha3WriteCb wcb, void* wctx,
+	unsigned long out_len);
+int UhaDec3_04Init(void** pctx, int method);
+void UhaDec3_04Free(void* ctx);
+
 #ifdef __cplusplus
 }
 #endif

@@ -1782,3 +1782,1297 @@ int UhaDec3_02(void* ctx, Uha3ReadCb rcb, void* rctx,
 	if(c->out_total < c->out_expect) return 4;
 	return 0;
 }
+
+/* ------------------------------------------------------------------ */
+/* 0.3 core 3 (methods 8..21). Clean-room rewrite.
+ * A 24-bit range/offset coder with an 8-bit renormalisation step and
+ * a one-byte bit reservoir; the stream starts with a discarded byte
+ * (the ~out_len marker). 326 symbol contexts plus two order-0
+ * contexts (326 for ordinary contexts, 327 for the length contexts
+ * and second-level escapes). The escape from a symbol context
+ * excludes all symbols already present in that context from the
+ * order-0 model (multi-exclusion) and decodes that model from
+ * symbol 255 downwards. The match/literal decision uses a 48-entry
+ * table of {c0,c1,c2} entries indexed by (hist*8 + class), and the
+ * match length is a symbol in contexts 318..325 chosen by the
+ * previous length. No run-length/state stage beyond that.
+ * Dictionary: 1 << (((method-8) % 14) + 10).
+ */
+
+#define V3_M32 0xFFFFFFFFUL
+#define V3_M16 0xFFFFUL
+#define V3_NCTX 328u
+#define V3_NFB 326u
+#define V3_NLITM 48u
+
+typedef struct Zc3
+{
+	Uha3ReadCb rcb;
+	void* rctx;
+	Uha3WriteCb wcb;
+	void* wctx;
+	unsigned char* inb;
+	unsigned in_pos;
+	unsigned in_avail;
+	unsigned char* outb;
+	unsigned out_fill;
+	unsigned long produced;
+	unsigned long target;
+	int err;
+	unsigned long unit;
+	unsigned long code;
+	unsigned long rng;
+	unsigned cur;
+	unsigned char* htab;
+	unsigned char* hval;
+	unsigned long* ord;
+	unsigned char* dict;
+	unsigned short* freq;
+	unsigned short* raw;
+	unsigned short* escw;
+	unsigned short litm[48][3];
+	unsigned char hist;
+	unsigned long dsz;
+	unsigned long dmask;
+	unsigned long dpos;
+	unsigned long ctx;
+	long excl;
+	long mpos;
+	unsigned long lastd;
+	unsigned long thresh;
+	const unsigned long* cum;
+	unsigned long ncum;
+	unsigned long cumidx;
+} Zc3;
+
+static const unsigned short v3_litw1[8] = {
+	0x0800, 0x0400, 0x0500, 0x0400, 0x0600, 0x0400, 0x0500, 0x0400
+};
+
+static int v3_ord(unsigned c)
+{
+	if((c >= 133 && c <= 158) || (c >= 165 && c <= 190)) return 0;
+	return 1;
+}
+
+static unsigned v3_lenctx(unsigned v)
+{
+	if(v < 2) return 0x13Eu;
+	if(v < 6) return 0x13Fu + (v - 2);
+	if(v < 8) return 0x143u;
+	if(v < 12) return 0x144u;
+	return 0x145u;
+}
+
+static void v3_reset(Zc3* d);
+
+int UhaDec3_03Init(void** pctx, int method)
+{
+	Zc3* d;
+	unsigned long dsz;
+	if(!pctx) return 1;
+	*pctx = 0;
+	if(method < 8 || method > 21) return 1;
+	dsz = 1UL << (((method - 8) % 14) + 10);
+	d = (Zc3*)malloc(sizeof(*d));
+	if(!d) return 2;
+	memset(d, 0, sizeof(*d));
+	d->htab = (unsigned char*)malloc(0x200000UL);
+	d->hval = (unsigned char*)malloc(0x40000UL);
+	d->ord = (unsigned long*)malloc(0x40000UL);
+	d->dict = (unsigned char*)calloc((size_t)(dsz + 256UL), 1);
+	d->freq = (unsigned short*)malloc(V3_NCTX * 256u * sizeof(unsigned short));
+	d->raw = (unsigned short*)malloc(V3_NCTX * 256u * sizeof(unsigned short));
+	d->escw = (unsigned short*)malloc(V3_NCTX * sizeof(unsigned short));
+	if(!d->htab || !d->hval || !d->ord || !d->dict || !d->freq || !d->raw || !d->escw) {
+		free(d->htab); free(d->hval); free(d->ord); free(d->dict);
+		free(d->freq); free(d->raw); free(d->escw); free(d);
+		return 2;
+	}
+	memset(d->htab, 0xFF, 0x200000UL);
+	memset(d->hval, 0, 0x40000UL);
+	memset(d->ord, 0xFF, 0x40000UL);
+	d->dsz = dsz;
+	d->dmask = dsz - 1UL;
+	d->dpos = 0;
+	d->ctx = 0;
+	d->excl = -1;
+	d->mpos = -1;
+	d->lastd = V3_M32;
+	d->hist = 7;
+	v3_reset(d);
+	*pctx = d;
+	return 0;
+}
+
+void UhaDec3_03Free(void* ctx)
+{
+	Zc3* d = (Zc3*)ctx;
+	if(!d) return;
+	free(d->htab); free(d->hval); free(d->ord); free(d->dict);
+	free(d->freq); free(d->raw); free(d->escw); free(d);
+}
+
+static int v3_get(Zc3* d)
+{
+	int n;
+	if(d->err) return 0;
+	if(d->in_pos >= d->in_avail) {
+		n = d->rcb(d->rctx, d->inb, 65536);
+		if(n <= 0) { d->err = 3; return 0; }
+		d->in_avail = (unsigned)n;
+		d->in_pos = 0;
+	}
+	return d->inb[d->in_pos++];
+}
+
+static void v3_emit(Zc3* d, unsigned b)
+{
+	if(d->produced < d->target) {
+		d->outb[d->out_fill++] = (unsigned char)b;
+		if(d->out_fill == 65536) {
+			if(d->wcb(d->wctx, d->outb, d->out_fill) != 0) d->err = 4;
+			d->out_fill = 0;
+		}
+	}
+	d->produced++;
+}
+
+static void v3_rc_init(Zc3* d)
+{
+	int b;
+	v3_get(d);	/* discarded ~out_len marker byte */
+	b = v3_get(d);
+	d->cur = (unsigned)b;
+	d->rng = 0x80UL;
+	d->code = (unsigned long)((unsigned)b >> 1);
+}
+
+static void v3_renorm(Zc3* d)
+{
+	while(d->rng <= 0x800000UL) {
+		unsigned b = (unsigned)v3_get(d);
+		d->code = ((d->code << 8) |
+			(unsigned long)((d->cur & 1u) << 7) |
+			(unsigned long)(b >> 1)) & V3_M32;
+		d->rng = (d->rng << 8) & V3_M32;
+		d->cur = b;
+		if(d->err) return;
+	}
+}
+
+static unsigned v3_point(Zc3* d, unsigned total)
+{
+	unsigned long unit;
+	unsigned long p;
+	if(d->err) return 0;
+	if(d->rng <= 0x800000UL) v3_renorm(d);
+	if(d->err) return 0;
+	total &= V3_M16;
+	if(total == 0) { d->err = 7; return 0; }
+	unit = d->rng / total;
+	if(unit == 0) { d->err = 7; return 0; }
+	d->unit = unit;
+	p = d->code / unit;
+	if(p >= (unsigned long)total) p = (unsigned long)total - 1;
+	return (unsigned)p;
+}
+
+static void v3_narrow(Zc3* d, unsigned total, unsigned lo, unsigned hi)
+{
+	unsigned long u = d->unit;
+	unsigned long lp = (u * (unsigned long)lo) & V3_M32;
+	d->code = (d->code - lp) & V3_M32;
+	if((unsigned long)hi < (unsigned long)total)
+		d->rng = (u * (unsigned long)(hi - lo)) & V3_M32;
+	else
+		d->rng = (d->rng - lp) & V3_M32;
+}
+
+static void v3_rescale(Zc3* d, unsigned cidx)
+{
+	unsigned short* raw = d->raw + cidx * 256u;
+	unsigned short* fr = d->freq + cidx * 256u;
+	unsigned long total = 0;
+	unsigned i, k, j;
+	for(i = 0; i < 256; i += 8) {
+		unsigned long d0 = (unsigned long)raw[i] | ((unsigned long)raw[i+1] << 16);
+		unsigned long d1 = (unsigned long)raw[i+2] | ((unsigned long)raw[i+3] << 16);
+		unsigned long d2 = (unsigned long)raw[i+4] | ((unsigned long)raw[i+5] << 16);
+		unsigned long d3 = (unsigned long)raw[i+6] | ((unsigned long)raw[i+7] << 16);
+		unsigned long h0 = ((d0 + 0x10001UL) & 0xFFFEFFFEUL) >> 1;
+		unsigned long h1 = ((d1 + 0x10001UL) & 0xFFFEFFFEUL) >> 1;
+		unsigned long h2 = ((d2 + 0x10001UL) & 0xFFFEFFFEUL) >> 1;
+		unsigned long h3 = ((d3 + 0x10001UL) & 0xFFFEFFFEUL) >> 1;
+		raw[i]     = (unsigned short)(h0 & V3_M16);
+		raw[i+1]   = (unsigned short)((h0 >> 16) & V3_M16);
+		raw[i+2]   = (unsigned short)(h1 & V3_M16);
+		raw[i+3]   = (unsigned short)((h1 >> 16) & V3_M16);
+		raw[i+4]   = (unsigned short)(h2 & V3_M16);
+		raw[i+5]   = (unsigned short)((h2 >> 16) & V3_M16);
+		raw[i+6]   = (unsigned short)(h3 & V3_M16);
+		raw[i+7]   = (unsigned short)((h3 >> 16) & V3_M16);
+		total = (total + h0 + h1) & V3_M32;
+		total = (total + h2 + h3) & V3_M32;
+	}
+	/* freq[i] = raw[i-1] (1-based Fenwick fill) */
+	for(i = 1; i < 256; i++) fr[i] = raw[i-1];
+	fr[0] = (unsigned short)(((total & V3_M16) + ((total >> 16) & V3_M16)) & V3_M16);
+	for(k = 1; k <= 64; k *= 2) {
+		j = 256 - 2 * k;
+		for(;;) {
+			fr[j] = (unsigned short)(fr[j] + fr[j-k]);
+			if(j == 2 * k) break;
+			j -= 2 * k;
+		}
+	}
+	if(cidx < 0x146u) d->escw[cidx] = (unsigned short)((d->escw[cidx] >> 2) + 1);
+}
+
+static void v3_update(Zc3* d, unsigned cidx, unsigned sym)
+{
+	unsigned short* f = d->freq;
+	unsigned short* r = d->raw;
+	unsigned base = cidx * 256u;
+	unsigned fb, i, t;
+	if(r[base + sym] == 0) {
+		fb = V3_NFB + ((cidx >= 0x13Eu) ? 1u : 0u);
+		d->escw[cidx] = (unsigned short)(d->escw[cidx] + 32);
+		r[fb * 256u + sym] = (unsigned short)(r[fb * 256u + sym] + 16);
+		i = (sym + 1) & 0xFFu;
+		while(i) {
+			f[fb * 256u + i] = (unsigned short)(f[fb * 256u + i] + 16);
+			i = (i + (i & (0u - i))) & 0xFFu;
+		}
+		f[fb * 256u] = (unsigned short)(f[fb * 256u] + 16);
+		if(f[fb * 256u] >= 0x4000u) v3_rescale(d, fb);
+	}
+	r[base + sym] = (unsigned short)(r[base + sym] + 32);
+	i = (sym + 1) & 0xFFu;
+	while(i) {
+		f[base + i] = (unsigned short)(f[base + i] + 32);
+		i = (i + (i & (0u - i))) & 0xFFu;
+	}
+	f[base] = (unsigned short)(f[base] + 32);
+	t = (unsigned)d->escw[cidx] + (unsigned)f[base];
+	if(t >= 0x4000u) v3_rescale(d, cidx);
+}
+
+static void v3_reset(Zc3* d)
+{
+	unsigned i, c;
+	for(i = 0; i < V3_NFB * 256u; i++) {
+		d->freq[i] = 0;
+		d->raw[i] = 0;
+	}
+	for(c = V3_NFB; c < V3_NCTX; c++) {
+		for(i = 0; i < 256; i++) {
+			unsigned v = (i == 0) ? 256u : (i & (0u - i));
+			d->freq[c * 256u + i] = (unsigned short)(v * 8u);
+			d->raw[c * 256u + i] = 8;
+		}
+	}
+	for(i = 0; i < V3_NFB; i++) d->escw[i] = 1;
+	for(c = 0; c < V3_NLITM; c++) {
+		d->litm[c][0] = 0;
+		d->litm[c][1] = v3_litw1[c & 7u];
+		d->litm[c][2] = 0x2000;
+	}
+}
+
+static void v3_progress(Zc3* d)
+{
+	if(!d->cum || !d->ncum) return;
+	while(d->cumidx < d->ncum - 1UL && d->produced > d->cum[d->cumidx]) {
+		unsigned long v = d->cum[d->cumidx];
+		d->cumidx++;
+		if(v > d->thresh) {
+			v3_reset(d);
+			d->thresh = d->produced + 0x10000UL;
+		}
+	}
+}
+
+static unsigned v3_search(Zc3* d, unsigned cidx, unsigned di,
+	unsigned point, unsigned ntotal)
+{
+	unsigned short* f = d->freq + cidx * 256u;
+	unsigned short* r = d->raw + cidx * 256u;
+	unsigned rem, p, step, q, hi, lo, sym;
+	rem = (di - point) & V3_M16;
+	p = 0;
+	if(d->excl >= 0) {
+		unsigned e = d->dict[d->excl];
+		unsigned re = r[e];
+		int ebon = 1;
+		for(step = 0x80; step; step >>= 1) {
+			q = p + step;
+			if(ebon && q > e) {
+				if((unsigned long)f[q] < (unsigned long)re + (unsigned long)rem) {
+					p = q;
+					ebon = 0;
+					rem = (rem - f[q] + re) & V3_M16;
+				}
+			} else {
+				if(rem > (unsigned)f[q]) {
+					p = q;
+					rem = (rem - f[q]) & V3_M16;
+				}
+			}
+		}
+	} else {
+		for(step = 0x80; step; step >>= 1) {
+			q = p + step;
+			if(rem > (unsigned)f[q]) {
+				p = q;
+				rem = (rem - f[q]) & V3_M16;
+			}
+		}
+	}
+	if(p > 255) { d->err = 7; return 0; }
+	sym = p;
+	hi = (point + rem) & V3_M16;
+	lo = (hi - r[sym]) & V3_M16;
+	v3_narrow(d, ntotal, lo, hi);
+	return sym;
+}
+
+static unsigned v3_bit(Zc3* d, unsigned al, int have, unsigned bitin)
+{
+	unsigned idx = ((unsigned)d->hist + al) & 0xFFu;
+	unsigned short* e;
+	unsigned bit, total, point, lo, hi;
+	if(idx >= V3_NLITM) idx &= (V3_NLITM - 1u);
+	e = d->litm[idx];
+	if(!have) {
+		total = e[2];
+		if(total == 0) { d->err = 7; return 0; }
+		point = v3_point(d, total);
+		if(d->err) return 0;
+		if(point < (unsigned)e[1]) {
+			bit = 0; lo = e[0]; hi = e[1];
+		} else {
+			bit = 1; lo = e[1]; hi = e[2];
+		}
+		v3_narrow(d, total, lo, hi);
+		if(d->err) return 0;
+	} else {
+		bit = bitin & 1u;
+	}
+	if(bit == 0) e[1] = (unsigned short)(e[1] + 64);
+	e[2] = (unsigned short)(e[2] + 64);
+	if(e[2] >= 0x4000u) {
+		unsigned c0 = e[0], c1 = e[1], c2 = e[2];
+		unsigned n1 = c0 + (((c1 - c0) + 1) >> 1);
+		unsigned n2 = n1 + (((c2 - c1) + 1) >> 1);
+		e[1] = (unsigned short)(n1 & V3_M16);
+		e[2] = (unsigned short)(n2 & V3_M16);
+	}
+	d->hist = (unsigned char)(((unsigned)d->hist * 2u + bit) & 7u);
+	return bit;
+}
+
+static unsigned v3_sym(Zc3* d, unsigned cidx)
+{
+	unsigned di, esc, total, point, fb, e, total0, point2, bx, sym, i;
+	if(d->err) return 0;
+	di = d->freq[cidx * 256u];
+	if(d->excl >= 0) {
+		e = d->dict[d->excl];
+		di = (di - d->raw[cidx * 256u + e]) & V3_M16;
+	}
+	if(di == 0) {
+		fb = V3_NFB + ((cidx >= 0x13Eu) ? 1u : 0u);
+		di = d->freq[fb * 256u];
+		if(d->excl >= 0) {
+			e = d->dict[d->excl];
+			di = (di - d->raw[fb * 256u + e]) & V3_M16;
+		}
+		if(di == 0) { d->err = 7; return 0; }
+		point = v3_point(d, di);
+		if(d->err) return 0;
+		return v3_search(d, fb, di, point, di);
+	}
+	esc = d->escw[cidx];
+	total = (di + esc) & V3_M16;
+	point = v3_point(d, total);
+	if(d->err) return 0;
+	if(point < di) return v3_search(d, cidx, di, point, total);
+	/* escape symbol: consume [di,total), then order-0 with
+	 * multi-exclusion */
+	v3_narrow(d, total, di, total);
+	if(d->err) return 0;
+	fb = V3_NFB + ((cidx >= 0x13Eu) ? 1u : 0u);
+	total0 = d->freq[fb * 256u];
+	e = (d->excl >= 0) ? (unsigned)d->dict[d->excl] : 256u;
+	for(i = 0; i < 256; i++) {
+		if(d->raw[cidx * 256u + i] != 0 || i == e)
+			total0 = (total0 - d->raw[fb * 256u + i]) & V3_M16;
+	}
+	if(total0 == 0) { d->err = 7; return 0; }
+	point2 = v3_point(d, total0);
+	if(d->err) return 0;
+	bx = 0;
+	sym = 255;
+	for(;;) {
+		if(!(d->raw[cidx * 256u + sym] != 0 || sym == e))
+			bx = (bx + d->raw[fb * 256u + sym]) & V3_M16;
+		if(bx > point2) break;
+		if(sym == 0) { d->err = 7; return 0; }
+		sym--;
+	}
+	v3_narrow(d, total0, (bx - d->raw[fb * 256u + sym]) & V3_M16, bx);
+	if(d->err) return 0;
+	return sym;
+}
+
+static void v3_literal(Zc3* d)
+{
+	unsigned long c16 = d->ctx & V3_M16;
+	unsigned lo8 = (unsigned)(c16 & 0xFFUL);
+	unsigned hi8 = (unsigned)((c16 >> 8) & 0xFFUL);
+	unsigned idx, b;
+	if(c16 == 0xFFFFUL) idx = 314;
+	else if(c16 == 0xD1DFUL) idx = 315;
+	else if(c16 == 0xD3DFUL) idx = 316;
+	else if(lo8 == 0xDFu) idx = v3_ord(hi8) ? 317u : 223u;
+	else if(!v3_ord(lo8) && v3_ord(hi8)) idx = lo8 + 123u;
+	else idx = lo8;
+	b = v3_sym(d, idx);
+	if(d->err) return;
+	v3_update(d, idx, b);
+	d->excl = -1;
+	if(d->mpos >= 0 && (unsigned)d->dict[d->mpos] == b) {
+		d->excl = (long)(((unsigned long)d->mpos + 1UL) & d->dmask);
+	}
+	v3_emit(d, b ^ 0xFFu);
+	d->ctx = ((d->ctx << 8) + (unsigned long)b) & V3_M32;
+	d->dict[d->dpos] = (unsigned char)b;
+	if(d->dpos < 0x100UL)
+		d->dict[d->dsz + d->dpos] = (unsigned char)b;
+	d->dpos = (d->dpos + 1UL) & d->dmask;
+}
+
+static int v3_match(Zc3* d)
+{
+	unsigned long h, mpos, mpos0, dist, pos;
+	unsigned long* he;
+	unsigned al, idx, bit, ln, n;
+	unsigned long mcx, mdp, mmp;
+	unsigned b;
+	if(d->err) return 0;
+	pos = d->dpos;
+	h = (d->ctx ^ (d->ctx >> 13)) & 0x3FFFFUL;
+	he = (unsigned long*)(void*)(d->htab + h * 8UL);
+	mpos = he[0];
+	d->mpos = -1;
+	if(mpos != V3_M32 && d->ctx == he[1]) {
+		al = 1;
+	} else {
+		al = 0;
+		mpos = (pos - d->lastd) & d->dmask;
+		dist = (mpos - pos) & d->dmask;
+		if(dist >= 0x104UL) {
+			unsigned long mp4 = (mpos - 4UL) & d->dmask;
+			unsigned long a0 = ((unsigned long)d->dict[mp4] << 24)
+				| ((unsigned long)d->dict[mp4 + 1] << 16)
+				| ((unsigned long)d->dict[mp4 + 2] << 8)
+				| (unsigned long)d->dict[mp4 + 3];
+			unsigned long c = d->ctx;
+			if((a0 & 0xFFFFUL) == (c & 0xFFFFUL)
+				|| (a0 & 0xFFFF00FFUL) == (c & 0xFFFF00FFUL)
+				|| (a0 & 0xFFFFFF00UL) == (c & 0xFFFFFF00UL))
+				al = 9;
+		}
+		if(al == 0) {
+			unsigned long o = d->ord[d->ctx & 0xFFFFUL];
+			if(o != V3_M32) {
+				mpos = o;
+				al = 0x11u;
+			}
+		}
+	}
+	he[0] = pos;
+	he[1] = d->ctx;
+	d->ord[d->ctx & 0xFFFFUL] = pos;
+	if(al == 0) return 0;
+	if(((mpos - pos) & d->dmask) < 0x100UL) return 0;
+	al = al - 1u;
+	mpos0 = mpos & d->dmask;
+	if(d->hval[h] == 0) al += 0x18u;
+	if(d->excl >= 0 && d->dict[d->excl] == d->dict[mpos0]) {
+		v3_bit(d, al, 1, 1);
+		return 0;
+	}
+	d->mpos = (long)mpos0;
+	bit = v3_bit(d, al, 0, 0);
+	if(d->err) return 0;
+	if(bit != 0) {
+		d->hval[h] = 0;
+		return 0;
+	}
+	idx = v3_lenctx(d->hval[h]);
+	/* the length decode must not inherit the literal exclusion */
+	d->excl = -1;
+	ln = v3_sym(d, idx);
+	if(d->err) return 0;
+	v3_update(d, idx, ln);
+	d->hval[h] = (unsigned char)ln;
+	d->lastd = (d->dpos - mpos0) & d->dmask;
+	d->excl = -1;
+	if(ln < 0xFFu) d->excl = (long)((mpos0 + ln) & d->dmask);
+	n = (ln == 0) ? 256u : ln;
+	mcx = d->ctx;
+	mdp = d->dpos;
+	mmp = mpos0;
+	while(n--) {
+		b = (unsigned)d->dict[mmp];
+		v3_emit(d, b ^ 0xFFu);
+		mcx = ((mcx << 8) + (unsigned long)b) & V3_M32;
+		d->dict[mdp] = (unsigned char)b;
+		if(mdp < 0x100UL) d->dict[d->dsz + mdp] = (unsigned char)b;
+		mdp = (mdp + 1UL) & d->dmask;
+		mmp = (mmp + 1UL) & d->dmask;
+	}
+	d->ctx = mcx;
+	d->dpos = mdp;
+	return 1;
+}
+
+int UhaDec3_03(void* ctx, const unsigned long* cum, unsigned long ncum,
+	Uha3ReadCb rcb, void* rctx, Uha3WriteCb wcb, void* wctx,
+	unsigned long out_len)
+{
+	Zc3* d = (Zc3*)ctx;
+	int err;
+	if(!d || !rcb || !wcb) return 1;
+	if(out_len == 0) return 0;
+	d->inb = (unsigned char*)malloc(65536UL);
+	d->outb = (unsigned char*)malloc(65536UL);
+	if(!d->inb || !d->outb) {
+		free(d->inb); free(d->outb);
+		d->inb = 0; d->outb = 0;
+		return 2;
+	}
+	d->rcb = rcb; d->rctx = rctx;
+	d->wcb = wcb; d->wctx = wctx;
+	d->in_pos = 0; d->in_avail = 0;
+	d->out_fill = 0; d->produced = 0;
+	d->target = out_len;
+	d->err = 0;
+	d->thresh = 0x10000UL;
+	d->cumidx = 0;
+	if(cum && ncum && cum[ncum - 1] == out_len) {
+		d->cum = cum;
+		d->ncum = ncum;
+	} else {
+		d->cum = 0;
+		d->ncum = 0;
+	}
+	v3_rc_init(d);
+	while(d->produced < d->target && !d->err) {
+		if(!v3_match(d)) {
+			if(d->err) break;
+			v3_literal(d);
+		}
+		if(!d->err) v3_progress(d);
+	}
+	err = d->err;
+	if(!err && d->out_fill) {
+		if(wcb(wctx, d->outb, d->out_fill) != 0) err = 4;
+	}
+	free(d->inb);
+	free(d->outb);
+	d->inb = 0; d->outb = 0;
+	return err;
+}
+
+/* ------------------------------------------------------------------ */
+/* 0.4 core 3 (methods 8..23). Clean-room rewrite.
+ * 330 model contexts: 328 ordinary/length contexts (escw 0..327)
+ * plus two order-0 contexts (328 for contexts < 0x13E, 329 for the
+ * length contexts >= 0x13E). The range coder is the 5-byte init
+ * form. Match lengths are ordinary symbols in a context selected
+ * by the previous length at the hash slot (0x4372B0 table, or the
+ * 326/327 run contexts). The literal entries are 50 {e0,e1,e2} with
+ * seeds 11..14 / 6..9 / 49 / 79 and e2 = 99, rescaled as
+ * e1' = e0 + ((e1-e0+1)>>1), e2' = e1' + ((e2-e1+1)>>1).
+ * Dictionary: 1 << (((method-8) % 16) + 10).
+ */
+
+#define V4_M32 0xFFFFFFFFUL
+#define V4_M16 0xFFFFUL
+#define V4_NCTX 330u
+#define V4_NREAL 328u
+#define V4_NLITM 50u
+
+typedef struct Zc4
+{
+	Uha3ReadCb rcb;
+	void* rctx;
+	Uha3WriteCb wcb;
+	void* wctx;
+	unsigned char* inb;
+	unsigned in_pos;
+	unsigned in_avail;
+	unsigned char* outb;
+	unsigned out_fill;
+	unsigned long produced;
+	unsigned long target;
+	int err;
+	unsigned long code;
+	unsigned long rng;
+	unsigned long* htab;
+	unsigned char* hval;
+	unsigned long* ord;
+	unsigned char* dict;
+	unsigned short* freq;
+	unsigned short* raw;
+	unsigned short* escw;
+	unsigned short litm[50][4];
+	unsigned char state;
+	unsigned long dsz;
+	unsigned long dmask;
+	unsigned long dpos;
+	unsigned long ctx;
+	long excl;
+	long mpos;
+	unsigned long run;
+	unsigned long lastd;
+	unsigned long thresh;
+	const unsigned long* cum;
+	unsigned long ncum;
+	unsigned long cumidx;
+} Zc4;
+
+static const unsigned short v4_litw1[50] = {
+	11, 12, 13, 14, 14, 14, 14, 14,
+	11, 12, 13, 14, 14, 14, 14, 14,
+	11, 12, 13, 14, 14, 14, 14, 14,
+	6, 7, 8, 9, 9, 9, 9, 9,
+	6, 7, 8, 9, 9, 9, 9, 9,
+	6, 7, 8, 9, 9, 9, 9, 9,
+	49, 79
+};
+
+static const unsigned char v4_st0[16] = {
+	6, 0, 6, 0, 6, 1, 6, 2, 6, 3, 6, 3, 7, 4, 7, 5
+};
+
+static const unsigned short v4_lenctx[12] = {
+	0x13E, 0x13E, 0x13F, 0x140, 0x141, 0x142,
+	0x143, 0x143, 0x144, 0x144, 0x144, 0x144
+};
+
+static int v4_ord(unsigned c)
+{
+	if((c >= 133 && c <= 158) || (c >= 165 && c <= 190)) return 0;
+	return 1;
+}
+
+static unsigned v4_len_context(unsigned prev)
+{
+	if(prev < 12u) return v4_lenctx[prev];
+	return 0x145u;
+}
+
+static unsigned v4_ord0(unsigned ci)
+{
+	return (ci >= 0x13Eu) ? 329u : 328u;
+}
+
+static void v4_reset(Zc4* d);
+
+int UhaDec3_04Init(void** pctx, int method)
+{
+	Zc4* d;
+	unsigned long dsz;
+	if(!pctx) return 1;
+	*pctx = 0;
+	if(method < 8 || method > 23) return 1;
+	dsz = 1UL << (((method - 8) % 16) + 10);
+	d = (Zc4*)malloc(sizeof(*d));
+	if(!d) return 2;
+	memset(d, 0, sizeof(*d));
+	d->htab = (unsigned long*)malloc(262144UL * 2u * sizeof(unsigned long));
+	d->hval = (unsigned char*)malloc(0x40000UL);
+	d->ord = (unsigned long*)malloc(65536UL * sizeof(unsigned long));
+	d->dict = (unsigned char*)calloc((size_t)(dsz + 256UL), 1);
+	d->freq = (unsigned short*)malloc(V4_NCTX * 256u * sizeof(unsigned short));
+	d->raw = (unsigned short*)malloc(V4_NCTX * 256u * sizeof(unsigned short));
+	d->escw = (unsigned short*)malloc(V4_NREAL * sizeof(unsigned short));
+	if(!d->htab || !d->hval || !d->ord || !d->dict || !d->freq || !d->raw || !d->escw) {
+		free(d->htab); free(d->hval); free(d->ord); free(d->dict);
+		free(d->freq); free(d->raw); free(d->escw); free(d);
+		return 2;
+	}
+	memset(d->htab, 0xFF, 262144UL * 2u * sizeof(unsigned long));
+	memset(d->hval, 0, 0x40000UL);
+	memset(d->ord, 0xFF, 65536UL * sizeof(unsigned long));
+	d->dsz = dsz;
+	d->dmask = dsz - 1UL;
+	d->dpos = 0;
+	d->ctx = 0;
+	d->excl = -1;
+	d->mpos = -1;
+	d->run = 0;
+	d->lastd = 0;
+	d->state = 0;
+	v4_reset(d);
+	*pctx = d;
+	return 0;
+}
+
+void UhaDec3_04Free(void* ctx)
+{
+	Zc4* d = (Zc4*)ctx;
+	if(!d) return;
+	free(d->htab); free(d->hval); free(d->ord); free(d->dict);
+	free(d->freq); free(d->raw); free(d->escw); free(d);
+}
+
+static int v4_get(Zc4* d)
+{
+	int n;
+	if(d->err) return 0;
+	if(d->in_pos >= d->in_avail) {
+		n = d->rcb(d->rctx, d->inb, 65536);
+		if(n <= 0) { d->err = 3; return 0; }
+		d->in_avail = (unsigned)n;
+		d->in_pos = 0;
+	}
+	return d->inb[d->in_pos++];
+}
+
+static void v4_emit(Zc4* d, unsigned b)
+{
+	if(d->produced < d->target) {
+		d->outb[d->out_fill++] = (unsigned char)b;
+		if(d->out_fill == 65536) {
+			if(d->wcb(d->wctx, d->outb, d->out_fill) != 0) d->err = 4;
+			d->out_fill = 0;
+		}
+	}
+	d->produced++;
+}
+
+static void v4_rc_init(Zc4* d)
+{
+	int i;
+	d->code = 0;
+	d->rng = V4_M32;
+	for(i = 0; i < 5; i++)
+		d->code = ((d->code << 8) | (unsigned long)v4_get(d)) & V4_M32;
+}
+
+static int v4_renorm(Zc4* d, unsigned long lo, unsigned long hi)
+{
+	unsigned long rng, code;
+	if(hi <= lo) { d->err = 7; return 0; }
+	rng = (d->rng * ((hi - lo) & V4_M32)) & V4_M32;
+	code = (d->code - ((d->rng * lo) & V4_M32)) & V4_M32;
+	if(rng == 0) { d->err = 7; return 0; }
+	while(rng < 0x1000000UL) {
+		code = ((code << 8) | (unsigned long)v4_get(d)) & V4_M32;
+		rng = (rng << 8) & V4_M32;
+		if(d->err) return 0;
+	}
+	d->code = code;
+	d->rng = rng;
+	return 1;
+}
+
+static void v4_reset(Zc4* d)
+{
+	unsigned i;
+	unsigned short* f328, *f329;
+	unsigned short* r328, *r329;
+	memset(d->freq, 0, (size_t)V4_NREAL * 512u);
+	memset(d->raw, 0, (size_t)V4_NREAL * 512u);
+	f328 = d->freq + 328u * 256u;
+	f329 = d->freq + 329u * 256u;
+	r328 = d->raw + 328u * 256u;
+	r329 = d->raw + 329u * 256u;
+	for(i = 0; i < 256; i++) {
+		unsigned short v = (unsigned short)((i == 0) ? 256u : (i & (0u - i)));
+		f328[i] = (unsigned short)(v * 8u);
+		f329[i] = (unsigned short)(v * 8u);
+		r328[i] = 8;
+		r329[i] = 8;
+	}
+	for(i = 0; i < V4_NREAL; i++) d->escw[i] = 1;
+	for(i = 0; i < V4_NLITM; i++) {
+		d->litm[i][0] = 0;
+		d->litm[i][1] = v4_litw1[i];
+		d->litm[i][2] = 99;
+		d->litm[i][3] = 0;
+	}
+	d->thresh = 0x10000UL;
+}
+
+static void v4_progress(Zc4* d)
+{
+	if(!d->cum || !d->ncum) return;
+	while(d->cumidx < d->ncum - 1UL && d->produced > d->cum[d->cumidx]) {
+		unsigned long v = d->cum[d->cumidx];
+		d->cumidx++;
+		if(v > d->thresh) {
+			v4_reset(d);
+			d->thresh = d->produced + 0x10000UL;
+		}
+	}
+}
+
+static void v4_rescale(Zc4* d, unsigned ci)
+{
+	unsigned short* raw = d->raw + ci * 256u;
+	unsigned short* fr = d->freq + ci * 256u;
+	unsigned long total = 0;
+	unsigned i, k, j;
+	for(i = 0; i < 256; i += 8) {
+		unsigned long d0 = (unsigned long)raw[i] | ((unsigned long)raw[i+1] << 16);
+		unsigned long d1 = (unsigned long)raw[i+2] | ((unsigned long)raw[i+3] << 16);
+		unsigned long d2 = (unsigned long)raw[i+4] | ((unsigned long)raw[i+5] << 16);
+		unsigned long d3 = (unsigned long)raw[i+6] | ((unsigned long)raw[i+7] << 16);
+		unsigned long h0 = ((d0 + 0x10001UL) & 0xFFFEFFFEUL) >> 1;
+		unsigned long h1 = ((d1 + 0x10001UL) & 0xFFFEFFFEUL) >> 1;
+		unsigned long h2 = ((d2 + 0x10001UL) & 0xFFFEFFFEUL) >> 1;
+		unsigned long h3 = ((d3 + 0x10001UL) & 0xFFFEFFFEUL) >> 1;
+		raw[i]     = (unsigned short)(h0 & V4_M16);
+		raw[i+1]   = (unsigned short)((h0 >> 16) & V4_M16);
+		raw[i+2]   = (unsigned short)(h1 & V4_M16);
+		raw[i+3]   = (unsigned short)((h1 >> 16) & V4_M16);
+		raw[i+4]   = (unsigned short)(h2 & V4_M16);
+		raw[i+5]   = (unsigned short)((h2 >> 16) & V4_M16);
+		raw[i+6]   = (unsigned short)(h3 & V4_M16);
+		raw[i+7]   = (unsigned short)((h3 >> 16) & V4_M16);
+		total = (total + h0 + h1) & V4_M32;
+		total = (total + h2 + h3) & V4_M32;
+	}
+	for(i = 1; i < 256; i++) fr[i] = raw[i-1];
+	fr[0] = (unsigned short)(((total & V4_M16) + ((total >> 16) & V4_M16)) & V4_M16);
+	for(k = 1; k <= 64; k *= 2) {
+		j = 256 - 2 * k;
+		for(;;) {
+			fr[j] = (unsigned short)(fr[j] + fr[j-k]);
+			if(j == 2 * k) break;
+			j -= 2 * k;
+		}
+	}
+	if(ci < V4_NREAL) d->escw[ci] = (unsigned short)((d->escw[ci] >> 2) + 1);
+}
+
+static void v4_update(Zc4* d, unsigned ci, unsigned sym)
+{
+	unsigned short* r = d->raw + ci * 256u;
+	unsigned short* f = d->freq + ci * 256u;
+	unsigned fb = v4_ord0(ci);
+	unsigned idx;
+	unsigned t;
+	if(r[sym] == 0) {
+		unsigned short* r0 = d->raw + fb * 256u;
+		unsigned short* f0 = d->freq + fb * 256u;
+		d->escw[ci] = (unsigned short)(d->escw[ci] + 32);
+		r0[sym] = (unsigned short)(r0[sym] + 16);
+		idx = (sym + 1) & 0xFFu;
+		while(idx) {
+			f0[idx] = (unsigned short)(f0[idx] + 16);
+			idx = (idx + (idx & (0u - idx))) & 0xFFu;
+		}
+		f0[0] = (unsigned short)(f0[0] + 16);
+		if(f0[0] >= 0x4000u) v4_rescale(d, fb);
+	}
+	r[sym] = (unsigned short)(r[sym] + 32);
+	idx = (sym + 1) & 0xFFu;
+	while(idx) {
+		f[idx] = (unsigned short)(f[idx] + 32);
+		idx = (idx + (idx & (0u - idx))) & 0xFFu;
+	}
+	f[0] = (unsigned short)(f[0] + 32);
+	t = (unsigned)d->escw[ci] + (unsigned)f[0];
+	if(t >= 0x4000u) v4_rescale(d, ci);
+}
+
+static unsigned v4_sym(Zc4* d, unsigned ci)
+{
+	unsigned short* f = d->freq + ci * 256u;
+	unsigned short* r = d->raw + ci * 256u;
+	unsigned short* f0;
+	unsigned short* r0;
+	unsigned long scaled;
+	unsigned di, esc, total, rem, p, step, q, sym, i;
+	unsigned eb;
+	int have_eb;
+	unsigned fb;
+	eb = 0;
+	have_eb = (d->excl >= 0);
+	if(have_eb) eb = (unsigned)d->dict[d->excl];
+	di = f[0];
+	if(have_eb) di = (di - r[eb]) & V4_M16;
+	fb = v4_ord0(ci);
+	if(di == 0) {
+		ci = fb;
+		f = d->freq + ci * 256u;
+		r = d->raw + ci * 256u;
+		di = f[0];
+		if(have_eb) di = (di - r[eb]) & V4_M16;
+		if(di == 0) { d->err = 7; return 0; }
+		d->rng /= di;
+		if(d->rng == 0) { d->err = 7; return 0; }
+		scaled = d->code / d->rng;
+		goto search;
+	}
+	esc = d->escw[ci];
+	total = (di + esc) & V4_M16;
+	if(total == 0) { d->err = 7; return 0; }
+	d->rng /= total;
+	if(d->rng == 0) { d->err = 7; return 0; }
+	scaled = d->code / d->rng;
+	if((scaled & V4_M16) >= di) goto escape;
+
+search:
+	rem = (di - scaled) & V4_M16;
+	p = 0;
+	if(have_eb) {
+		unsigned re = r[eb];
+		int ebon = 1;
+		for(step = 0x80; step; step >>= 1) {
+			q = p + step;
+			if(ebon && q > eb) {
+				if((unsigned long)f[q] < (unsigned long)re + (unsigned long)rem) {
+					p = q;
+					ebon = 0;
+					rem = (rem - f[q] + re) & V4_M16;
+				}
+			} else {
+				if(rem > (unsigned)f[q]) {
+					p = q;
+					rem = (rem - f[q]) & V4_M16;
+				}
+			}
+		}
+	} else {
+		for(step = 0x80; step; step >>= 1) {
+			q = p + step;
+			if(rem > (unsigned)f[q]) {
+				p = q;
+				rem = (rem - f[q]) & V4_M16;
+			}
+		}
+	}
+	if(p > 255) { d->err = 7; return 0; }
+	sym = p;
+	{
+		unsigned hi = (unsigned)((scaled + rem) & V4_M16);
+		unsigned lo = (unsigned)((hi - r[sym]) & V4_M16);
+		if(!v4_renorm(d, lo, hi)) return 0;
+	}
+	return sym;
+
+escape:
+	{
+		unsigned hi = total;
+		unsigned lo = di;
+		if(!v4_renorm(d, lo, hi)) return 0;
+	}
+	f0 = d->freq + fb * 256u;
+	r0 = d->raw + fb * 256u;
+	{
+		unsigned xsum = 0;
+		for(i = 0; i < 256; i++) {
+			if(r[i] != 0) xsum = (xsum + r0[i]) & V4_M16;
+		}
+		if(have_eb && r[eb] == 0) xsum = (xsum + r0[eb]) & V4_M16;
+		total = (f0[0] - xsum) & V4_M16;
+	}
+	if(total == 0) { d->err = 7; return 0; }
+	d->rng /= total;
+	if(d->rng == 0) { d->err = 7; return 0; }
+	scaled = d->code / d->rng;
+	{
+		unsigned scaled16 = (unsigned)(scaled & V4_M16);
+		unsigned acc = 0;
+		unsigned v40 = 256;
+		if(have_eb) {
+			unsigned stop = eb + 1u;
+			while(v40 != stop) {
+				--v40;
+				if(r[v40] == 0) {
+					acc = (acc + r0[v40]) & V4_M16;
+					if(acc > scaled16) break;
+				}
+			}
+			if(acc <= scaled16) {
+				if(v40 == 0) { d->err = 7; return 0; }
+				--v40;
+			}
+		}
+		if(acc <= scaled16) {
+			for(;;) {
+				if(v40 == 0) { d->err = 7; return 0; }
+				--v40;
+				if(r[v40] == 0) break;
+			}
+			for(;;) {
+				acc = (acc + r0[v40]) & V4_M16;
+				if(acc > scaled16) break;
+				for(;;) {
+					if(v40 == 0) { d->err = 7; return 0; }
+					--v40;
+					if(r[v40] == 0) break;
+				}
+			}
+		}
+		if(v40 > 255) { d->err = 7; return 0; }
+		sym = v40;
+		{
+			unsigned hi = acc;
+			unsigned lo = (acc - r0[sym]) & V4_M16;
+			if(!v4_renorm(d, lo, hi)) return 0;
+		}
+	}
+	return sym;
+}
+
+static void v4_bitupd(Zc4* d, unsigned ai, unsigned bit)
+{
+	unsigned short* e;
+	if((ai & 0xFFu) >= V4_NLITM) {
+		d->err = 7;
+		return;
+	}
+	e = d->litm[ai & 0xFFu];
+	if(!bit) e[1] = (unsigned short)(e[1] + 64);
+	e[2] = (unsigned short)(e[2] + 64);
+	if(e[2] >= 0x4000u) {
+		unsigned c0 = e[0];
+		unsigned c1 = e[1];
+		unsigned c2 = e[2];
+		unsigned n1 = c0 + (((c1 - c0) + 1) >> 1);
+		unsigned n2 = n1 + (((c2 - c1) + 1) >> 1);
+		e[1] = (unsigned short)(n1 & V4_M16);
+		e[2] = (unsigned short)(n2 & V4_M16);
+	}
+	d->state = v4_st0[2u * (unsigned)d->state + (bit & 1u)];
+}
+
+static unsigned v4_bit(Zc4* d, unsigned ai)
+{
+	unsigned short* e;
+	unsigned total, scaled16, bit, lo, hi;
+	if((ai & 0xFFu) >= V4_NLITM) {
+		d->err = 7;
+		return 0;
+	}
+	e = d->litm[ai & 0xFFu];
+	total = e[2];
+	if(total == 0) { d->err = 7; return 0; }
+	d->rng /= total;
+	if(d->rng == 0) { d->err = 7; return 0; }
+	scaled16 = (unsigned)((d->code / d->rng) & V4_M16);
+	if(scaled16 >= (unsigned)e[1]) {
+		bit = 1;
+		lo = e[1];
+		hi = e[2];
+	} else {
+		bit = 0;
+		lo = e[0];
+		hi = e[1];
+	}
+	if(!v4_renorm(d, lo, hi)) return 0;
+	v4_bitupd(d, ai, bit);
+	return bit;
+}
+
+static void v4_literal(Zc4* d)
+{
+	unsigned long c16 = d->ctx & V4_M16;
+	unsigned lo8 = (unsigned)(c16 & 0xFFUL);
+	unsigned hi8 = (unsigned)((c16 >> 8) & 0xFFUL);
+	unsigned midx;
+	unsigned b;
+	if(c16 == 0xFFFFUL) midx = 314u;
+	else if(c16 == 0xD1DFUL) midx = 315u;
+	else if(c16 == 0xD3DFUL) midx = 316u;
+	else if(lo8 == 0xDFu) midx = v4_ord(hi8) ? 317u : 223u;
+	else if(!v4_ord(lo8) && v4_ord(hi8)) midx = lo8 + 123u;
+	else midx = lo8;
+	b = v4_sym(d, midx);
+	if(d->err) return;
+	v4_update(d, midx, b);
+	d->excl = -1;
+	if(d->mpos >= 0 && (unsigned)d->dict[d->mpos] == b) {
+		d->excl = (long)(((unsigned long)d->mpos + 1UL) & d->dmask);
+	}
+	v4_emit(d, b ^ 0xFFu);
+	d->ctx = ((d->ctx << 8) + (unsigned long)b) & V4_M32;
+	d->dict[d->dpos] = (unsigned char)b;
+	if(d->dpos < 0x100UL)
+		d->dict[d->dsz + d->dpos] = (unsigned char)b;
+	d->dpos = (d->dpos + 1UL) & d->dmask;
+}
+
+static int v4_match(Zc4* d)
+{
+	unsigned long h;
+	unsigned long* he;
+	unsigned long mpos;
+	unsigned long pos;
+	unsigned long dist;
+	unsigned al;
+	unsigned idx;
+	unsigned bit;
+	unsigned ln;
+	unsigned n;
+	unsigned lctx;
+	unsigned long mcx, mdp, mmp;
+	if(d->err) return 0;
+	pos = d->dpos;
+	h = (d->ctx ^ (d->ctx >> 13)) & 0x3FFFFUL;
+	he = d->htab + h * 2UL;
+	mpos = he[0] & V4_M32;
+	d->mpos = -1;
+	al = 0;
+	if(d->run) {
+		mpos = (pos - d->lastd) & d->dmask;
+		al = 48u + ((d->run > 2) ? 1u : 0u);
+	}
+	if(!al) {
+		if(mpos == V4_M32 || d->ctx != he[1]) {
+			unsigned long mp = (pos - d->lastd) & d->dmask;
+			mpos = mp;
+			dist = (mp - pos) & d->dmask;
+			if(dist >= 0x104UL) {
+				unsigned long mp4 = (mp - 4UL) & d->dmask;
+				unsigned long a0 = ((unsigned long)d->dict[mp4] << 24)
+					| ((unsigned long)d->dict[mp4 + 1] << 16)
+					| ((unsigned long)d->dict[mp4 + 2] << 8)
+					| (unsigned long)d->dict[mp4 + 3];
+				unsigned long c = d->ctx;
+				if((a0 & 0xFFFFUL) == (c & 0xFFFFUL)
+					|| (a0 & 0xFFFF00FFUL) == (c & 0xFFFF00FFUL)
+					|| (a0 & 0xFFFFFF00UL) == (c & 0xFFFFFF00UL))
+					al = 9;
+			}
+			if(!al) {
+				unsigned long o = d->ord[d->ctx & 0xFFFFUL] & V4_M32;
+				if(o != V4_M32) {
+					mpos = o;
+					al = 0x11u;
+				}
+			}
+		} else {
+			al = 1;
+		}
+	}
+	he[0] = pos;
+	d->ord[d->ctx & 0xFFFFUL] = pos;
+	he[1] = d->ctx;
+	if(!al) {
+		d->run = 0;
+		return 0;
+	}
+	if(((mpos - pos) & d->dmask) < 0x100UL) {
+		d->run = 0;
+		return 0;
+	}
+	if(!d->run) {
+		if(d->hval[h]) al += (unsigned)d->state - 1u;
+		else al += (unsigned)d->state + 23u;
+	}
+	idx = al & 0xFFu;
+	if(d->excl >= 0 && d->dict[d->excl] == d->dict[mpos & d->dmask]) {
+		v4_bitupd(d, idx, 1);
+		d->run = 0;
+		return 0;
+	}
+	d->mpos = (long)(mpos & d->dmask);
+	bit = v4_bit(d, idx);
+	if(d->err) return 0;
+	if(bit) {
+		d->hval[h] = 0;
+		d->run = 0;
+		return 0;
+	}
+	if(d->run)
+		lctx = 326u + ((d->run > 2) ? 1u : 0u);
+	else
+		lctx = v4_len_context((unsigned)d->hval[h]);
+	d->excl = -1;
+	ln = v4_sym(d, lctx);
+	if(d->err) return 0;
+	v4_update(d, lctx, ln);
+	d->hval[h] = (unsigned char)ln;
+	d->lastd = (d->dpos - (mpos & d->dmask)) & d->dmask;
+	if(ln != 0xFFu) {
+		d->excl = (long)((mpos + ln) & d->dmask);
+		d->run = 0;
+	} else {
+		d->excl = -1;
+		d->run++;
+	}
+	n = (ln == 0) ? 256u : ln;
+	mcx = d->ctx;
+	mdp = d->dpos;
+	mmp = mpos & d->dmask;
+	while(n--) {
+		unsigned b = (unsigned)d->dict[mmp];
+		v4_emit(d, b ^ 0xFFu);
+		mcx = ((mcx << 8) + (unsigned long)b) & V4_M32;
+		d->dict[mdp] = (unsigned char)b;
+		if(mdp < 0x100UL) d->dict[d->dsz + mdp] = (unsigned char)b;
+		mdp = (mdp + 1UL) & d->dmask;
+		mmp = (mmp + 1UL) & d->dmask;
+	}
+	d->ctx = mcx;
+	d->dpos = mdp;
+	return 1;
+}
+
+int UhaDec3_04(void* ctx, const unsigned long* cum, unsigned long ncum,
+	Uha3ReadCb rcb, void* rctx, Uha3WriteCb wcb, void* wctx,
+	unsigned long out_len)
+{
+	Zc4* d = (Zc4*)ctx;
+	int err;
+	if(!d || !rcb || !wcb) return 1;
+	if(out_len == 0) return 0;
+	d->inb = (unsigned char*)malloc(65536UL);
+	d->outb = (unsigned char*)malloc(65536UL);
+	if(!d->inb || !d->outb) {
+		free(d->inb); free(d->outb);
+		d->inb = 0; d->outb = 0;
+		return 2;
+	}
+	d->rcb = rcb; d->rctx = rctx;
+	d->wcb = wcb; d->wctx = wctx;
+	d->in_pos = 0; d->in_avail = 0;
+	d->out_fill = 0; d->produced = 0;
+	d->target = out_len;
+	d->err = 0;
+	v4_reset(d);
+	d->cumidx = 0;
+	if(cum && ncum && cum[ncum - 1] == out_len) {
+		d->cum = cum;
+		d->ncum = ncum;
+	} else {
+		d->cum = 0;
+		d->ncum = 0;
+	}
+	v4_rc_init(d);
+	while(d->produced < d->target && !d->err) {
+		if(!v4_match(d)) {
+			if(d->err) break;
+			v4_literal(d);
+		}
+		if(!d->err) v4_progress(d);
+	}
+	err = d->err;
+	if(!err && d->out_fill) {
+		if(wcb(wctx, d->outb, d->out_fill) != 0) err = 4;
+	}
+	free(d->inb);
+	free(d->outb);
+	d->inb = 0; d->outb = 0;
+	return err;
+}
