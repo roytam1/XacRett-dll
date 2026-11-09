@@ -6,12 +6,11 @@
  *    code width starts at 9, grows to maxbits = method+8, with the
  *    complement scheme for the top of the range (see FORMAT model:
  *    "2 Huffman/LZW" / "2-7 LZW, LSB-first").
- *  - MSB (0.6): tree-based coder with 5-byte nodes and pruning;
- *    lands in Phase 3b (this header declares the entry point; the
- *    LSB implementation is final, the MSB one stubs out loudly).
+ *  - MSB (0.6): tree-based coder with 5-byte nodes and pruning.
  *
  * Written from the observed stream format, verified against
- * 02-W.UHA (LSB) and the -mw generated archives in the oracle corpus.
+ * 02-W.UHA (LSB) and the -mw generated archives in the oracle corpus
+ * (single_*_mw, lz78_*, full_mw, filt_*_mw) for MSB.
  */
 
 #ifdef __cplusplus
