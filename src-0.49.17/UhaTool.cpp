@@ -151,11 +151,11 @@ bool CUhaTool::Extract( const char* fname,const char* ddir )
 				}
 				{
 					unsigned char* filedata = decoded + e->offset;
-					// The EXE post-filter runs over the whole file
-					// before the CRC check when the archive gates
-					// it on and the file is big enough.
-					if( arc.exe_filter && e->size >= 0x400 )
-						UhaExeFilter( &arc, filedata, e->size );
+					// The post-filter chain (fax -> EXE -> mm) runs
+					// over the whole file before the CRC check when
+					// the archive gates any of it on.
+					if( e->size >= 0x400 )
+						UhaApplyFilters( &arc, filedata, e->size );
 					if( fwrite( filedata, 1, e->size, out ) != e->size )
 					{
 						fclose( out );

@@ -284,6 +284,7 @@ static int uha02_open(const unsigned char* img, unsigned long flen,
 	arc->packed_len = h.data_len;
 	arc->exe_filter = 1;	/* 0.2: gated on MZ + len inside the filter */
 	arc->mm_filter = 0;
+	arc->fax_filter = 0;
 	arc->pw_tables = 0;
 	arc->pw_stream = 0;
 
@@ -563,6 +564,7 @@ static int uha06_parse(const unsigned char raw[39], Uha06Hdr* h,
 	arc->method = b[10];
 	arc->exe_filter = (b[9] & 1) ? 1 : 0;
 	arc->mm_filter = (b[9] & 2) ? 1 : 0;
+	arc->fax_filter = (b[9] & 0x80) ? 1 : 0;
 	arc->pw_tables = (b[8] & 4) ? 1 : 0;
 	arc->pw_stream = (b[8] & 2) ? 1 : 0;
 	h->ndirs = rd16le(b + 11);
@@ -853,7 +855,8 @@ static int uha34_parse(const unsigned char raw[44], int ver,
 		return 5;
 	arc->method = b[10];
 	arc->exe_filter = (b[9] & 1) ? 1 : 0;
-	arc->mm_filter = 0;
+	arc->mm_filter = (b[9] & 2) ? 1 : 0;
+	arc->fax_filter = (b[9] & 0x80) ? 1 : 0;
 	arc->pw_tables = (b[8] & 2) ? 1 : 0;
 	arc->pw_stream = (b[8] & 2) ? 1 : 0;
 	h->ndirs = rd16le(b + 11);
@@ -1468,6 +1471,156 @@ void UhaExeFilter(UhaArchive* arc, unsigned char* buf, unsigned long len)
 		}
 		i += adv;
 	}
+}
+
+
+/* ---- multimedia inverse filter (BMP/WAV/VOC), FORMAT 6.5 ---- */
+/* Port of the reference uha02_mm_unfilter: the delta + sign-fold
+ * inverse. The first 36 bytes are signature detection and stay
+ * untouched; period (1/2/3/4) and the predictor shift come from
+ * the header bytes (BMP->3, VOC->1, WAV seed 1/2 doubled at 16
+ * bits/sample). The fold toggle depends only on the stored byte,
+ * so the transform inverts by construction. Never call for 0.2. */
+
+#define UHA_MM_WILD 0x3F
+
+static const unsigned char uha_mm_sig_bmp[36] = {
+	0x42, 0x4D, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F,
+	0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F,
+	0x3F, 0x3F, 0x01, 0x00, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3F, 0x3F
+};
+
+static const unsigned char uha_mm_sig_wav[36] = {
+	0x52, 0x49, 0x46, 0x46, 0x3F, 0x3F, 0x3F, 0x3F, 0x57, 0x41, 0x56, 0x45,
+	0x66, 0x6D, 0x74, 0x20, 0x3F, 0x3F, 0x3F, 0x3F, 0x01, 0x00, 0x3F, 0x00,
+	0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x3F, 0x00
+};
+
+static const unsigned char uha_mm_sig_voc[36] = {
+	0x43, 0x72, 0x65, 0x61, 0x74, 0x69, 0x76, 0x65, 0x20, 0x56, 0x6F, 0x69,
+	0x63, 0x65, 0x20, 0x46, 0x69, 0x6C, 0x65, 0x1A, 0x1A, 0x00, 0x0A, 0x01,
+	0x29, 0x11, 0x01, 0x3F, 0x3F, 0x3F, 0x3F, 0x00, 0x3F, 0x3F, 0x3F, 0x3F
+};
+
+void UhaMmFilter(unsigned char* buf, unsigned long len)
+{
+	unsigned long i;
+	unsigned long v4;
+	unsigned period = 0;
+	unsigned shift = 0;
+	unsigned char fold[8];
+	unsigned is_bmp = 1, is_voc = 1, is_wav = 1;
+	unsigned k;
+
+	if( !buf || len < 16 )
+		return;
+	for( k = 0; k < 8; k++ )
+		fold[k] = 0;
+	v4 = 0;
+
+	for( i = 0; i < 36 && i < len; i++ )
+	{
+		unsigned char cc = buf[i];
+		if( is_bmp && uha_mm_sig_bmp[i] != UHA_MM_WILD &&
+			uha_mm_sig_bmp[i] != cc )
+			is_bmp = 0;
+		if( is_voc && uha_mm_sig_voc[i] != UHA_MM_WILD &&
+			uha_mm_sig_voc[i] != cc )
+			is_voc = 0;
+		if( is_wav && uha_mm_sig_wav[i] != UHA_MM_WILD &&
+			uha_mm_sig_wav[i] != cc )
+			is_wav = 0;
+		if( !is_bmp && !is_voc && !is_wav )
+			return;
+		if( i == 22 )
+		{
+			period = cc;
+			v4 = 0;
+			for( k = 0; k < 8; k++ )
+				fold[k] = 0;
+			if( is_wav && cc != 1 && cc != 2 )
+				return;
+		}
+		if( i == 34 )
+		{
+			if( is_bmp )
+				period = 3;
+			if( is_voc )
+				period = 1;
+			if( is_wav )
+			{
+				if( cc == 16 )
+					period *= 2;
+				else if( cc != 8 )
+					return;
+			}
+			shift = (8 * period - 8) & 31;
+		}
+	}
+	if( period == 0 )
+		return;
+	for( ; i < len; i++ )
+	{
+		unsigned s = buf[i];
+		unsigned r = (unsigned)(i % period);
+		unsigned f = fold[r] ? (unsigned)((0u - s) & 0xFFu) : s;
+		unsigned o;
+		if( s >= 0x80u )
+			fold[r] = (unsigned char)(fold[r] ^ 1);
+		o = (unsigned)(f + ((v4 >> shift) & 0xFFUL)) & 0xFFu;
+		buf[i] = (unsigned char)o;
+		v4 = ((v4 << 8) | (unsigned long)o) & 0xFFFFFFFFUL;
+	}
+}
+
+/* ---- fax transpose inverse (1728x2376 bit-plane rebuild) ---- */
+
+void UhaFaxFilter(unsigned char* buf, unsigned long len)
+{
+	unsigned long r, base, o;
+	unsigned char* tmp;
+	unsigned x, i;
+	if( !buf || len != 513216UL )
+		return;
+	tmp = (unsigned char*)malloc(513216UL);
+	if( !tmp )
+		return;
+	o = 0;
+	for( r = 0; r < 2376UL; r++ )
+	{
+		unsigned mask = 1UL << (7UL - (r & 7UL));
+		base = (r >> 3) * 1728UL;
+		for( x = 0; x < 1728U; x += 8U )
+		{
+			unsigned b = 0;
+			for( i = 0; i < 8U; i++ )
+			{
+				if( buf[base + x + i] & mask )
+					b |= 0x80U >> i;
+			}
+			tmp[o++] = (unsigned char)b;
+		}
+	}
+	memcpy(buf, tmp, 513216UL);
+	free(tmp);
+}
+
+/* ---- full per-file post-filter chain: fax -> EXE -> mm ---- */
+
+void UhaApplyFilters(UhaArchive* arc, unsigned char* buf,
+	unsigned long len)
+{
+	if( !arc || !buf )
+		return;
+	if( arc->fax_filter && len == 513216UL )
+	{
+		UhaFaxFilter(buf, len);
+		return;
+	}
+	if( arc->exe_filter )
+		UhaExeFilter(arc, buf, len);
+	if( arc->mm_filter )
+		UhaMmFilter(buf, len);
 }
 
 unsigned long UhaFileCrc(const unsigned char* d, unsigned long n)

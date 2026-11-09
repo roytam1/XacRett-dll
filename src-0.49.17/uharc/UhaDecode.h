@@ -42,7 +42,8 @@ typedef struct UhaArchive
 	unsigned long total_unpacked;
 	unsigned long packed_len;	/* data_off / base_e01 / data_len */
 	int exe_filter;		/* post-filter switch (gating) */
-	int mm_filter;		/* multimedia filter flag (not yet applied) */
+	int mm_filter;		/* multimedia filter flag (BMP/WAV/VOC) */
+	int fax_filter;		/* fax transpose flag (0.3/0.6, 513216-byte files) */
 	int pw_tables;		/* -pw: tables encrypted with password */
 	int pw_stream;		/* -pw: packed stream encrypted */
 	UhaEntry* entries;
@@ -75,6 +76,24 @@ int UhaDecodeSolid(UhaArchive* arc, const unsigned char* packed,
  * file bytes (size bytes); filter modifies in place.
  */
 void UhaExeFilter(UhaArchive* arc, unsigned char* buf, unsigned long len);
+
+/* Multimedia (BMP/WAV/VOC) inverse filter (FORMAT 2.4/6.5): the
+ * delta + sign-fold transform applied to whole media files before
+ * compression. Only for 0.3/0.4/0.6 with header +9 bit1 set; the
+ * 0.2 decoder must not call it (0.2's in-stream predictor lives in
+ * core3). In place; untouched below 16 bytes or for non-media data. */
+void UhaMmFilter(unsigned char* buf, unsigned long len);
+
+/* Fax transpose inverse (1728x2376 bit-plane rebuild, exactly
+ * 513216 bytes). Selected by header +9 bit7 (0.3/0.6); disables
+ * the other filters for that file. In place. */
+void UhaFaxFilter(unsigned char* buf, unsigned long len);
+
+/* The full per-file post-filter chain, decode order fax -> EXE ->
+ * mm (FORMAT 2.4). Assumes the caller already gated on
+ * size >= 0x400, like the original's buffering splitter. */
+void UhaApplyFilters(UhaArchive* arc, unsigned char* buf,
+	unsigned long len);
 
 /* CRC32 (zlib) of a decoded member; used by the provider for the
  * per-file verify (post-filter bytes). */
