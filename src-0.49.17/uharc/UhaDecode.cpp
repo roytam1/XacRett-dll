@@ -12,6 +12,7 @@
 #include "UhaDec0.h"
 #include "UhaDec2.h"
 #include "UhaDec3.h"
+#include "UhaDec4.h"
 #include "UhaDec5.h"
 
 static unsigned long uha_crc_tab[256];
@@ -285,6 +286,7 @@ static int uha02_open(const unsigned char* img, unsigned long flen,
 	arc->exe_filter = 1;	/* 0.2: gated on MZ + len inside the filter */
 	arc->mm_filter = 0;
 	arc->fax_filter = 0;
+	arc->flags2 = 0;
 	arc->pw_tables = 0;
 	arc->pw_stream = 0;
 
@@ -565,6 +567,7 @@ static int uha06_parse(const unsigned char raw[39], Uha06Hdr* h,
 	arc->exe_filter = (b[9] & 1) ? 1 : 0;
 	arc->mm_filter = (b[9] & 2) ? 1 : 0;
 	arc->fax_filter = (b[9] & 0x80) ? 1 : 0;
+	arc->flags2 = b[9];
 	arc->pw_tables = (b[8] & 4) ? 1 : 0;
 	arc->pw_stream = (b[8] & 2) ? 1 : 0;
 	h->ndirs = rd16le(b + 11);
@@ -857,6 +860,7 @@ static int uha34_parse(const unsigned char raw[44], int ver,
 	arc->exe_filter = (b[9] & 1) ? 1 : 0;
 	arc->mm_filter = (b[9] & 2) ? 1 : 0;
 	arc->fax_filter = (b[9] & 0x80) ? 1 : 0;
+	arc->flags2 = b[9];
 	arc->pw_tables = (b[8] & 2) ? 1 : 0;
 	arc->pw_stream = (b[8] & 2) ? 1 : 0;
 	h->ndirs = rd16le(b + 11);
@@ -1333,6 +1337,57 @@ int UhaDecodeSolid(UhaArchive* arc, const unsigned char* packed,
 			rc = UhaDec3_04(ctx, cum, ncum, uha_mem_read, &mr,
 				uha_out_write, &bw, arc->total_unpacked);
 			UhaDec3_04Free(ctx);
+		}
+		else
+		{
+			rc = 6;
+		}
+		break;
+	case 4:
+		if( arc->ver == 6 )
+		{
+			void* ctx;
+			UhaDec4_06SetFlags2( arc->flags2 );
+			int irc = UhaDec4_06Init(&ctx, arc->method);
+			if( irc != 0 )
+			{
+				free(cum);
+				free(bw.b);
+				return irc == 2 ? 2 : 7;
+			}
+			rc = UhaDec4_06(ctx, cum, ncum, uha_mem_read, &mr,
+				uha_out_write, &bw, arc->total_unpacked);
+			UhaDec4_06Free(ctx);
+		}
+		else if( arc->ver == 4 )
+		{
+			void* ctx;
+			UhaDec4_04SetFlags2( arc->flags2 );
+			int irc = UhaDec4_04Init(&ctx, arc->method);
+			if( irc != 0 )
+			{
+				free(cum);
+				free(bw.b);
+				return irc == 2 ? 2 : 7;
+			}
+			rc = UhaDec4_04(ctx, cum, ncum, uha_mem_read, &mr,
+				uha_out_write, &bw, arc->total_unpacked);
+			UhaDec4_04Free(ctx);
+		}
+		else if( arc->ver == 3 )
+		{
+			void* ctx;
+			UhaDec4_03SetFlags2( arc->flags2 );
+			int irc = UhaDec4_03Init(&ctx, arc->method);
+			if( irc != 0 )
+			{
+				free(cum);
+				free(bw.b);
+				return irc == 2 ? 2 : 7;
+			}
+			rc = UhaDec4_03(ctx, cum, ncum, uha_mem_read, &mr,
+				uha_out_write, &bw, arc->total_unpacked);
+			UhaDec4_03Free(ctx);
 		}
 		else
 		{

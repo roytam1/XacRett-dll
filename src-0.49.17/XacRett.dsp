@@ -204,6 +204,10 @@ SOURCE=.\uharc\UhaDec5.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\uharc\UhaDec4.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\Bz2Tool.cpp
 # End Source File
 # Begin Source File
@@ -672,6 +676,10 @@ SOURCE=.\uharc\UhaDec3.h
 # Begin Source File
 
 SOURCE=.\uharc\UhaDec5.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDec4.h
 # End Source File
 # Begin Source File
 

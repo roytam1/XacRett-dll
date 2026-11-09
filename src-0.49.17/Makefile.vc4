@@ -87,6 +87,7 @@ OBJS = \
     $(OBJDIR)\UhaDec2.obj \
     $(OBJDIR)\UhaDec3.obj \
     $(OBJDIR)\UhaDec5.obj \
+    $(OBJDIR)\UhaDec4.obj \
     $(OBJDIR)\CompactCTool.obj \
     $(OBJDIR)\complib.obj \
     $(OBJDIR)\CompressZTool.obj \
@@ -433,6 +434,8 @@ $(OBJDIR)\UhaDec2.obj : uharc\UhaDec2.cpp
 $(OBJDIR)\UhaDec3.obj : uharc\UhaDec3.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 $(OBJDIR)\UhaDec5.obj : uharc\UhaDec5.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+$(OBJDIR)\UhaDec4.obj : uharc\UhaDec4.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\BsaTool.obj : BsaTool.cpp

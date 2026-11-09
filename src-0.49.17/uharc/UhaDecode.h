@@ -44,6 +44,7 @@ typedef struct UhaArchive
 	int exe_filter;		/* post-filter switch (gating) */
 	int mm_filter;		/* multimedia filter flag (BMP/WAV/VOC) */
 	int fax_filter;		/* fax transpose flag (0.3/0.6, 513216-byte files) */
+	unsigned char flags2;	/* header +9 for the core-4 kennedy case (bit6) */
 	int pw_tables;		/* -pw: tables encrypted with password */
 	int pw_stream;		/* -pw: packed stream encrypted */
 	UhaEntry* entries;
