@@ -1475,6 +1475,8 @@ void UhaExeFilter(UhaArchive* arc, unsigned char* buf, unsigned long len)
 		UhaExeFilter345(arc, buf, len);
 		return;
 	}
+	if( arc->method == 0 )
+		return;
 	if( !buf || len <= 15 )
 		return;
 	if( !((buf[0] == 0x4D && buf[1] == 0x5A) ||

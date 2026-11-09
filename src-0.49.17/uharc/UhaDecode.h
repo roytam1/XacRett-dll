@@ -71,8 +71,9 @@ int UhaDecodeSolid(UhaArchive* arc, const unsigned char* packed,
 	unsigned char** out, unsigned long* outlen);
 
 /* Apply the whole-file EXE post-filter (FORMAT 6.4) when the archive
- * gates it on and the file is at least 0x400 bytes. 0.2: always
- * gated on MZ/ZM + len (simpler E8/E9 pass). 0.3/0.4/0.6: header
+ * gates it on and the file is at least 0x400 bytes. 0.2: MZ/ZM + len
+ * and header method != 0 (STORE bypasses the filter), simpler
+ * E8/E9 pass. 0.3/0.4/0.6: header
  * flag + len (MTF table + MZ relocation rebuild). Buffer is the
  * file bytes (size bytes); filter modifies in place.
  */
