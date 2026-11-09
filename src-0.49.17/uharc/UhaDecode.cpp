@@ -1690,8 +1690,8 @@ unsigned long UhaFileCrc(const unsigned char* d, unsigned long n)
  * MZ relocation table (de-transpose, inverse delta). Gate: the
  * caller applies the header flag + size gate; the routine itself
  * accepts MZ/ZM/MQ, ELF (with the e_type/entry byte check) and
- * "FBOV". The f6 pre-transform (0.6 methods 24..39) is armed only
- * once core 4 lands; until then it is off.
+ * "FBOV". The f6 pre-transform is armed per-archive for 0.6 methods
+ * 24..39 (core 4); it is off for every other method/version.
  */
 
 static unsigned uha_rd16(const unsigned char* p)
@@ -1733,10 +1733,11 @@ static void UhaExeFilter345(UhaArchive* arc, unsigned char* buf, unsigned long l
 	unsigned long i;
 	unsigned char* tmp;
 	int exe, elf, fbov;
+	int f6;
 	unsigned tab[128];
 	unsigned j;
 
-	(void)arc;
+	f6 = (arc && arc->ver == 6 && arc->method >= 24 && arc->method <= 39) ? 1 : 0;
 	if( !buf || len < 0x400UL || len <= 15UL )
 		return;
 	end = len - 15UL;
@@ -1862,6 +1863,26 @@ static void UhaExeFilter345(UhaArchive* arc, unsigned char* buf, unsigned long l
 
 			if( v != 0 )
 			{
+				if( f6 )
+				{
+					/* 0.6 core-4 pre-transform (byte_433E36): shuffle
+					 * t = (B0<<16) + ((v & 0xFF00FF00) + B2) mod 2^32, where
+					 * v = B3 B2 B1 B0. If v or t lies in [-i, len), store t and
+					 * continue the normal path on t. */
+					unsigned long t = ((((unsigned long)v << 16) &
+						0x00FF0000UL) +
+						((((unsigned long)v & 0xFF00FF00UL) +
+							(((unsigned long)v >> 16) & 0xFFUL)) &
+						0xFFFFFFFFUL)) & 0xFFFFFFFFUL;
+					if( (v >= -(long)i && v < (long)len) ||
+						((long)t >= -(long)i && (long)t < (long)len) )
+					{
+						uha_wr32(buf + i + 1, t);
+						cur = t;
+						w = (long)t;
+						adv = 5;
+					}
+				}
 				if( w > 0 && (unsigned long)w <= len - 1UL )
 				{
 					if( w == (long)i )
