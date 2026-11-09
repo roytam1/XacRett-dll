@@ -2089,13 +2089,8 @@ static const unsigned char w5_427bfe[16] = {
 	1, 1, 1, 0, 0, 0
 };
 
-/* 0.6 core-5 state. Field roles follow the format notes in
- * uharc_dec5.c's header: predictors with error histories,
- * Fenwick tree over counts/totals, price table lookups, and a
- * 3-group method space. The PPM decode (d5_ppmdec/d5_litdec and
- * the predictor training) is still to be rewritten; this file
- * currently carries the tables, the I/O pump and the range coder,
- * and refuses loudly until the logic lands. */
+/* 0.6 core-5 scaffold: I/O pump + range coder. The decoder
+ * (UhaDec5_06) refuses loudly until the PPM logic lands. */
 typedef struct Z5
 {
 	Uha5ReadCb rcb;
@@ -2114,12 +2109,12 @@ typedef struct Z5
 	unsigned long rng;
 	unsigned long dsz;
 	unsigned long dmask;
-	unsigned long dpos;
 	int method;
 	int group;
 	const unsigned long* cum;
 	unsigned long ncum;
 	unsigned long cumidx;
+	unsigned long blk_end;
 } Z5;
 
 static int v5_get(Z5* d)
@@ -2230,22 +2225,1374 @@ int UhaDec5_04(void* ctx, const unsigned long* cum, unsigned long ncum,
 	return 7;
 }
 
+/* 0.3 core 5 (methods 36..79). Clean-room rewrite.
+ * A 24-bit range/offset coder with an 8-bit renormalisation step
+ * and a one-byte bit reservoir (same family as the 0.3 core-3
+ * coder). The stream begins with a discarded ~out_len marker
+ * byte. The model: a 3-way decision (switch model / match /
+ * literal) with 8 three-bit history states; a PPM-style context
+ * model with six context groupings (512/32/32/96/64/512
+ * contexts); a 61-symbol distance model; 21/22-symbol length
+ * models; a short-distance model; a 16-symbol long-run model.
+ * Literals are delta-coded against a previous byte selected by
+ * the current grouping.
+ * Dictionary: 1 << (((method-36) % 14) + 10).
+ */
+
+#define Z5_M32 0xFFFFFFFFUL
+#define Z5_M16 0xFFFFU
+
+typedef struct Z5t
+{
+	Uha5ReadCb rcb;
+	void* rctx;
+	Uha5WriteCb wcb;
+	void* wctx;
+	unsigned char* inb;
+	unsigned in_pos;
+	unsigned in_avail;
+	unsigned char* outb;
+	unsigned out_fill;
+	unsigned long produced;
+	unsigned long target;
+	int err;
+	unsigned long unit;
+	unsigned long code;
+	unsigned long rng;
+	unsigned cur;
+	unsigned char* dict;
+	unsigned long dsz;
+	unsigned long dmask;
+	unsigned long dpos;
+	unsigned long hist;
+	unsigned long hist_max;
+	unsigned short* fen[6];
+	unsigned short* raw[6];
+	unsigned short* cfen;
+	unsigned short* craw;
+	unsigned long ctx;
+	unsigned char group;
+	unsigned char lag;
+	unsigned char sub;
+	unsigned char psub;
+	unsigned char lit0mode;
+	unsigned char lithmode;
+	unsigned char sign;
+	unsigned char dmode;
+	unsigned char length;
+	unsigned long lag4;
+	unsigned long fe4;
+	unsigned long fe8;
+	unsigned long dval;
+	unsigned long* mru;
+	unsigned mru_n;
+	unsigned mru_max;
+	unsigned dstate;
+	unsigned short inc[4];
+	unsigned short lenA[23];
+	unsigned short lenB[23];
+	unsigned short dist61[62];
+	unsigned short sdist[14];
+	unsigned short smalld[3];
+	unsigned short longm[16];
+	unsigned short litm[32];
+	unsigned char lhist;
+} Z5t;
+
+static const unsigned long z5_thresh[57] = {
+	0xFFFFFFFFUL, 0x00780000UL, 0x00700000UL, 0x00680000UL, 0x00600000UL, 0x00580000UL, 0x00500000UL, 0x00480000UL,
+	0x00400000UL, 0x003C0000UL, 0x00380000UL, 0x00340000UL, 0x00300000UL, 0x002C0000UL, 0x00280000UL, 0x00240000UL,
+	0x00200000UL, 0x001E0000UL, 0x001C0000UL, 0x001A0000UL, 0x00180000UL, 0x00160000UL, 0x00140000UL, 0x00120000UL,
+	0x00100000UL, 0x000E0000UL, 0x000C0000UL, 0x000A0000UL, 0x00080000UL, 0x00060000UL, 0x00040000UL, 0x00030000UL,
+	0x00020000UL, 0x00018000UL, 0x00010000UL, 0x0000C000UL, 0x00008000UL, 0x00006000UL, 0x00004000UL, 0x00003000UL,
+	0x00002000UL, 0x00001800UL, 0x00001000UL, 0x00000C00UL, 0x00000800UL, 0x00000600UL, 0x00000400UL, 0x00000300UL,
+	0x00000200UL, 0x00000100UL, 0x00000080UL, 0x00000040UL, 0x00000020UL, 0x00000010UL, 0x00000008UL, 0x00000004UL,
+	0x00000002UL,
+};
+
+static const unsigned long z5_dbase[60] = {
+	0x00780000UL, 0x00700000UL, 0x00680000UL, 0x00600000UL, 0x00580000UL, 0x00500000UL, 0x00480000UL, 0x00400000UL,
+	0x003C0000UL, 0x00380000UL, 0x00340000UL, 0x00300000UL, 0x002C0000UL, 0x00280000UL, 0x00240000UL, 0x00200000UL,
+	0x001E0000UL, 0x001C0000UL, 0x001A0000UL, 0x00180000UL, 0x00160000UL, 0x00140000UL, 0x00120000UL, 0x00100000UL,
+	0x000E0000UL, 0x000C0000UL, 0x000A0000UL, 0x00080000UL, 0x00060000UL, 0x00040000UL, 0x00030000UL, 0x00020000UL,
+	0x00018000UL, 0x00010000UL, 0x0000C000UL, 0x00008000UL, 0x00006000UL, 0x00004000UL, 0x00003000UL, 0x00002000UL,
+	0x00001800UL, 0x00001000UL, 0x00000C00UL, 0x00000800UL, 0x00000600UL, 0x00000400UL, 0x00000300UL, 0x00000200UL,
+	0x00000100UL, 0x00000080UL, 0x00000040UL, 0x00000020UL, 0x00000010UL, 0x00000008UL, 0x00000004UL, 0x00000002UL,
+	0x00000001UL, 0x00000003UL, 0x00000001UL, 0x00000000UL,
+};
+
+static const unsigned long z5_drange[60] = {
+	0x00080000UL, 0x00080000UL, 0x00080000UL, 0x00080000UL, 0x00080000UL, 0x00080000UL, 0x00080000UL, 0x00080000UL,
+	0x00040000UL, 0x00040000UL, 0x00040000UL, 0x00040000UL, 0x00040000UL, 0x00040000UL, 0x00040000UL, 0x00040000UL,
+	0x00020000UL, 0x00020000UL, 0x00020000UL, 0x00020000UL, 0x00020000UL, 0x00020000UL, 0x00020000UL, 0x00020000UL,
+	0x00020000UL, 0x00020000UL, 0x00020000UL, 0x00020000UL, 0x00020000UL, 0x00020000UL, 0x00010000UL, 0x00010000UL,
+	0x00008000UL, 0x00008000UL, 0x00004000UL, 0x00004000UL, 0x00002000UL, 0x00002000UL, 0x00001000UL, 0x00001000UL,
+	0x00000800UL, 0x00000800UL, 0x00000400UL, 0x00000400UL, 0x00000200UL, 0x00000200UL, 0x00000100UL, 0x00000100UL,
+	0x00000100UL, 0x00000080UL, 0x00000040UL, 0x00000020UL, 0x00000010UL, 0x00000008UL, 0x00000004UL, 0x00000002UL,
+	0x00000000UL, 0x00000000UL, 0x00000002UL, 0x00000000UL,
+};
+
+static const unsigned char z5_lit0[16] = {
+	0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00,
+};
+
+static const unsigned char z5_lit1[256] = {
+	0x00, 0x01, 0x01, 0x02, 0x02, 0x02, 0x03, 0x03, 0x03, 0x03, 0x03, 0x04, 0x04, 0x04, 0x04, 0x04,
+	0x04, 0x04, 0x04, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+	0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
+	0x06, 0x06, 0x06, 0x06, 0x06, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
+	0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
+	0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09,
+	0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09,
+	0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x0A, 0x0A, 0x0A, 0x0A,
+	0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A,
+	0x0A, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0C, 0x0C,
+	0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0D, 0x0D, 0x0D, 0x0D, 0x0D, 0x0E, 0x0E, 0x0E, 0x0F, 0x0F,
+};
+
+static const unsigned char z5_lit3[256] = {
+	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x07, 0x08, 0x08, 0x09, 0x09, 0x0A, 0x0A, 0x0A,
+	0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0D, 0x0D, 0x0D,
+	0x0D, 0x0D, 0x0D, 0x0D, 0x0D, 0x0D, 0x0D, 0x0D, 0x0D, 0x0D, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E,
+	0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0F,
+	0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
+	0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
+	0x0F, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+	0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+	0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+	0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+	0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+	0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+	0x11, 0x11, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,
+	0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x13, 0x13, 0x13, 0x13, 0x13, 0x13, 0x13, 0x13, 0x13,
+	0x13, 0x13, 0x13, 0x13, 0x14, 0x14, 0x14, 0x14, 0x14, 0x14, 0x14, 0x14, 0x15, 0x15, 0x15, 0x15,
+	0x15, 0x16, 0x16, 0x16, 0x17, 0x17, 0x18, 0x18, 0x19, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F,
+};
+
+static const unsigned char z5_subrescale[96] = {
+	0x00, 0x00, 0x01, 0x02, 0x02, 0x00, 0x00, 0x01, 0x04, 0x02, 0x00, 0x00, 0x06, 0x04, 0x02, 0x00,
+	0x00, 0x00, 0x01, 0x02, 0x02, 0x00, 0x00, 0x01, 0x04, 0x02, 0x00, 0x00, 0x06, 0x04, 0x02, 0x00,
+	0x00, 0x00, 0x01, 0x02, 0x02, 0x00, 0x00, 0x01, 0x04, 0x02, 0x00, 0x00, 0x06, 0x04, 0x02, 0x00,
+	0x00, 0x00, 0x01, 0x02, 0x02, 0x00, 0x00, 0x01, 0x04, 0x02, 0x00, 0x00, 0x06, 0x04, 0x02, 0x00,
+	0x00, 0x00, 0x01, 0x02, 0x02, 0x00, 0x00, 0x01, 0x04, 0x02, 0x00, 0x00, 0x06, 0x04, 0x02, 0x00,
+	0x00, 0x00, 0x01, 0x02, 0x02, 0x00, 0x00, 0x01, 0x04, 0x02, 0x00, 0x00, 0x06, 0x04, 0x02, 0x00,
+};
+
+static const unsigned char z5_lenbase[22] = {
+	0xFF, 0xBF, 0x7F, 0x5F, 0x3F, 0x2F, 0x1F, 0x17, 0x13, 0x0F, 0x0D, 0x0C,
+	0x0B, 0x0A, 0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02,
+};
+
+static const unsigned char z5_lenbits[22] = {
+	0x00, 0x40, 0x40, 0x20, 0x20, 0x10, 0x10, 0x08, 0x04, 0x04, 0x02,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+static const unsigned short z5_lenmodel[23] = {
+	0x0000, 0x0010, 0x0018, 0x0028, 0x0038, 0x0058, 0x007C, 0x00CC, 0x0130, 0x018C, 0x0244, 0x02EF,
+	0x0401, 0x04C9, 0x05CD, 0x071F, 0x08E1, 0x0B39, 0x0E59, 0x1241, 0x17B9, 0x2119, 0x2710,
+};
+
+static const unsigned short z5_shortdist[14] = {
+	0x0000, 0x0190, 0x0352, 0x0546, 0x076C, 0x09C4, 0x0C4E, 0x0F0A, 0x11F8, 0x1518, 0x186A, 0x1BEE,
+	0x1FA4, 0x238C,
+};
+
+static const unsigned short z5_smalldist[3] = {
+	0x0000, 0x1194, 0x238C,
+};
+
+static const unsigned short z5_longmodel[16] = {
+	0x0000, 0x0001, 0x0002, 0x0003, 0x0005, 0x0007, 0x0009, 0x000C, 0x0011, 0x0018, 0x0021, 0x002C,
+	0x0039, 0x0049, 0x0059, 0x0063,
+};
+
+static const unsigned short z5_nctx[6] = { 512, 32, 32, 96, 64, 512 };
+
+static const unsigned short z5_mrun[4] = { 0, 5, 8, 16 };
+
+static const unsigned short z5_seed[256] = {
+	0x0100, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001, 0x0008, 0x0001, 0x0002, 0x0001,
+	0x0004, 0x0001, 0x0002, 0x0001, 0x0010, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001,
+	0x0008, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001, 0x0020, 0x0001, 0x0002, 0x0001,
+	0x0004, 0x0001, 0x0002, 0x0001, 0x0008, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001,
+	0x0010, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001, 0x0008, 0x0001, 0x0002, 0x0001,
+	0x0004, 0x0001, 0x0002, 0x0001, 0x0040, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001,
+	0x0008, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001, 0x0010, 0x0001, 0x0002, 0x0001,
+	0x0004, 0x0001, 0x0002, 0x0001, 0x0008, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001,
+	0x0020, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001, 0x0008, 0x0001, 0x0002, 0x0001,
+	0x0004, 0x0001, 0x0002, 0x0001, 0x0010, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001,
+	0x0008, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001, 0x0080, 0x0001, 0x0002, 0x0001,
+	0x0004, 0x0001, 0x0002, 0x0001, 0x0008, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001,
+	0x0010, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001, 0x0008, 0x0001, 0x0002, 0x0001,
+	0x0004, 0x0001, 0x0002, 0x0001, 0x0020, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001,
+	0x0008, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001, 0x0010, 0x0001, 0x0002, 0x0001,
+	0x0004, 0x0001, 0x0002, 0x0001, 0x0008, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001,
+	0x0040, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001, 0x0008, 0x0001, 0x0002, 0x0001,
+	0x0004, 0x0001, 0x0002, 0x0001, 0x0010, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001,
+	0x0008, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001, 0x0020, 0x0001, 0x0002, 0x0001,
+	0x0004, 0x0001, 0x0002, 0x0001, 0x0008, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001,
+	0x0010, 0x0001, 0x0002, 0x0001, 0x0004, 0x0001, 0x0002, 0x0001, 0x0008, 0x0001, 0x0002, 0x0001,
+	0x0004, 0x0001, 0x0002, 0x0001,
+};
+
+static const unsigned short z5_distseed[62] = {
+	0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+	0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+	0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+	0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+	0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x01FF, 0x03FF, 0x05FF, 0x07FF, 0x09FF, 0x0BFF, 0x0DFF,
+	0x0FFF, 0x1000,
+};
+
+
+/* ---- buffered input/output ---- */
+static int z5_get(Z5t* d)
+{
+	int n;
+	if( d->err )
+		return 0;
+	if( d->in_pos >= d->in_avail )
+	{
+		n = d->rcb(d->rctx, d->inb, 65536);
+		if( n <= 0 )
+		{
+			d->err = 3;
+			return 0;
+		}
+		d->in_avail = (unsigned)n;
+		d->in_pos = 0;
+	}
+	return d->inb[d->in_pos++];
+}
+
+static void z5_put1(Z5t* d, unsigned b)
+{
+	if( d->produced < d->target )
+	{
+		d->outb[d->out_fill++] = (unsigned char)b;
+		if( d->out_fill == 65536 )
+		{
+			if( d->wcb(d->wctx, d->outb, d->out_fill) != 0 )
+				d->err = 4;
+			d->out_fill = 0;
+		}
+	}
+	d->produced++;
+}
+
+static void z5_putn(Z5t* d, unsigned b, unsigned long n)
+{
+	while( n-- )
+		z5_put1(d, b);
+}
+
+/* ---- range coder (24-bit, 8-bit renormalisation) ---- */
+static void z5_rc_init(Z5t* d)
+{
+	int b;
+	z5_get(d);	/* discarded ~out_len marker byte */
+	b = z5_get(d);
+	d->cur = (unsigned)b;
+	d->rng = 0x80UL;
+	d->code = (unsigned long)((unsigned)b >> 1);
+}
+
+static void z5_renorm(Z5t* d)
+{
+	while( d->rng <= 0x800000UL )
+	{
+		unsigned b = (unsigned)z5_get(d);
+		d->code = ((d->code << 8) |
+			(unsigned long)((d->cur & 1u) << 7) |
+			(unsigned long)(b >> 1)) & Z5_M32;
+		d->rng = (d->rng << 8) & Z5_M32;
+		d->cur = b;
+		if( d->err )
+			return;
+	}
+}
+
+static unsigned z5_point(Z5t* d, unsigned total)
+{
+	unsigned long unit, p;
+	if( d->err )
+		return 0;
+	if( d->rng <= 0x800000UL )
+		z5_renorm(d);
+	if( d->err )
+		return 0;
+	total &= Z5_M16;
+	if( total == 0 )
+	{
+		d->err = 7;
+		return 0;
+	}
+	unit = d->rng / total;
+	if( unit == 0 )
+	{
+		d->err = 7;
+		return 0;
+	}
+	d->unit = unit;
+	p = d->code / unit;
+	if( p >= (unsigned long)total )
+		p = (unsigned long)total - 1;
+	return (unsigned)p;
+}
+
+static void z5_narrow(Z5t* d, unsigned total, unsigned lo, unsigned hi)
+{
+	unsigned long u = d->unit;
+	unsigned long lp = (u * (unsigned long)lo) & Z5_M32;
+	d->code = (d->code - lp) & Z5_M32;
+	if( (unsigned long)hi < (unsigned long)total )
+		d->rng = (u * (unsigned long)(hi - lo)) & Z5_M32;
+	else
+		d->rng = (d->rng - lp) & Z5_M32;
+}
+
+/* halve every raw count once, with the original packed-word arithmetic */
+static unsigned long z5_halve(unsigned short* raw)
+{
+	unsigned long total = 0;
+	unsigned i;
+	for( i = 0; i < 256; i += 8 )
+	{
+		unsigned long d0 = (unsigned long)raw[i] | ((unsigned long)raw[i+1] << 16);
+		unsigned long d1 = (unsigned long)raw[i+2] | ((unsigned long)raw[i+3] << 16);
+		unsigned long d2 = (unsigned long)raw[i+4] | ((unsigned long)raw[i+5] << 16);
+		unsigned long d3 = (unsigned long)raw[i+6] | ((unsigned long)raw[i+7] << 16);
+		unsigned long h0 = ((d0 + 0x10001UL) & 0xFFFEFFFEUL) >> 1;
+		unsigned long h1 = ((d1 + 0x10001UL) & 0xFFFEFFFEUL) >> 1;
+		unsigned long h2 = ((d2 + 0x10001UL) & 0xFFFEFFFEUL) >> 1;
+		unsigned long h3 = ((d3 + 0x10001UL) & 0xFFFEFFFEUL) >> 1;
+		raw[i]     = (unsigned short)(h0 & Z5_M16);
+		raw[i+1]   = (unsigned short)((h0 >> 16) & Z5_M16);
+		raw[i+2]   = (unsigned short)(h1 & Z5_M16);
+		raw[i+3]   = (unsigned short)((h1 >> 16) & Z5_M16);
+		raw[i+4]   = (unsigned short)(h2 & Z5_M16);
+		raw[i+5]   = (unsigned short)((h2 >> 16) & Z5_M16);
+		raw[i+6]   = (unsigned short)(h3 & Z5_M16);
+		raw[i+7]   = (unsigned short)((h3 >> 16) & Z5_M16);
+		total = (total + h0 + h1) & Z5_M32;
+		total = (total + h2 + h3) & Z5_M32;
+	}
+	return total;
+}
+
+static void z5_rescale(Z5t* d, unsigned cidx)
+{
+	unsigned short* raw = d->craw + cidx * 256u;
+	unsigned short* fr = d->cfen + cidx * 256u;
+	unsigned long total;
+	unsigned i, k, j;
+	total = z5_halve(raw);
+	for( i = 1; i < 256; i++ )
+		fr[i] = raw[i-1];
+	fr[0] = (unsigned short)(((total & Z5_M16) + ((total >> 16) & Z5_M16)) & Z5_M16);
+	for( k = 1; k <= 64; k *= 2 )
+	{
+		j = 256 - 2 * k;
+		for( ;; )
+		{
+			fr[j] = (unsigned short)(fr[j] + fr[j-k]);
+			if( j == 2 * k )
+				break;
+			j -= 2 * k;
+		}
+	}
+}
+
+static void z5_rescale_n(Z5t* d, unsigned cidx, unsigned times)
+{
+	unsigned short* raw = d->craw + cidx * 256u;
+	unsigned char t = (unsigned char)times;
+	for( ;; )
+	{
+		t = (unsigned char)(t - 1);
+		if( t == 0 )
+			break;
+		z5_halve(raw);
+	}
+	z5_rescale(d, cidx);
+}
+
+/* update the current context with symbol sym, select the next context */
+static void z5_update(Z5t* d, unsigned sym)
+{
+	unsigned cidx = (unsigned)d->ctx;
+	unsigned short* fr = d->cfen + cidx * 256u;
+	unsigned short* raw = d->craw + cidx * 256u;
+	unsigned inc = d->inc[d->sub];
+	unsigned v;
+	raw[sym] = (unsigned short)(raw[sym] + inc);
+	v = (sym + 1u) & 0xFFu;
+	if( v )
+	{
+		for( ;; )
+		{
+			fr[v] = (unsigned short)(fr[v] + inc);
+			v = (v + (v & ((0u - v) & 0xFFu))) & 0xFFu;
+			if( v == 0 )
+				break;
+		}
+	}
+	fr[0] = (unsigned short)(fr[0] + inc);
+	if( fr[0] >= 0x4000u )
+		z5_rescale(d, cidx);
+
+	if( d->group == 0 || d->group == 5 )
+	{
+		cidx = ((((cidx & 0xC0u) == (sym & 0xC0u)) ? 1u : 0u) << 8) | sym;
+	}
+	else if( d->group == 1 )
+	{
+		cidx = (unsigned)z5_lit0[cidx & 0xFu] * 16u + (unsigned)z5_lit1[sym];
+	}
+	else if( d->group == 3 )
+	{
+		cidx = (unsigned)(d->fe8 % 3u) * 32u + (unsigned)z5_lit3[sym];
+	}
+	else
+	{
+		cidx = ((unsigned)(d->lag & d->fe8) & 0xFFu) * 16u + (unsigned)z5_lit1[sym];
+	}
+	d->fe8 = (d->fe8 + 1UL) & Z5_M32;
+	d->ctx = cidx;
+}
+
+/* decode a symbol in the current PPM context */
+static unsigned z5_sym(Z5t* d, unsigned cidx)
+{
+	unsigned short* base = d->cfen + cidx * 256u;
+	unsigned short* p = base;
+	unsigned total = base[0];
+	unsigned point, rem, sym, dl, di, lo, hi;
+	point = z5_point(d, total);
+	if( d->err )
+		return 0;
+	rem = (total - point) & Z5_M16;
+	dl = 0x80u;
+	for( ;; )
+	{
+		di = p[dl];
+		if( rem > di )
+		{
+			p += dl;
+			rem = (rem - di) & Z5_M16;
+		}
+		dl >>= 1;
+		if( dl == 0 )
+			break;
+	}
+	sym = (unsigned)(p - base);
+	hi = (point + rem) & Z5_M16;
+	lo = (hi - d->craw[cidx * 256u + sym]) & Z5_M16;
+	z5_narrow(d, total, lo, hi);
+	return sym;
+}
+
+/* decode a symbol in the upper half (128..255) of a context */
+static unsigned z5_sym_half(Z5t* d, unsigned cidx)
+{
+	unsigned short* base = d->cfen + cidx * 256u;
+	unsigned short* half = base + 128;
+	unsigned short* p = half;
+	unsigned total = (unsigned)((base[0] - base[128]) & Z5_M16);
+	unsigned point, rem, sym, dl, di, lo, hi;
+	point = z5_point(d, total);
+	if( d->err )
+		return 0;
+	rem = (total - point) & Z5_M16;
+	dl = 0x40u;
+	for( ;; )
+	{
+		di = p[dl];
+		if( rem > di )
+		{
+			p += dl;
+			rem = (rem - di) & Z5_M16;
+		}
+		dl >>= 1;
+		if( dl == 0 )
+			break;
+	}
+	sym = (unsigned)(p - half) + 0x80u;
+	hi = (point + rem) & Z5_M16;
+	lo = (hi - d->craw[cidx * 256u + sym]) & Z5_M16;
+	z5_narrow(d, total, lo, hi);
+	return sym;
+}
+
+/* update the 3-way decision model */
+static void z5_litm_update(Z5t* d, unsigned sym)
+{
+	unsigned short* p = d->litm + 4u * (unsigned)d->lhist;
+	unsigned v3, v4, v5, v6;
+	if( sym == 1 )
+		p[2] = (unsigned short)(p[2] + 64);
+	p[3] = (unsigned short)(p[3] + 64);
+	if( p[3] >= 0x4000u )
+	{
+		v3 = p[2];
+		v5 = (unsigned)((v3 - p[1] + 1) & Z5_M16);
+		v6 = (unsigned)(((unsigned)(p[3] - v3) + 1) >> 1);
+		v4 = (unsigned)(p[1] + (v5 >> 1));
+		p[2] = (unsigned short)v4;
+		p[3] = (unsigned short)((v4 + v6) & Z5_M16);
+	}
+	d->lhist = (unsigned char)((sym + 2u * (unsigned)d->lhist - 1u) & 7u);
+}
+
+/* decode the 3-way decision */
+static unsigned z5_decision(Z5t* d)
+{
+	unsigned short* e = d->litm + 4u * (unsigned)d->lhist;
+	unsigned total = e[3];
+	unsigned point, sym, dl, lo, hi;
+	point = z5_point(d, total);
+	if( d->err )
+		return 0;
+	dl = 3;
+	for( ;; )
+	{
+		dl--;
+		sym = e[dl];
+		if( point >= sym || dl == 0 )
+			break;
+	}
+	lo = e[dl];
+	hi = e[dl + 1];
+	z5_narrow(d, total, lo, hi);
+	if( dl == 0 )
+		return 0;
+	if( dl <= 2 )
+	{
+		z5_litm_update(d, dl);
+		return dl;
+	}
+	d->err = 7;
+	return 0;
+}
+
+/* output one literal symbol (delta transform + dict write) */
+static unsigned z5_out_sym(Z5t* d, unsigned sym)
+{
+	unsigned v = (~sym) & 0xFFu;
+	unsigned x = v;
+	if( d->group )
+	{
+		if( !d->sign )
+			x = (0u - v) & 0xFFu;
+		if( v >= 0x80u )
+			d->sign = (unsigned char)(d->sign ? 0 : 1);
+		x = (x + ((unsigned)((d->lag4 >> (8u * (unsigned)d->lag)) & 0xFFu))) & 0xFFu;
+	}
+	d->lag4 = ((d->lag4 << 8) | (unsigned long)x) & Z5_M32;
+	z5_put1(d, x);
+	return x;
+}
+
+/* emit one raw byte from a match and derive its model symbol */
+static void z5_out_byte(Z5t* d, unsigned b)
+{
+	unsigned v;
+	if( d->group )
+	{
+		unsigned lagb = (unsigned)((d->lag4 >> (8u * (unsigned)d->lag)) & 0xFFu);
+		v = (b - lagb) & 0xFFu;
+		if( !d->sign )
+			v = (0u - v) & 0xFFu;
+		if( v >= 0x80u )
+			d->sign = (unsigned char)(d->sign ? 0 : 1);
+		d->dmode = (unsigned char)((~v) & 0xFFu);
+	}
+	else
+	{
+		d->dmode = (unsigned char)((~b) & 0xFFu);
+	}
+	d->lag4 = ((d->lag4 << 8) | (unsigned long)b) & Z5_M32;
+	z5_put1(d, b);
+}
+
+/* decode and emit one literal */
+static void z5_literal(Z5t* d)
+{
+	unsigned sym;
+	if( d->lit0mode )
+	{
+		unsigned long p = z5_point(d, 256);
+		if( d->err )
+			return;
+		sym = (unsigned)p;
+		z5_narrow(d, 256, sym, sym + 1);
+	}
+	else if( d->lithmode )
+	{
+		sym = z5_sym_half(d, (unsigned)d->ctx);
+		if( d->err )
+			return;
+	}
+	else
+	{
+		sym = z5_sym(d, (unsigned)d->ctx);
+		if( d->err )
+			return;
+	}
+	{
+		unsigned ob;
+		z5_update(d, sym);
+		ob = z5_out_sym(d, sym);
+		d->dict[d->dpos] = (unsigned char)ob;
+	}
+	if( d->hist < d->hist_max )
+		d->hist++;
+	d->dpos = (d->dpos + 1UL) & d->dmask;
+}
+
+/* update the 61-symbol distance model */
+static void z5_dist_update(Z5t* d, unsigned sym)
+{
+	unsigned short* p = d->dist61;
+	unsigned i, total;
+	unsigned inc;
+	if( sym == 60 )
+	{
+		inc = 4;
+	}
+	else
+	{
+		i = sym + 1u;
+		while( i < 61u )
+		{
+			p[i] = (unsigned short)(p[i] + 32);
+			i++;
+		}
+		inc = 32;
+	}
+	total = (unsigned)(p[61] + inc) & Z5_M16;
+	p[61] = (unsigned short)total;
+	if( total >= 0x4000u )
+	{
+		unsigned char dl = 61;
+		while( dl )
+		{
+			unsigned short a = p[dl - 1];
+			unsigned diff = (unsigned)((p[dl] - a) + 1);
+			p[dl] = (unsigned short)((diff >> 1) & Z5_M16);
+			dl--;
+		}
+		for( i = 2; i <= 61u; i++ )
+			p[i] = (unsigned short)(p[i] + p[i - 1]);
+	}
+}
+
+/* make symbol sym available as history grows */
+static void z5_dist_rescue(Z5t* d, unsigned sym)
+{
+	unsigned short* p = d->dist61;
+	unsigned i;
+	if( sym <= 61u )
+	{
+		unsigned v = (unsigned)(((unsigned)p[sym + 1] + 1) >> 1);
+		i = sym;
+		while( i <= 61u )
+		{
+			p[i] = (unsigned short)(p[i] + v);
+			i++;
+		}
+	}
+	{
+		unsigned char dl = 61;
+		while( dl )
+		{
+			unsigned short a = p[dl - 1];
+			unsigned diff = (unsigned)((p[dl] - a) + 1);
+			p[dl] = (unsigned short)((diff >> 1) & Z5_M16);
+			dl--;
+		}
+	}
+	for( i = 2; i <= 61u; i++ )
+		p[i] = (unsigned short)(p[i] + p[i - 1]);
+}
+
+/* decode the distance symbol; returns 0..60 */
+static unsigned z5_distsym(Z5t* d)
+{
+	unsigned short* p = d->dist61;
+	unsigned total = p[61];
+	unsigned point, dl, lo, hi;
+	point = z5_point(d, total);
+	if( d->err )
+		return 0;
+	dl = 61;
+	for( ;; )
+	{
+		dl--;
+		if( point >= p[dl] || dl == 0 )
+			break;
+	}
+	lo = p[dl];
+	hi = p[dl + 1];
+	z5_narrow(d, total, lo, hi);
+	d->dval = (dl < 60u) ? z5_dbase[dl] : 0UL;
+	if( dl == 60u )
+		return 60;
+	if( dl == 56u )
+	{
+		d->dmode = 0;
+		return 56;
+	}
+	if( dl == 57u )
+	{
+		unsigned m = d->mru_max;
+		unsigned t2 = d->sdist[m];
+		unsigned p2 = z5_point(d, t2);
+		unsigned idx;
+		if( d->err )
+			return 0;
+		idx = m;
+		for( ;; )
+		{
+			idx--;
+			if( p2 >= d->sdist[idx] || idx == 0 )
+				break;
+		}
+		z5_narrow(d, t2, d->sdist[idx], d->sdist[idx + 1]);
+		d->dval += (unsigned long)(m - 1u - idx);
+		d->dmode = 1;
+		return 57;
+	}
+	if( dl == 58u )
+	{
+		unsigned t2 = d->smalld[2];
+		unsigned p2 = z5_point(d, t2);
+		unsigned idx;
+		if( d->err )
+			return 0;
+		idx = 2;
+		for( ;; )
+		{
+			idx--;
+			if( p2 >= d->smalld[idx] || idx == 0 )
+				break;
+		}
+		z5_narrow(d, t2, d->smalld[idx], d->smalld[idx + 1]);
+		d->dval += (unsigned long)(1u - idx);
+		d->dmode = 1;
+		return 58;
+	}
+	if( dl == 59u )
+	{
+		d->dmode = 1;
+		return 59;
+	}
+	{
+		unsigned long n = z5_drange[dl];
+		if( n + d->dval - 1UL > d->hist )
+			n = d->hist - d->dval + 1UL;
+		if( n >= 2UL )
+		{
+			if( n > 0x1000UL )
+			{
+				unsigned long t2 = ((n - 1UL) >> 12) + 1UL;
+				unsigned p2 = z5_point(d, (unsigned)t2);
+				if( d->err )
+					return 0;
+				z5_narrow(d, (unsigned)t2, p2, p2 + 1);
+				d->dval = (d->dval + ((unsigned long)p2 << 12)) & Z5_M32;
+				if( (unsigned long)(p2 + 1) == t2 )
+				{
+					n = (n - ((unsigned long)p2 << 12)) & Z5_M32;
+				}
+				else
+				{
+					n = 0x1000UL;
+				}
+			}
+			if( n >= 2UL )
+			{
+				unsigned p2 = z5_point(d, (unsigned)n);
+				if( d->err )
+					return 0;
+				z5_narrow(d, (unsigned)n, p2, p2 + 1);
+				d->dval = (d->dval + p2) & Z5_M32;
+			}
+		}
+	}
+	d->dmode = 0;
+	return dl;
+}
+
+/* decode the match length symbol */
+static unsigned z5_length(Z5t* d)
+{
+	unsigned short* p = (d->dmode == 0) ? d->lenA : d->lenB;
+	unsigned c = (d->dmode == 0) ? 21u : 22u;
+	unsigned total = p[c];
+	unsigned point, dl, lo, hi, bits, off;
+	point = z5_point(d, total);
+	if( d->err )
+		return 0;
+	dl = c;
+	for( ;; )
+	{
+		dl--;
+		if( point >= p[dl] || dl == 0 )
+			break;
+	}
+	lo = p[dl];
+	hi = p[dl + 1];
+	z5_narrow(d, total, lo, hi);
+	bits = z5_lenbits[dl];
+	off = 0;
+	if( bits )
+	{
+		off = z5_point(d, bits);
+		if( d->err )
+			return 0;
+		z5_narrow(d, bits, off, off + 1);
+	}
+	d->length = (unsigned char)((unsigned)z5_lenbase[dl] + off);
+	return dl;
+}
+
+/* update the length model */
+static void z5_len_update(Z5t* d, unsigned sym)
+{
+	unsigned short* p = (d->dmode == 0) ? d->lenA : d->lenB;
+	unsigned c = (d->dmode == 0) ? 21u : 22u;
+	unsigned i;
+	i = sym + 1u;
+	while( i < c )
+	{
+		p[i] = (unsigned short)(p[i] + 64);
+		i++;
+	}
+	p[c] = (unsigned short)(p[c] + 64);
+	if( p[c] >= 0x4000u )
+	{
+		unsigned char dl = (unsigned char)c;
+		while( dl )
+		{
+			unsigned short a = p[dl - 1];
+			unsigned diff = (unsigned)((p[dl] - a) + 1);
+			p[dl] = (unsigned short)((diff >> 1) & Z5_M16);
+			dl--;
+		}
+		for( i = 2; i <= c; i++ )
+			p[i] = (unsigned short)(p[i] + p[i - 1]);
+	}
+}
+
+/* update the short-distance model */
+static void z5_sdist_update(Z5t* d, unsigned sym)
+{
+	unsigned short* p;
+	unsigned c;
+	unsigned i;
+	if( sym < 3u )
+	{
+		p = d->smalld;
+		if( sym == 2u )
+			p[1] = (unsigned short)(p[1] + 32);
+		p[2] = (unsigned short)(p[2] + 32);
+		if( p[2] >= 0x4000u )
+		{
+			unsigned d1 = (unsigned)(((unsigned)p[1] - p[0] + 1) >> 1);
+			unsigned d2 = (unsigned)(((unsigned)p[2] - p[1] + 1) >> 1);
+			if( d1 < 0x400u )
+				d1 = 0x400u;
+			if( d2 < 0x400u )
+				d2 = 0x400u;
+			p[1] = (unsigned short)(p[0] + d1);
+			p[2] = (unsigned short)(p[1] + d2);
+		}
+	}
+	else
+	{
+		unsigned a;
+		p = d->sdist;
+		c = d->mru_max;
+		a = (unsigned)d->mru_n - 1u - sym;
+		for( ;; )
+		{
+			a++;
+			if( a >= c )
+				break;
+			p[a] = (unsigned short)(p[a] + 32);
+		}
+		p[c] = (unsigned short)(p[c] + 32);
+		if( p[c] >= 0x4000u )
+		{
+			unsigned char dl = (unsigned char)c;
+			while( dl )
+			{
+				unsigned short prev = p[dl - 1];
+				unsigned diff = (unsigned)((p[dl] - prev) + 1);
+				unsigned v = diff >> 1;
+				if( v < 0x100u )
+					v = 0x100u;
+				p[dl] = (unsigned short)v;
+				dl--;
+			}
+			for( i = 2; i <= c; i++ )
+				p[i] = (unsigned short)(p[i] + p[i - 1]);
+		}
+	}
+}
+
+/* decode and apply a model-switch symbol (uniform 0..11) */
+static void z5_switch(Z5t* d)
+{
+	unsigned total = 12;
+	unsigned point, v, flag1 = 0, flag2 = 0;
+	unsigned long i;
+	point = z5_point(d, total);
+	if( d->err )
+		return;
+	v = point;
+	z5_narrow(d, total, v, v + 1);
+	if( v > 11u )
+	{
+		d->err = 7;
+		return;
+	}
+	switch( v )
+	{
+	case 0: case 1: case 2: case 3: case 4: case 5:
+		flag1 = 1;
+		break;
+	case 6: case 7: case 8: case 9:
+		flag2 = 1;
+		break;
+	case 10:
+		d->lit0mode = (unsigned char)(d->lit0mode ? 0 : 1);
+		break;
+	case 11:
+		d->lithmode = (unsigned char)(d->lithmode ? 0 : 1);
+		break;
+	default:
+		break;
+	}
+
+	if( flag1 )
+	{
+		d->group = (unsigned char)v;
+		d->lag = (unsigned char)((v - 1u) & 3u);
+		d->sub = 1;
+		d->cfen = d->fen[v];
+		d->craw = d->raw[v];
+		d->ctx = 0;
+		if( d->produced != 0 && (v == 0 || v == 5) )
+		{
+			unsigned n = z5_nctx[v];
+			for( i = 0; i < n; i++ )
+			{
+				unsigned short* fr = d->cfen + i * 256u;
+				unsigned short* rw = d->craw + i * 256u;
+				unsigned j;
+				memcpy(fr, z5_seed, 512);
+				for( j = 0; j < 256u; j++ )
+					rw[j] = 1;
+			}
+		}
+	}
+
+	if( flag2 )
+	{
+		d->psub = d->sub;
+		d->sub = (unsigned char)(v - 6u);
+		if( d->produced != 0 )
+		{
+			unsigned idx = 16u * (unsigned)d->group + 4u * (unsigned)d->psub
+				+ (unsigned)d->sub;
+			unsigned times = z5_subrescale[idx];
+			if( times )
+			{
+				unsigned n = z5_nctx[d->group];
+				for( i = 0; i < n; i++ )
+					z5_rescale_n(d, (unsigned)i, times);
+			}
+		}
+	}
+}
+
+/* decode and copy a run of the previous byte */
+static void z5_longrun(Z5t* d)
+{
+	unsigned long esi = 0;
+	unsigned total = d->longm[15];
+	unsigned point, dl, lo, hi;
+	unsigned long range;
+	unsigned b;
+	unsigned long n;
+
+	point = z5_point(d, total);
+	if( d->err )
+		return;
+	dl = 15;
+	for( ;; )
+	{
+		dl--;
+		if( point >= d->longm[dl] || dl == 0 )
+			break;
+	}
+	lo = d->longm[dl];
+	hi = d->longm[dl + 1];
+	z5_narrow(d, total, lo, hi);
+
+	if( dl == 14 )
+	{
+		esi = d->fe4;
+	}
+	else
+	{
+		range = 0x80UL;
+		if( dl < 13u )
+		{
+			range = 1UL << (19u - dl);
+			esi = (esi + range) & Z5_M32;
+		}
+		if( range > 0x2000UL )
+		{
+			unsigned long t2 = range >> 12;
+			unsigned p2 = z5_point(d, (unsigned)t2);
+			if( d->err )
+				return;
+			z5_narrow(d, (unsigned)t2, p2, p2 + 1);
+			esi = (esi + ((unsigned long)p2 << 12)) & Z5_M32;
+			range = 0x1000UL;
+		}
+		{
+			unsigned p2 = z5_point(d, (unsigned)range);
+			if( d->err )
+				return;
+			z5_narrow(d, (unsigned)range, p2, p2 + 1);
+			esi = (esi + p2) & Z5_M32;
+		}
+		d->fe4 = esi;
+	}
+
+	n = (esi + 0x200UL) & Z5_M32;	/* total run length */
+	b = (unsigned)d->dict[(d->dpos - 1UL) & d->dmask];
+	if( d->dpos + 0x1FFUL < d->dsz )
+	{
+		memset(d->dict + d->dpos, (int)b, 0x1FFu);
+		if( d->hist + 0x1FFUL > d->hist_max )
+			d->hist = d->hist_max;
+		else
+			d->hist += 0x1FFUL;
+		d->dpos = (d->dpos + 0x1FFUL) & Z5_M32;
+	}
+	else
+	{
+		unsigned long k;
+		for( k = 0; k < 0x1FFUL; k++ )
+		{
+			d->dict[d->dpos] = (unsigned char)b;
+			if( d->hist < d->hist_max )
+				d->hist++;
+			d->dpos = (d->dpos + 1UL) & d->dmask;
+		}
+	}
+	{
+		unsigned j;
+		for( j = 0; j < 5u; j++ )
+		{
+			z5_out_byte(d, b);
+			z5_update(d, (unsigned)d->dmode);
+		}
+	}
+	n -= 5UL;
+	z5_putn(d, b, n);
+	{
+		unsigned long k;
+		for( k = 0; k < n; k++ )
+			z5_update(d, (unsigned)d->dmode);
+	}
+}
+
+/* decode and copy a match */
+static void z5_match(Z5t* d)
+{
+	unsigned sym, cls, len, b;
+	unsigned long dist, src;
+	unsigned i;
+
+	while( d->hist >= z5_thresh[d->dstate] )
+	{
+		unsigned old = d->dstate;
+		d->dstate--;
+		z5_dist_rescue(d, old);
+	}
+	sym = z5_distsym(d);
+	if( d->err )
+		return;
+	z5_dist_update(d, sym);
+	if( sym == 60u )
+	{
+		z5_longrun(d);
+		return;
+	}
+
+	if( d->dmode == 0 )
+	{
+		i = (unsigned)d->mru_n - 1u;
+		dist = d->dval;
+	}
+	else
+	{
+		i = (unsigned)(d->dval & 0xFFu);
+		if( i >= d->mru_n )
+		{
+			d->err = 7;
+			return;
+		}
+		dist = d->mru[i];
+		if( i )
+			z5_sdist_update(d, i);
+	}
+	if( i && dist > 1UL )
+	{
+		unsigned j;
+		for( j = i; j > 0; j-- )
+			d->mru[j] = d->mru[j - 1];
+		d->mru[0] = dist;
+	}
+
+	src = (d->dpos - dist) & d->dmask;
+	cls = z5_length(d);
+	if( d->err )
+		return;
+	z5_len_update(d, cls);
+	len = (unsigned)d->length;
+	if( len < 2u )
+	{
+		d->err = 7;
+		return;
+	}
+
+	for( ;; )
+	{
+		b = (unsigned)d->dict[src];
+		src = (src + 1UL) & d->dmask;
+		d->dict[d->dpos] = (unsigned char)b;
+		if( d->hist < d->hist_max )
+			d->hist++;
+		d->dpos = (d->dpos + 1UL) & d->dmask;
+		z5_out_byte(d, b);
+		z5_update(d, (unsigned)d->dmode);
+		len--;
+		if( len == 0 )
+			break;
+	}
+}
+
 int UhaDec5_03Init(void** pctx, int method)
 {
-	(void)pctx; (void)method;
-	return 1;
+	Z5t* d;
+	unsigned long dictsz;
+	unsigned g, i;
+	int m79;
+	if( !pctx )
+		return 1;
+	*pctx = 0;
+	/* methods 78/79 fold onto 36 before sizing the model;
+	 * method 79 additionally gets inc[2] = 0x40 (else 0x20). */
+	m79 = (method == 79);
+	if( method == 78 || method == 79 )
+		method = 36;
+	if( method < 36 || method > 79 )
+		return 1;
+	dictsz = 1UL << (((method - 36) % 14) + 10);
+
+	d = (Z5t*)malloc(sizeof(*d));
+	if( !d )
+		return 2;
+	memset(d, 0, sizeof(*d));
+	for( g = 0; g < 6; g++ )
+	{
+		d->fen[g] = 0;
+		d->raw[g] = 0;
+	}
+	d->dict = (unsigned char*)malloc((size_t)(dictsz + 512UL));
+	if( !d->dict )
+	{
+		free(d);
+		return 2;
+	}
+	memset(d->dict, 0, (size_t)(dictsz + 512UL));
+	for( g = 0; g < 6; g++ )
+	{
+		unsigned n = z5_nctx[g];
+		d->fen[g] = (unsigned short*)malloc((size_t)n * 512UL);
+		d->raw[g] = (unsigned short*)malloc((size_t)n * 512UL);
+		if( !d->fen[g] || !d->raw[g] )
+		{
+			free(d->dict);
+			free(d);
+			return 2;
+		}
+		for( i = 0; i < n; i++ )
+		{
+			memcpy(d->fen[g] + i * 256u, z5_seed, 512);
+			{
+				unsigned j;
+				for( j = 0; j < 256u; j++ )
+					d->raw[g][i * 256u + j] = 1;
+			}
+		}
+	}
+	d->mru = (unsigned long*)malloc(16UL * sizeof(unsigned long));
+	if( !d->mru )
+	{
+		free(d->dict);
+		free(d);
+		return 2;
+	}
+	d->inc[0] = 2;
+	d->inc[1] = 8;
+	d->inc[2] = m79 ? 0x40 : 0x20;
+	d->inc[3] = 128;
+	for( i = 0; i < 16; i++ )
+		d->mru[i] = Z5_M32;
+
+	d->dsz = dictsz;
+	d->dmask = dictsz - 1UL;
+	d->dpos = 0;
+	d->hist = 31;
+	d->hist_max = dictsz - 511UL;
+	d->cfen = d->fen[0];
+	d->craw = d->raw[0];
+	d->ctx = 0xFF;
+	d->group = 0;
+	d->lag = 0;
+	d->sub = 3;
+	d->psub = 3;
+	d->lit0mode = 0;
+	d->lithmode = 0;
+	d->sign = 1;
+	d->dmode = 0;
+	d->length = 0;
+	d->lag4 = Z5_M32;
+	d->fe4 = 0;
+	d->fe8 = 0;
+	d->dval = Z5_M32;
+	d->dstate = 52;
+	d->lhist = 7;
+
+	{
+		unsigned fam;
+		if( method <= 49 )
+			fam = 1;
+		else if( method <= 63 )
+			fam = 2;
+		else
+			fam = 3;
+		d->mru_n = z5_mrun[fam];
+		d->mru_max = d->mru_n - 3u;
+	}
+
+	memcpy(d->lenA, z5_lenmodel, sizeof(d->lenA));
+	memcpy(d->lenB, z5_lenmodel, sizeof(d->lenB));
+	memcpy(d->sdist, z5_shortdist, sizeof(d->sdist));
+	memcpy(d->smalld, z5_smalldist, sizeof(d->smalld));
+	memcpy(d->longm, z5_longmodel, sizeof(d->longm));
+	memcpy(d->dist61, z5_distseed, sizeof(d->dist61));
+	for( i = 0; i < 8u; i++ )
+	{
+		d->litm[i * 4u + 0] = 0;
+		d->litm[i * 4u + 1] = 1;
+		d->litm[i * 4u + 2] = 0x0C00;
+		d->litm[i * 4u + 3] = 0x2000;
+	}
+	*pctx = d;
+	return 0;
 }
 
 void UhaDec5_03Free(void* ctx)
 {
-	(void)ctx;
+	Z5t* d = (Z5t*)ctx;
+	unsigned g;
+	if( !d )
+		return;
+	free(d->dict);
+	for( g = 0; g < 6; g++ )
+	{
+		free(d->fen[g]);
+		free(d->raw[g]);
+	}
+	free(d->mru);
+	free(d);
 }
 
 int UhaDec5_03(void* ctx, const unsigned long* cum, unsigned long ncum,
 	Uha5ReadCb rcb, void* rctx, Uha5WriteCb wcb, void* wctx,
 	unsigned long out_len)
 {
-	(void)ctx; (void)cum; (void)ncum; (void)rcb; (void)rctx;
-	(void)wcb; (void)wctx; (void)out_len;
-	return 7;
+	Z5t* d = (Z5t*)ctx;
+	int err;
+	if( !d || !rcb || !wcb )
+		return 1;
+	if( out_len == 0 )
+		return 0;
+	d->inb = (unsigned char*)malloc(65536UL);
+	d->outb = (unsigned char*)malloc(65536UL);
+	if( !d->inb || !d->outb )
+	{
+		free(d->inb);
+		free(d->outb);
+		d->inb = 0;
+		d->outb = 0;
+		return 2;
+	}
+	d->rcb = rcb;
+	d->rctx = rctx;
+	d->wcb = wcb;
+	d->wctx = wctx;
+	d->in_pos = 0;
+	d->in_avail = 0;
+	d->out_fill = 0;
+	d->produced = 0;
+	d->target = out_len;
+	d->err = 0;
+	(void)cum;
+	(void)ncum;
+	z5_rc_init(d);
+	while( d->produced < d->target && !d->err )
+	{
+		unsigned dec = z5_decision(d);
+		if( d->err )
+			break;
+		if( dec == 1 )
+		{
+			z5_match(d);
+		}
+		else if( dec == 0 )
+		{
+			z5_switch(d);
+		}
+		else
+		{
+			z5_literal(d);
+		}
+	}
+	err = d->err;
+	if( !err && d->out_fill )
+	{
+		if( wcb(wctx, d->outb, d->out_fill) != 0 )
+			err = 4;
+	}
+	free(d->inb);
+	free(d->outb);
+	d->inb = 0;
+	d->outb = 0;
+	return err;
 }
