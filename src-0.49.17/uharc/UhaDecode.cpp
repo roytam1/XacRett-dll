@@ -12,6 +12,7 @@
 #include "UhaDec0.h"
 #include "UhaDec2.h"
 #include "UhaDec3.h"
+#include "UhaDec5.h"
 
 static unsigned long uha_crc_tab[256];
 static int uha_crc_ready = 0;
@@ -1329,6 +1330,54 @@ int UhaDecodeSolid(UhaArchive* arc, const unsigned char* packed,
 			rc = UhaDec3_04(ctx, cum, ncum, uha_mem_read, &mr,
 				uha_out_write, &bw, arc->total_unpacked);
 			UhaDec3_04Free(ctx);
+		}
+		else
+		{
+			rc = 6;
+		}
+		break;
+	case 5:
+		if( arc->ver == 6 )
+		{
+			void* ctx;
+			int irc = UhaDec5_06Init(&ctx, arc->method);
+			if( irc != 0 )
+			{
+				free(cum);
+				free(bw.b);
+				return irc == 2 ? 2 : 7;
+			}
+			rc = UhaDec5_06(ctx, cum, ncum, uha_mem_read, &mr,
+				uha_out_write, &bw, arc->total_unpacked);
+			UhaDec5_06Free(ctx);
+		}
+		else if( arc->ver == 4 )
+		{
+			void* ctx;
+			int irc = UhaDec5_04Init(&ctx, arc->method);
+			if( irc != 0 )
+			{
+				free(cum);
+				free(bw.b);
+				return irc == 2 ? 2 : 7;
+			}
+			rc = UhaDec5_04(ctx, cum, ncum, uha_mem_read, &mr,
+				uha_out_write, &bw, arc->total_unpacked);
+			UhaDec5_04Free(ctx);
+		}
+		else if( arc->ver == 3 )
+		{
+			void* ctx;
+			int irc = UhaDec5_03Init(&ctx, arc->method);
+			if( irc != 0 )
+			{
+				free(cum);
+				free(bw.b);
+				return irc == 2 ? 2 : 7;
+			}
+			rc = UhaDec5_03(ctx, cum, ncum, uha_mem_read, &mr,
+				uha_out_write, &bw, arc->total_unpacked);
+			UhaDec5_03Free(ctx);
 		}
 		else
 		{
