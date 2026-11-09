@@ -2089,120 +2089,2570 @@ static const unsigned char w5_427bfe[16] = {
 	1, 1, 1, 0, 0, 0
 };
 
-/* 0.6 core-5 scaffold: I/O pump + range coder. The decoder
- * (UhaDec5_06) refuses loudly until the PPM logic lands. */
-typedef struct Z5
-{
-	Uha5ReadCb rcb;
-	void* rctx;
-	Uha5WriteCb wcb;
-	void* wctx;
-	unsigned char* inb;
-	unsigned in_pos;
-	unsigned in_avail;
-	unsigned char* outb;
-	unsigned out_fill;
-	unsigned long produced;
-	unsigned long target;
-	int err;
-	unsigned long low;
-	unsigned long rng;
-	unsigned long dsz;
-	unsigned long dmask;
-	int method;
-	int group;
-	const unsigned long* cum;
-	unsigned long ncum;
-	unsigned long cumidx;
-	unsigned long blk_end;
-} Z5;
 
-static int v5_get(Z5* d)
+/* 0.6 core 5 (PPM2, methods 40..87). Port of the reference
+ * uharc_dec5.c (UNUHARC06). All w5_ tables above are
+ * byte-identical to the reference dec5_ tables. */
+
+struct W5t {
+    Uha5ReadCb rcb;
+    void *rctx;
+    Uha5WriteCb wcb;
+    void *wctx;
+    unsigned char *inb;
+    unsigned in_pos;
+    unsigned in_avail;
+    unsigned in_cap;
+    unsigned char *outb;
+    unsigned out_fill;
+    unsigned out_cap;
+    unsigned long out_tot;
+    unsigned long out_exp;
+    int err;
+    unsigned long progress;
+    /* Container cumulative file-end table (optional).  Mirrors
+     * dword_472FA8 (table), dword_472F98 (index), dword_472F80 (current
+     * block end) and dword_434514 (total). */
+    const unsigned long *cum;
+    unsigned long ncum;
+    unsigned long cum_idx;
+    unsigned long blk_end;
+    int method;
+    int group;
+    unsigned long dictsize;
+    unsigned long dictmask;
+    unsigned long low;
+    unsigned long range;
+    unsigned long f_total;
+    unsigned long f_lo;
+    unsigned long f_hi;
+    unsigned char *dict;
+    unsigned short *fen;
+    unsigned short *cnt;
+    unsigned short *tot;
+    unsigned char *lastctx;
+    unsigned char *win2;
+    unsigned char *aux1;
+    unsigned char *aux2;
+    unsigned char *cctx;
+    long *mru;
+    unsigned short ctxw[1036];
+    unsigned short incw[1036];
+    long f88[1040];
+    /* dword_471F8C is dword_471F88 + 1: the per-context rescale
+     * budget lives in f88[ctx + 1] (32-bit elements). */
+    long ec0[64];
+    long la20[64];
+    long la4c[257];
+    /* la50 is dword_471A50 = dword_471A4C + 1 (same array, 32-bit
+     * elements): index i aliases la4c[i + 1]. */
+    long lec4[64];
+    unsigned char state[1056];
+    unsigned char prevb;
+    int has_prev;
+    unsigned char hist[8];
+    long h466[6];
+    long lastidx;
+    unsigned fac;
+    unsigned f70;
+    long f78s;
+    long f80a;
+    long f84;
+    unsigned f94;
+    unsigned long fa0;
+    unsigned fa4;
+    unsigned fb0;
+    long e84;
+    int fb3;
+    unsigned char fb6;
+    unsigned char fb1;
+    unsigned char fb2;
+    unsigned char fb5;
+    unsigned char fb7;
+    unsigned char fb8;
+    unsigned char fb9;
+    unsigned char fbA;
+    unsigned char fbB;
+    unsigned char fbC;
+    unsigned char fbD;
+    unsigned char fbE;
+    unsigned char fbF;
+    unsigned char fc0;
+    unsigned char fc1;
+    unsigned char fc2;
+    unsigned char fc3;
+    unsigned e78;
+    unsigned e80;
+    long e88;
+    long e8c;
+    long e90;
+    long e94;
+    long e64;
+    int p7a8;
+    int p7ac;
+    int p7b0;
+    int p7b4;
+    int p7b8;
+    int p7bc;
+    int p7c0;
+    long pbc4[6];
+    long pbc8;
+    long pbcc;
+    long pbd0;
+    long pbd4;
+    long pbd8;
+    long pc4[128];
+    /* dword_4629C4: 128 *dword* slots (0x4629C4..0x462BC3, directly
+     * followed by dword_462BC4 == pbc4[0]). */
+    long p29c4[128];
+    long p2bdc[1542];
+    long banks[8][1024];
+    long e45[4096];
+    long p43[160];
+    unsigned char p45e4[256];
+    int use_ppm;
+    long f90u;
+    long f88u;
+    long fb4u;
+    long e60u;
+    long e54u;
+    long e5cu;
+};
+
+typedef struct W5t W5t;
+
+/* ---- small static tables (verified against UNUHARC06.lst DGROUP) ---- */
+
+
+
+/* bea[1] is an align pad byte in the image (taken as 0) */
+
+
+/* byte_427C0E: |delta| -> order class for groups 1, 2 and 4. */
+
+
+/* byte_427D0E: |delta| -> order class for group 3. */
+
+
+
+
+/* Cost table. w5_price holds the word_429ED2 prefix sum A; the coder
+ * reads word_429ED4, which sub_419AC0 builds as A[i] + raw429ED4[i].
+ * The raw second table is A shifted left, so word_429ED4[i] == A[i+1]
+ * and the final entry folds to 0. */
+#define DEC5_PRICE(i) ((unsigned)((i) < 16383UL ? w5_price[(i) + 1u] : 0u))
+
+
+
+
+
+
+
+
+/* -------- utilities, I/O, range coder (40B093/40B0DA/40B178/419A4D) --- */
+
+#define DEC5_MASK32(x) ((unsigned long)(x) & 0xFFFFFFFFUL)
+
+static long v5_asr4(double v)
 {
-	int n;
-	if( d->err )
-		return 0;
-	if( d->in_pos >= d->in_avail )
-	{
-		n = d->rcb(d->rctx, d->inb, 65536);
-		if( n <= 0 )
-		{
-			d->err = 3;
-			return 0;
-		}
-		d->in_avail = (unsigned)n;
-		d->in_pos = 0;
-	}
-	return d->inb[d->in_pos++];
+    /* The image computes  cdq / shl edx,4 / sbb eax,edx / sar eax,4,
+     * which is a *truncating* division by 16 (not an arithmetic shift):
+     * for v < 0 and v % 16 != 0 it rounds toward zero.  The sum stays
+     * well below 2**53, so the double division is exact. */
+    return (long)(v / 16.0);
 }
 
-static void v5_emit(Z5* d, unsigned b)
+static int v5_refill(W5t *d)
 {
-	if( d->produced < d->target )
-	{
-		d->outb[d->out_fill++] = (unsigned char)b;
-		if( d->out_fill == 65536 )
-		{
-			if( d->wcb(d->wctx, d->outb, d->out_fill) != 0 )
-				d->err = 4;
-			d->out_fill = 0;
-		}
-	}
-	d->produced++;
+    int n;
+    d->in_pos = 0;
+    n = d->rcb(d->rctx, d->inb, d->in_cap);
+    if (n < 0) {
+        n = 0;
+    }
+    d->in_avail = (unsigned)n;
+    if (n == 0) {
+        d->err = 3;
+        return 0;
+    }
+    return 1;
 }
 
-static void v5_range_init(Z5* d)
+static int v5_getc(W5t *d)
 {
-	int i;
-	d->low = 0;
-	d->rng = V5_M32;
-	for( i = 0; i < 5; i++ )
-		d->low = ((d->low << 8) | (unsigned long)v5_get(d)) & V5_M32;
+    int c;
+    if (d->err) {
+        return -1;
+    }
+    if (d->in_pos >= d->in_avail) {
+        if (!v5_refill(d)) {
+            return -1;
+        }
+    }
+    c = d->inb[d->in_pos++];
+    return c;
 }
 
-static void v5_norm(Z5* d)
+static int v5_flush(W5t *d)
 {
-	while( d->rng < 0x1000000UL )
-	{
-		d->low = ((d->low << 8) | (unsigned long)v5_get(d)) & V5_M32;
-		d->rng = (d->rng << 8) & V5_M32;
-		if( d->err )
-			return;
-	}
+    int w;
+    if (d->out_fill == 0) {
+        return 1;
+    }
+    w = d->wcb(d->wctx, d->outb, d->out_fill);
+    if (w != 0) {
+        d->err = 4;
+        return 0;
+    }
+    d->out_fill = 0;
+    return 1;
 }
+
+static int v5_emit(W5t *d, unsigned b)
+{
+    d->outb[d->out_fill++] = (unsigned char)b;
+    d->out_tot++;
+    if (d->out_fill == d->out_cap) {
+        return v5_flush(d);
+    }
+    return 1;
+}
+
+static int v5_emit_run(W5t *d, const unsigned char *src, unsigned n)
+{
+    while (n > 0) {
+        unsigned space;
+        unsigned k;
+        if (d->out_fill == d->out_cap) {
+            if (!v5_flush(d)) {
+                return 0;
+            }
+        }
+        space = d->out_cap - d->out_fill;
+        k = n < space ? n : space;
+        memcpy(d->outb + d->out_fill, src, k);
+        src += k;
+        d->out_fill += k;
+        d->out_tot += (unsigned long)k;
+        n -= k;
+        if (d->out_fill == d->out_cap) {
+            if (!v5_flush(d)) {
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
+
+static void v5_progress(W5t *d)
+{
+    d->progress = d->out_tot;
+}
+
+static void v5_range_init(W5t *d)
+{
+    int i;
+    int b;
+    d->low = 0UL;
+    d->range = 0xFFFFFFFFUL;
+    for (i = 0; i < 5; i++) {
+        b = v5_getc(d);
+        if (b < 0) {
+            b = 0;
+        }
+        d->low = DEC5_MASK32((d->low << 8) | (unsigned long)(unsigned)b);
+    }
+}
+
+static void v5_norm(W5t *d)
+{
+    while (d->range < 0x1000000UL) {
+        int b = v5_getc(d);
+        if (b < 0) {
+            return;
+        }
+        d->low = DEC5_MASK32((d->low << 8) | (unsigned long)(unsigned)b);
+        d->range <<= 8;
+    }
+}
+
+/* -------- Fenwick helpers (41465F/414773/41488F/4148F2), pred init - */
+
+static void v5_rescale_high(W5t *d, unsigned ctx)
+{
+    unsigned short *fen = d->fen + (size_t)ctx * 256u;
+    unsigned short *cnt = d->cnt + (size_t)ctx * 256u;
+    unsigned long total = 0UL;
+    unsigned i;
+    unsigned s;
+    unsigned w;
+    for (i = 0; i < 256; i++) {
+        unsigned v = (unsigned)cnt[i];
+        v = (v + 1u) >> 1;
+        cnt[i] = (unsigned short)v;
+        total += (unsigned long)v;
+    }
+    for (i = 0; i < 255; i++) {
+        fen[i + 1] = cnt[i];
+    }
+    fen[0] = (unsigned short)((total & 0xFFFFUL) + (total >> 16));
+    for (s = 1; s < 128; s *= 2) {
+        for (w = 256 - 2 * s; w > 0; w -= 2 * s) {
+            fen[w] = (unsigned short)((unsigned)fen[w] + (unsigned)fen[w - s]);
+        }
+    }
+}
+
+static void v5_rescale_low(W5t *d, unsigned ctx)
+{
+    unsigned short *fen = d->fen + (size_t)ctx * 256u;
+    unsigned short *cnt = d->cnt + (size_t)ctx * 256u;
+    unsigned short *tot = d->tot;
+    unsigned long total = 0UL;
+    unsigned i;
+    unsigned s;
+    unsigned w;
+    unsigned t;
+    for (i = 0; i < 256; i++) {
+        unsigned v = (unsigned)cnt[i];
+        if (v) {
+            if (v > 0x10u) {
+                v >>= 1;
+            } else {
+                v = 0;
+            }
+            cnt[i] = (unsigned short)v;
+            total += (unsigned long)v;
+        }
+    }
+    for (i = 0; i < 255; i++) {
+        fen[i + 1] = cnt[i];
+    }
+    fen[0] = (unsigned short)total;
+    for (s = 1; s < 128; s *= 2) {
+        for (w = 256 - 2 * s; w > 0; w -= 2 * s) {
+            fen[w] = (unsigned short)((unsigned)fen[w] + (unsigned)fen[w - s]);
+        }
+    }
+    t = tot[ctx];
+    t = (unsigned)(t + 1u) >> 1;
+    tot[ctx] = (unsigned short)t;
+    d->f88[ctx + 1u] = (long)(((unsigned long)t + (unsigned long)fen[0])
+        << (ctx >= 0x300u ? 8 : 6));
+}
+
+static void v5_bitadd(W5t *d, unsigned sym, unsigned ctx)
+{
+    unsigned fac = d->fac;
+    unsigned short *fen = d->fen + (size_t)fac * 256u;
+    unsigned short *cnt = d->cnt + (size_t)fac * 256u;
+    unsigned inc = (unsigned)d->incw[ctx];
+    unsigned char r;
+    unsigned char step;
+    cnt[sym] =
+        (unsigned short)((unsigned)cnt[sym] + inc);
+    r = (unsigned char)(sym + 1u);
+    while (r != 0) {
+        step = (unsigned char)(r & (unsigned char)(-(int)r));
+        fen[r] = (unsigned short)((unsigned)fen[r] + inc);
+        if ((unsigned char)(step + r) == 0) {
+            break;
+        }
+        r = (unsigned char)(r + step);
+    }
+    fen[0] = (unsigned short)((unsigned)fen[0] + inc);
+    if (fen[0] >= 0x4000u) {
+        v5_rescale_high(d, fac);
+    }
+}
+
+static void v5_smooth(unsigned char *st)
+{
+    unsigned v1;
+    unsigned v2;
+    unsigned v4;
+    unsigned v5;
+    unsigned w1;
+    unsigned w2;
+    unsigned w3;
+    unsigned w4;
+    unsigned w5;
+    w1 = (unsigned)st[2] | ((unsigned)st[3] << 8);
+    w2 = (unsigned)st[4] | ((unsigned)st[5] << 8);
+    w3 = (unsigned)st[6] | ((unsigned)st[7] << 8);
+    w4 = (unsigned)st[8] | ((unsigned)st[9] << 8);
+    w5 = (unsigned)st[10] | ((unsigned)st[11] << 8);
+    v1 = (w4 - w3 + 1u) >> 1;
+    v2 = (w5 - w4 + 1u) >> 1;
+    v4 = w1 + ((w2 - w1 + 1u) >> 1);
+    v5 = v4 + ((w3 - w2 + 1u) >> 1);
+    w2 = v4 & 0xFFFFu;
+    w3 = v5 & 0xFFFFu;
+    w4 = (v5 + v1) & 0xFFFFu;
+    w5 = (v5 + v1 + v2) & 0xFFFFu;
+    st[4] = (unsigned char)w2;
+    st[5] = (unsigned char)(w2 >> 8);
+    st[6] = (unsigned char)w3;
+    st[7] = (unsigned char)(w3 >> 8);
+    st[8] = (unsigned char)w4;
+    st[9] = (unsigned char)(w4 >> 8);
+    st[10] = (unsigned char)w5;
+    st[11] = (unsigned char)(w5 >> 8);
+}
+
+/* sub_41607B */
+static void v5_pred_init(W5t *d)
+{
+    int i;
+    int r;
+    /* sub_4196E0(dword_4627A8, 0, 0x1E40): one flat clear from p7a8 up to
+     * the end of p43[124] (byte_4645E4 overlays p43[124..], and the tail
+     * of the last cost table ends at dword_4643F4 == p43). */
+    d->p7a8 = 0;
+    d->p7ac = 0;
+    d->p7b0 = 2;
+    d->p7b4 = 0;
+    d->p7b8 = 0;
+    d->p7bc = 0;
+    d->p7c0 = 0;
+    d->pbc8 = 0;
+    d->pbcc = 0;
+    d->pbd0 = 0;
+    d->pbd4 = 0;
+    d->pbd8 = 0;
+    for (i = 0; i < 6; i++) {
+        d->pbc4[i] = 0;
+    }
+    for (i = 0; i < 128; i++) {
+        d->pc4[i] = 0;
+    }
+    for (i = 0; i < 128; i++) {
+        d->p29c4[i] = 0;
+    }
+    for (i = 0; i < 1542; i++) {
+        d->p2bdc[i] = 0;
+    }
+    for (i = 0; i <= 124; i++) {
+        d->p43[i] = 0;
+    }
+    for (i = 0; i < 4; i++) {
+        d->p45e4[i] = 0;
+    }
+    /* dword_4643E8 + 0x7C*k, k = 1..4: the [28..30] sentinels of the four
+     * 31-dword predictor records (p43[28], [59], [90], [121]). */
+    r = 28;
+    do {
+        d->p43[r] = -1L;
+        d->p43[r + 1] = -1L;
+        d->p43[r + 2] = -1L;
+        r += 31;
+    } while (r <= 121);
+}
+
+/* -------- order context update (414BD6 = order-0, 414960 = PPM) --- */
+
+static unsigned v5_ctx_order0(W5t *d, unsigned sym)
+{
+    d->f94++;
+    d->fa0 = (unsigned long)((unsigned)sym + (unsigned long)(d->fa0 << 8));
+    return sym;
+}
+
+static long v5_p29get(W5t *d, unsigned idx)
+{
+    /* dword_4629C4[idx]: a 32-bit slot, not a byte offset into the table. */
+    return d->p29c4[idx & 0x7Fu];
+}
+
+/* The six prediction slots are one contiguous dword array in the image:
+ * dword_462BC4[0..5] == { pbc4[0], pbc8, pbcc, pbd0, pbd4, pbd8 }. */
+static long v5_pbslot(W5t *d, unsigned k)
+{
+    switch (k & 7u) {
+    case 0: return d->pbc4[0];
+    case 1: return d->pbc8;
+    case 2: return d->pbcc;
+    case 3: return d->pbd0;
+    case 4: return d->pbd4;
+    default: return d->pbd8;
+    }
+}
+
+/* predictor replay-or-predict, group >= 5 (sub_4160C5); return ignored */
+static unsigned v5_predict(W5t *d)
+{
+    unsigned idx;
+    if (!d->fb9 || d->e78 >= d->e80) {
+        if (d->fb8 >= 7) {
+            long *blk;
+            double acc;
+            unsigned char pb;
+            blk = d->p43 + (size_t)31 * (size_t)(unsigned)d->e90;
+            blk[3] = blk[2];
+            blk[2] = blk[1];
+            blk[1] = blk[11] - blk[0];
+            blk[0] = blk[11];
+            acc = (double)blk[3] * (double)blk[8]
+                + (double)blk[2] * (double)blk[7]
+                + (double)blk[1] * (double)blk[6]
+                + (double)blk[0] * (double)blk[5]
+                + (double)16 * (double)blk[10]
+                + (double)d->p7bc * (double)blk[9];
+            d->pbc4[0] = v5_asr4(acc);
+            if ((unsigned)blk[23] <= (unsigned)blk[24]) {
+                pb = (unsigned char)d->pbc4[0];
+            } else {
+                pb = *((unsigned char *)blk + 40);
+            }
+            d->fb7 = pb;
+            if (d->fb8 == 7) {
+                d->fb7 = (unsigned char)(d->fb7 - 128);
+                idx = (unsigned)d->e90 + 1001u;
+                if (blk[28]) {
+                    if (blk[29]) {
+                        if (!blk[30]) {
+                            idx = (unsigned)d->e90 + 1007u;
+                        }
+                    } else {
+                        idx = (unsigned)d->e90 + 1005u;
+                    }
+                } else {
+                    idx = (unsigned)d->e90 + 1003u;
+                }
+            } else if (d->fb8 == 8) {
+                if (blk[28]) {
+                    idx = (unsigned)d->e90 + 1009u;
+                } else {
+                    idx = 2u + 1009u;
+                }
+            } else {
+                if (blk[28]) {
+                    idx = (unsigned)d->e90 + 1012u;
+                } else {
+                    idx = 4u + 1012u;
+                }
+            }
+            d->fbE = d->p45e4[(unsigned)d->e90];
+        } else {
+            double acc;
+            unsigned v0;
+            long t0;
+            d->pbc4[0] = 0;
+            d->pbc8 = d->p7b4;
+            v0 = (unsigned)(((unsigned char)d->f94 - (unsigned char)d->p7ac) & 0x7Fu);
+            d->pbcc = 2 * d->p7b4 - d->p7b8;
+            t0 = v5_p29get(d, v0);
+            d->p43[4] = t0;
+            d->p43[3] = d->p43[2];
+            d->p43[2] = d->p43[1];
+            d->p43[1] = d->p43[11] - d->p43[0];
+            d->p43[0] = d->p43[11];
+            acc = (double)d->p43[3] * (double)d->p43[8]
+                + (double)d->p43[2] * (double)d->p43[7]
+                + (double)d->p43[1] * (double)d->p43[6]
+                + (double)d->p43[0] * (double)d->p43[5]
+                + (double)16 * (double)d->p43[10]
+                + (double)d->p43[4] * (double)d->p43[9];
+            d->pbd0 = v5_asr4(acc);
+            d->pbd4 = v5_p29get(d, v0);
+            d->pbd8 = v5_p29get(d, (unsigned)(((unsigned char)d->f94
+                - (unsigned char)d->p7b0) & 0x7Fu));
+            d->fb7 = (unsigned char)v5_pbslot(d, (unsigned)d->p7a8);
+            if ((unsigned)d->p7a8 >= 4u) {
+                d->fb7 = (unsigned char)((unsigned)d->fb7 + (unsigned)d->p7b4);
+            }
+            if (d->fb8 == 5) {
+                idx = 993u;
+                d->fb7 = (unsigned char)(d->fb7 - 128);
+            } else {
+                idx = 997u;
+            }
+            if (d->p43[28]) {
+                if (d->p43[29]) {
+                    if (!d->p43[30]) {
+                        idx += 3u;
+                    }
+                } else {
+                    idx += 2u;
+                }
+            } else {
+                idx += 1u;
+            }
+        }
+        if (d->e78 < d->e80) {
+            unsigned char *slot;
+            d->e78++;
+            slot = d->cctx + (size_t)8 * (size_t)(d->e78 - 1u);
+            slot[0] = (unsigned char)idx;
+            slot[1] = (unsigned char)(idx >> 8);
+            slot[2] = (unsigned char)(idx >> 16);
+            slot[3] = (unsigned char)(idx >> 24);
+            slot[4] = d->fbE;
+            slot[5] = d->fb7;
+        }
+    } else {
+        unsigned char *slot = d->cctx + (size_t)8 * (size_t)d->e78;
+        d->e78++;
+        idx = (unsigned)slot[0] | ((unsigned)slot[1] << 8)
+            | ((unsigned)slot[2] << 16) | ((unsigned)slot[3] << 24);
+        d->fbE = slot[4];
+        d->fb7 = slot[5];
+    }
+    d->ec0[0] = (long)idx;
+    return 0u;
+}
+
+/* -------- 414960: PPM order-context update -------------------------- */
+/* byte_427BFE table (16 bytes at 427BFE) */
+
+
+static unsigned v5_predict(W5t *d);
+static unsigned v5_train(W5t *d, unsigned sym, unsigned char dlt);
+
+static unsigned v5_ctx_ppm(W5t *d, unsigned sym)
+{
+    unsigned char v1 = (unsigned char)sym;
+    unsigned d2;
+    unsigned v4;
+    unsigned v6;
+    unsigned long v7;
+    d2 = ((unsigned)v1 - (unsigned)d->fb7) & 0xFFu;
+    if (d->fbE) {
+        d2 = (unsigned)(-(int)d2) & 0xFFu;
+    }
+    if (d2 >= 0x80u) {
+        d->fbE = (unsigned char)(d->fbE == 0);
+    }
+    if (d->fb8 == 1) {
+        d->ec0[0] = (long)(16u
+            * (unsigned)w5_427bfe[((unsigned)d->ec0[0] - 1u) & 0xFu]
+            + (unsigned)w5_deltac[d2] + 769u);
+    } else {
+        v4 = 16u * (unsigned)d->e90;
+        if (d->fb8 == 2) {
+            d->ec0[0] = (long)((unsigned)w5_deltac[d2] + v4 + 801u);
+        } else if (d->fb8 == 3) {
+            unsigned v5;
+            if (d->fbA) {
+                /* sub_414960 reassigns v2 here; the group-3 table below
+                 * indexes the *recomputed* delta, not the earlier one. */
+                d2 = ((unsigned)v1 - (unsigned)(d->fa0 >> 16)) & 0xFFu;
+                d->fbE = d->fbD;
+                if (d->fbD) {
+                    d2 = (unsigned)(-(int)d2) & 0xFFu;
+                }
+                if (d2 >= 0x80u) {
+                    d->fbE = (unsigned char)(d->fbE == 0);
+                }
+            }
+            v5 = (unsigned)d->fbB;
+            if (v1 == d->hist[v5]) {
+                d->h466[v5]++;
+            } else {
+                d->h466[v5] >>= 1;
+            }
+            d->ec0[0] = (long)(32u * (unsigned)d->e90
+                + (unsigned)w5_deltad[d2] + 833u);
+        } else if (d->fb8 == 4) {
+            d->ec0[0] = (long)(v4 + (unsigned)w5_deltac[d2] + 929u);
+        } else {
+            (void)v5_train(d, (unsigned)v1, (unsigned char)d2);
+        }
+    }
+    d->f94++;
+    d->fa0 = (d->fa0 << 8) + (unsigned long)(unsigned)v1;
+    d->fa0 &= 0xFFFFFFFFUL;
+    v6 = (unsigned)d->e90;
+    v7 = d->fa0 >> d->fbF;
+    d->e90 = (long)((unsigned)d->f94 % (unsigned)d->e94);
+    d->fb7 = (unsigned char)(v7 & 0xFFUL);
+    if (d->fb8 == 3) {
+        int taken;
+        unsigned slot;
+        slot = (unsigned)d->f94 % 6u;
+        d->fbB = (unsigned char)slot;
+        taken = d->h466[slot] > 8L;
+        /* byte_473FB7 + dword_472FA0 - BYTE3(dword_472FA0), stored as
+         * a byte: the top byte is subtracted from the whole dword, so
+         * it is NOT the same as masking to the low 24 bits. */
+        d->hist[slot] = (unsigned char)(((unsigned long)d->fb7
+            + d->fa0 - (d->fa0 >> 24)) & 0xFFUL);
+        d->fbA = (unsigned char)(taken && (unsigned)d->e8c < 5u);
+        if (d->fbA) {
+            d->fbD = d->fbE;
+            d->ec0[0] = (long)(32u * v6 + 849u);
+            v7 = (unsigned long)d->hist[(unsigned)d->fbB];
+            d->fbE = 0;
+            d->fb7 = (unsigned char)(v7 & 0xFFUL);
+        }
+        if (taken) {
+            d->e8c++;
+        } else {
+            d->e8c = 0;
+        }
+    } else if (d->fb8 >= 5) {
+        v7 = (unsigned long)v5_predict(d);
+    }
+    return (unsigned)(v7 & 0xFFFFFFFFUL);
+}
+
+/* -------- 416412: predictor trainer (group < 7 half) ----------------- */
+
+static long v5_wrap32(unsigned long v)
+{
+    v &= 0xFFFFFFFFUL;
+    if (v >= 0x80000000UL) {
+        return (long)(v - 0x80000000UL) - 0x7FFFFFFFL - 1L;
+    }
+    return (long)v;
+}
+
+static long v5_e45(W5t *d, unsigned idx)
+{
+    return d->e45[idx & 0xFFFu];
+}
+
+static unsigned v5_train(W5t *d, unsigned sym, unsigned char dlt)
+{
+    unsigned char v47 = dlt;
+    unsigned result = sym;
+    if (d->fb9 || d->e78 >= d->e80) {
+        if (d->fb8 < 7) {
+            long *v2 = d->p43;
+            int v3;
+            int v4;
+            long vv[6];
+            int v8;
+            unsigned v10;
+            unsigned v11;
+            unsigned v40;
+            unsigned v44;
+            unsigned v45;
+            long v12;
+            long *v13;
+            int v16;
+            int v17;
+            int v18;
+            int v19;
+            if (d->fb8 == 6) {
+                v3 = (int)(signed char)sym;
+            } else {
+                v3 = (int)sym - 128;
+            }
+            v4 = 16 * (signed char)(d->pbd0 - (long)v3);
+            v2[12] = v5_wrap32((unsigned long)v2[12]
+                + (unsigned long)(unsigned)v5_e45(d, (unsigned)v4));
+            v2[13] = v5_wrap32((unsigned long)v2[13]
+                + (unsigned long)(unsigned)v5_e45(d, (unsigned)(v4 - (int)v2[0])));
+            v2[14] = v5_wrap32((unsigned long)v2[14]
+                + (unsigned long)(unsigned)v5_e45(d,
+                    ((unsigned)(unsigned short)v4 + (unsigned)(unsigned short)v2[0]) & 0xFFFu));
+            v2[15] = v5_wrap32((unsigned long)v2[15]
+                + (unsigned long)(unsigned)v5_e45(d, (unsigned)(v4 - (int)v2[1])));
+            v2[16] = v5_wrap32((unsigned long)v2[16]
+                + (unsigned long)(unsigned)v5_e45(d,
+                    ((unsigned)(unsigned short)v4 + (unsigned)(unsigned short)v2[1]) & 0xFFFu));
+            v2[17] = v5_wrap32((unsigned long)v2[17]
+                + (unsigned long)(unsigned)v5_e45(d, (unsigned)(v4 - (int)v2[2])));
+            v2[18] = v5_wrap32((unsigned long)v2[18]
+                + (unsigned long)(unsigned)v5_e45(d,
+                    ((unsigned)(unsigned short)v4 + (unsigned)(unsigned short)v2[2]) & 0xFFFu));
+            v2[19] = v5_wrap32((unsigned long)v2[19]
+                + (unsigned long)(unsigned)v5_e45(d, (unsigned)(v4 - (int)v2[3])));
+            v2[20] = v5_wrap32((unsigned long)v2[20]
+                + (unsigned long)(unsigned)v5_e45(d,
+                    ((unsigned)(unsigned short)v4 + (unsigned)(unsigned short)v2[3]) & 0xFFFu));
+            {
+                unsigned gu = (unsigned)(v4 - (int)v2[4]) & 0xFFFu;
+                unsigned hu = (unsigned)((int)v2[4] + v4) & 0xFFFu;
+                v2[21] = v5_wrap32((unsigned long)v2[21]
+                    + (unsigned long)(unsigned)v5_e45(d, gu));
+                v2[22] = v5_wrap32((unsigned long)v2[22]
+                    + (unsigned long)(unsigned)d->e45[hu]);
+            }
+            /* sub_416412: al = dl - p43[10] (old value), movsx, then
+             * p43[10] = dl.  p43[11] is the signed per-symbol slope. */
+            v2[11] = (long)(signed char)((v3 - (int)(v2[10] & 0xFFL)) & 0xFF);
+            v2[10] = (long)v3;
+            v2[27]++;
+            if (((unsigned long)v2[27] & 0xFu) == 0UL) {
+                long best = v2[12];
+                v2[12] = 0;
+                v8 = 0;
+                {
+                    int k;
+                    for (k = 1; k < 11; k++) {
+                        if (v2[k + 12] < best) {
+                            best = v2[k + 12];
+                            v8 = k;
+                        }
+                        /* the asm zeroes the slot it just compared
+                         * (p43[k+12]), not p43[k+11]. */
+                        v2[k + 12] = 0;
+                    }
+                }
+                switch (v8) {
+                case 1:
+                    if (v2[5] > -32L) {
+                        v2[5]--;
+                    }
+                    break;
+                case 2:
+                    if (v2[5] < 32L) {
+                        v2[5]++;
+                    }
+                    break;
+                case 3:
+                    if (v2[6] > -32L) {
+                        v2[6]--;
+                    }
+                    break;
+                case 4:
+                    if (v2[6] < 32L) {
+                        v2[6]++;
+                    }
+                    break;
+                case 5:
+                    if (v2[7] > -32L) {
+                        v2[7]--;
+                    }
+                    break;
+                case 6:
+                    if (v2[7] < 32L) {
+                        v2[7]++;
+                    }
+                    break;
+                case 7:
+                    if (v2[8] > -32L) {
+                        v2[8]--;
+                    }
+                    break;
+                case 8:
+                    if (v2[8] < 32L) {
+                        v2[8]++;
+                    }
+                    break;
+                case 9:
+                    if (v2[8] > -32L) {
+                        v2[9]--;
+                    }
+                    break;
+                case 10:
+                    if (v2[8] < 32L) {
+                        v2[9]++;
+                    }
+                    break;
+                default:
+                    break;
+                }
+            }
+            {
+                long vv0 = (long)v3 - d->p7b4;
+                unsigned idx29 = (unsigned)d->f94 & 0x7Fu;
+                d->p29c4[idx29] = vv0;
+                vv[4] = vv0 - d->pbd4;
+                vv[5] = vv0 - d->pbd8;
+            }
+            if (((unsigned)d->f94 & (unsigned)w5_t427e0e[(unsigned)d->p7a8 & 15u]) == 0u) {
+                d->p7ac = 2;
+                d->p7b0 = 2;
+                v10 = 2;
+                v11 = 2;
+                v40 = 0xFFFFu;
+                do {
+                    long d1;
+                    long d2x;
+                    unsigned u46;
+                    d1 = v5_p29get(d, (d->f94 - 1u) & 0x7Fu)
+                        - v5_p29get(d, (d->f94 - 1u - v10) & 0x7Fu);
+                    u46 = (unsigned)d1 & 0xFFFu;
+                    d2x = v5_p29get(d, d->f94 & 0x7Fu)
+                        - v5_p29get(d, (d->f94 - v10) & 0x7Fu);
+                    u46 = (unsigned)((unsigned)v5_e45(d, u46)
+                        + (unsigned)v5_e45(d, (unsigned)d2x & 0xFFFu));
+                    d2x = v5_p29get(d, (d->f94 - 2u) & 0x7Fu)
+                        - v5_p29get(d, (d->f94 - 2u - v10) & 0x7Fu);
+                    v12 = (long)(unsigned)v5_e45(d, (unsigned)d2x & 0xFFFu)
+                        + (long)u46;
+                    d->pc4[v11] = v5_wrap32((unsigned long)v12
+                        + (((13u * (unsigned)d->pc4[v11]) & 0xFFFFFFFFUL) >> 4));
+                    v44 = (unsigned)v12;
+                    if (d->pc4[v11] < d->pc4[(unsigned)d->p7ac]) {
+                        d->p7ac = (int)v10;
+                    }
+                    if (v44 < v40) {
+                        v40 = v44;
+                        d->p7b0 = (int)v10;
+                    }
+                    v10++;
+                    v11++;
+                } while (v10 < 0x7Cu);
+            }
+            vv[0] = (long)v3 - d->pbc4[0];
+            vv[1] = (long)v3 - d->pbc8;
+            vv[2] = (long)v3 - d->pbcc;
+            vv[3] = (long)v3 - d->pbd0;
+            d->p7a8 = 0;
+            v45 = 0;
+            v13 = d->p2bdc;
+            {
+                int k;
+                for (k = 0; k < 6; k++) {
+                    unsigned v14 = (unsigned)d->f94 & 0xFFu;
+                    long nv;
+                    v13[256] = v5_wrap32((unsigned long)v13[256]
+                        - (unsigned long)(unsigned long)v13[v14]);
+                    nv = w5_t427e26[((unsigned)vv[k] & 0x1FFu)];
+                    v13[v14] = nv;
+                    v13[256] = v5_wrap32((unsigned long)v13[256]
+                        + (unsigned long)nv);
+                    /* dword_462FDC[p7a8 * 0x404] is the running total
+                     * element (index 256) of cost table p7a8. */
+                    if (v13[256]
+                        < d->p2bdc[(size_t)257 * (size_t)(unsigned)d->p7a8
+                            + 256u]) {
+                        d->p7a8 = (int)v45;
+                    }
+                    v45++;
+                    v13 += 257;
+                }
+            }
+            d->p7b8 = d->p7b4;
+            d->p7b4 = v3;
+            v16 = (int)v2[29];
+            v2[28] = v5_wrap32((unsigned long)(unsigned)v47
+                + (((unsigned long)(unsigned)v2[28]) << 8));
+            v17 = (int)v47;
+            v18 = (int)v2[30];
+            v2[29] = v5_wrap32((unsigned long)(unsigned)w5_t428626[v47]
+                + (((unsigned long)(unsigned)v16) << 8));
+            v19 = v18 << 8;
+            result = (unsigned)w5_t428e26[v17];
+            v2[30] = v5_wrap32((unsigned long)result + (unsigned long)(unsigned)v19);
+            return result;
+        }
+
+/* -------- 416412: predictor trainer (group >= 7 half) ---------------- */
+        {
+            long *w2;
+            int w20;
+            int w21;
+            int w22;
+            int w23;
+            int w26;
+            long wbest;
+            int w28s;
+            int w29;
+            int w30;
+            int w19;
+            w20 = 31 * (int)d->e90;
+            d->p45e4[(unsigned)d->e90] = d->fbE;
+            w2 = d->p43 + w20;
+            if (d->fb8 < 8) {
+                w21 = (int)sym - 128;
+            } else {
+                w21 = (int)(signed char)sym;
+            }
+            w22 = 16 * (signed char)((long)d->pbc4[0] - (long)w21);
+            w2[12] = v5_wrap32((unsigned long)w2[12]
+                + (unsigned long)(unsigned)v5_e45(d, (unsigned)w22));
+            w2[13] = v5_wrap32((unsigned long)w2[13]
+                + (unsigned long)(unsigned)v5_e45(d, (unsigned)(w22 - (int)w2[0])));
+            w2[14] = v5_wrap32((unsigned long)w2[14]
+                + (unsigned long)(unsigned)v5_e45(d,
+                    ((unsigned)(unsigned short)w22 + (unsigned)(unsigned short)w2[0]) & 0xFFFu));
+            w2[15] = v5_wrap32((unsigned long)w2[15]
+                + (unsigned long)(unsigned)v5_e45(d, (unsigned)(w22 - (int)w2[1])));
+            w2[16] = v5_wrap32((unsigned long)w2[16]
+                + (unsigned long)(unsigned)v5_e45(d,
+                    ((unsigned)(unsigned short)w22 + (unsigned)(unsigned short)w2[1]) & 0xFFFu));
+            w2[17] = v5_wrap32((unsigned long)w2[17]
+                + (unsigned long)(unsigned)v5_e45(d, (unsigned)(w22 - (int)w2[2])));
+            w2[18] = v5_wrap32((unsigned long)w2[18]
+                + (unsigned long)(unsigned)v5_e45(d,
+                    ((unsigned)(unsigned short)w22 + (unsigned)(unsigned short)w2[2]) & 0xFFFu));
+            w2[19] = v5_wrap32((unsigned long)w2[19]
+                + (unsigned long)(unsigned)v5_e45(d, (unsigned)(w22 - (int)w2[3])));
+            w2[20] = v5_wrap32((unsigned long)w2[20]
+                + (unsigned long)(unsigned)v5_e45(d,
+                    ((unsigned)(unsigned short)w22 + (unsigned)(unsigned short)w2[3]) & 0xFFFu));
+            w2[21] = v5_wrap32((unsigned long)w2[21]
+                + (unsigned long)(unsigned)v5_e45(d, (unsigned)(w22 - (int)d->p7bc)));
+            w2[22] = v5_wrap32((unsigned long)w2[22]
+                + (unsigned long)(unsigned)v5_e45(d,
+                    ((unsigned)(unsigned short)d->p7bc + (unsigned)(unsigned short)w22) & 0xFFFu));
+            w2[23] = v5_wrap32((unsigned long)w2[23]
+                + (unsigned long)(unsigned)w5_t429626[
+                    ((unsigned)(d->pbc4[0] & 0xFFL) - (unsigned)w21) & 0xFFu]);
+            w2[24] = v5_wrap32((unsigned long)w2[24]
+                + (unsigned long)(unsigned)w5_t429626[
+                    ((unsigned)(w2[10] & 0xFFL) - (unsigned)w21) & 0xFFu]);
+            w23 = (int)(signed char)((int)w21 - (w2[10] & 0xFFL));
+            w2[11] = (long)w23;
+            d->p7bc = w23;
+            w2[10] = (long)w21;
+            w2[27]++;
+            if ((((unsigned long)w2[27]) & 0xFu) == 0UL) {
+                int k;
+                w26 = 0;
+                wbest = w2[12];
+                w2[12] = 0;
+                for (k = 1; k < 11; k++) {
+                    if (w2[k + 12] < wbest) {
+                        wbest = w2[k + 12];
+                        w26 = k;
+                    }
+                    w2[k + 12] = 0;
+                }
+                switch (w26) {
+                case 1:
+                    if (w2[5] > -32L) {
+                        w2[5]--;
+                    }
+                    break;
+                case 2:
+                    if (w2[5] < 32L) {
+                        w2[5]++;
+                    }
+                    break;
+                case 3:
+                    if (w2[6] > -32L) {
+                        w2[6]--;
+                    }
+                    break;
+                case 4:
+                    if (w2[6] < 32L) {
+                        w2[6]++;
+                    }
+                    break;
+                case 5:
+                    if (w2[7] > -32L) {
+                        w2[7]--;
+                    }
+                    break;
+                case 6:
+                    if (w2[7] < 32L) {
+                        w2[7]++;
+                    }
+                    break;
+                case 7:
+                    if (w2[8] > -32L) {
+                        w2[8]--;
+                    }
+                    break;
+                case 8:
+                    if (w2[8] < 32L) {
+                        w2[8]++;
+                    }
+                    break;
+                case 9:
+                    if (w2[8] > -32L) {
+                        w2[9]--;
+                    }
+                    break;
+                case 10:
+                    if (w2[8] < 32L) {
+                        w2[9]++;
+                    }
+                    break;
+                default:
+                    break;
+                }
+                if ((((unsigned long)w2[27]) & 0xFFUL) == 0UL) {
+                    w2[23] = v5_wrap32((unsigned long)w2[23] - (unsigned long)w2[25]);
+                    w2[25] = w2[23];
+                    w2[24] = v5_wrap32((unsigned long)w2[24] - (unsigned long)w2[26]);
+                    w2[26] = w2[24];
+                }
+            }
+            if (d->fb8 == 9) {
+                w28s = d->p7bc;
+                d->p7bc = d->p7c0;
+                d->p7c0 = w28s;
+            }
+            result = (unsigned)v47;
+            w2[28] = v5_wrap32((unsigned long)(unsigned)v47
+                + (((unsigned long)(unsigned)w2[28]) << 8));
+            if (d->fb8 == 7) {
+                w29 = (int)v47;
+                w30 = (int)w2[30];
+                w2[29] = v5_wrap32((unsigned long)(unsigned)w5_t428a26[w29]
+                    + (((unsigned long)(unsigned)w2[29]) << 8));
+                w19 = w30 << 8;
+                result = (unsigned)w5_t429226[w29];
+                w2[30] = v5_wrap32((unsigned long)result + (unsigned long)(unsigned)w19);
+                return result;
+            }
+        }
+    }
+    return result;
+}
+
+/* -------- 415F35: accumulate bit-cost of (ctx, sym) ------------------ */
+
+static void v5_smcount(W5t *d, unsigned ctx, unsigned sym)
+{
+    unsigned v2 = ctx;
+    unsigned char s = (unsigned char)sym;
+    unsigned short *cA = d->cnt + (size_t)ctx * 256u;
+    unsigned short *cF;
+    unsigned fac = d->fac;
+    int unseen = (cA[s] == 0);
+    if (unseen) {
+        unsigned total;
+        total = (unsigned)d->fen[(size_t)ctx * 256u];
+        if (d->fc2) {
+            total = (total - (unsigned)cA[d->fc3]) & 0xFFFFu;
+        }
+        if (total) {
+            unsigned esc = (unsigned)d->tot[ctx];
+            unsigned long idx;
+            idx = ((unsigned long)esc << 14) / (unsigned long)(total + esc);
+            if (idx > 16383UL) {
+                idx = 16383UL;
+            }
+            d->f80a = v5_wrap32((unsigned long)d->f80a
+                + (unsigned long)DEC5_PRICE(idx));
+        }
+        v2 = fac;
+    }
+    cF = d->cnt + (size_t)v2 * 256u;
+    {
+        unsigned v6;
+        unsigned long den;
+        unsigned long idx;
+        v6 = (unsigned)d->fen[(size_t)v2 * 256u];
+        if (v2 >= 0x3F9u) {
+            if (unseen) {
+                unsigned k;
+                for (k = 0; k < 256; k++) {
+                    if (cA[k]) {
+                        v6 -= (unsigned)cF[k];
+                    }
+                }
+                if (d->fc2 && cA[d->fc3] == 0) {
+                    v6 -= (unsigned)cF[d->fc3];
+                }
+            } else if (d->fc2) {
+                v6 -= (unsigned)cF[d->fc3];
+            }
+        } else {
+            v6 += (unsigned)d->tot[v2];
+            if (d->fc2) {
+                v6 -= (unsigned)cF[d->fc3];
+            }
+        }
+        den = (unsigned long)v6;
+        if (den == 0UL) {
+            d->err = 4;
+            return;
+        }
+        idx = ((unsigned long)(unsigned)cF[s] << 14) / den;
+        if (idx > 16383UL) {
+            idx = 16383UL;
+        }
+        d->f80a = v5_wrap32((unsigned long)d->f80a
+            + (unsigned long)DEC5_PRICE(idx));
+    }
+}
+
+/* -------- 415B1D: PPM symbol decode in one context ------------------- */
+/* (the incoming edx/a2 is dead: the callee overwrites it with the table
+ * total, confirmed in asm; the function effectively takes only ctx) */
+
+static unsigned v5_ppmdec(W5t *d, unsigned ctx)
+{
+    unsigned short *fen = d->fen + (size_t)ctx * 256u;
+    unsigned short *cnt = d->cnt + (size_t)ctx * 256u;
+    unsigned fac = d->fac;
+    unsigned v2 = ctx;
+    unsigned a2;
+    unsigned v49;
+    a2 = ((unsigned)fen[0] - (d->fc2 ? (unsigned)cnt[d->fc3] : 0u)) & 0xFFFFu;
+    if (a2 == 0) {
+        unsigned short *fen2 = d->fen + (size_t)fac * 256u;
+        v2 = fac;
+        a2 = ((unsigned)fen2[0]
+            - (d->fc2 ? (unsigned)d->cnt[(size_t)fac * 256u + d->fc3] : 0u))
+            & 0xFFFFu;
+        d->f_total = (unsigned long)a2;
+        if (a2 == 0) {
+            d->err = 4;
+            return 0;
+        }
+        d->range /= (unsigned long)a2;
+        v49 = (unsigned)(d->low / d->range);
+        goto label24;
+    }
+    d->f_total = (unsigned long)((unsigned)d->tot[ctx] + a2);
+    if (d->f_total == 0UL) {
+        d->err = 4;
+        return 0;
+    }
+    d->range /= d->f_total;
+    v49 = (unsigned)(d->low / d->range);
+    if (v49 >= a2) {
+        /* Escape: first commit the escape interval [a2, f_total)
+         * (sub_415B1D lines 23165..23178), then re-decode the new
+         * symbol inside the escaped sub-stream with the fac context,
+         * excluding the symbols already present in this context. */
+        unsigned v14 = 0;
+        unsigned i;
+        unsigned short saved = 0;
+        int vs;
+        unsigned v17 = 0;
+        unsigned short *vr;
+        unsigned long idx;
+        unsigned v16;
+        unsigned short *fcnt = d->cnt + (size_t)fac * 256u;
+        unsigned fctot = (unsigned)d->fen[(size_t)fac * 256u];
+        unsigned long esc_lo = (unsigned long)a2;
+        unsigned long esc_hi = d->f_total;
+        d->f_lo = esc_lo;
+        d->f_hi = esc_hi;
+        d->low = DEC5_MASK32(d->low - d->range * esc_lo);
+        d->range *= (esc_hi - esc_lo);
+        v5_norm(d);
+        if (d->err) {
+            return 0;
+        }
+        {
+            unsigned long eidx;
+            eidx = ((esc_hi - esc_lo) << 14) / d->f_total;
+            if (eidx > 16383UL) {
+                eidx = 16383UL;
+            }
+            d->f80a = v5_wrap32((unsigned long)d->f80a
+                + (unsigned long)DEC5_PRICE(eidx));
+        }
+        if (d->fc2) {
+            saved = cnt[d->fc3];
+            cnt[d->fc3] = 1;
+        }
+        for (i = 0; i < 256; i++) {
+            if (cnt[i]) {
+                v14 += (unsigned)fcnt[i];
+            }
+        }
+        v16 = fctot - v14;
+        d->f_total = (unsigned long)v16;
+        if (v16 == 0) {
+            if (d->fc2) {
+                cnt[d->fc3] = saved;
+            }
+            d->err = 4;
+            return 0;
+        }
+        d->range /= (unsigned long)v16;
+        v49 = (unsigned)(d->low / d->range);
+        vs = 256;
+        vr = cnt + 256;
+        for (;;) {
+            vs--;
+            vr--;
+            if (vs < 0) {
+                if (d->fc2) {
+                    cnt[d->fc3] = saved;
+                }
+                d->err = 4;
+                return 0;
+            }
+            if (!*vr) {
+                v17 += (unsigned)fcnt[vs];
+            }
+            if (v17 > v49) {
+                break;
+            }
+        }
+        d->f_hi = (unsigned long)v17;
+        d->f_lo = (unsigned long)v17 - (unsigned long)(unsigned)fcnt[vs];
+        idx = (((unsigned long)v17 - d->f_lo) << 14) / (unsigned long)v16;
+        if (idx > 16383UL) {
+            idx = 16383UL;
+        }
+        d->f80a = v5_wrap32((unsigned long)d->f80a
+            + (unsigned long)DEC5_PRICE(idx));
+        d->low = DEC5_MASK32(d->low - d->range * d->f_lo);
+        d->range *= (d->f_hi - d->f_lo);
+        v5_norm(d);
+        if (d->fc2) {
+            cnt[d->fc3] = saved;
+        }
+        if (d->err) {
+            return 0;
+        }
+        return (unsigned)vs;
+    }
+    /* v49 < a2: the point lies inside the known-symbol range; the
+     * escape interval is not consumed here (LABEL_24 in sub_415B1D). */
+label24:
+    {
+        unsigned short *v3 = d->fen + (size_t)v2 * 256u;
+        unsigned long rem = (unsigned long)a2 - (unsigned long)v49;
+        unsigned v33;
+        unsigned v34;
+        unsigned long idx;
+        unsigned short *cc = d->cnt + (size_t)v2 * 256u;
+        if (d->fc2) {
+            unsigned pos = 0;
+            unsigned v48 = (unsigned)cc[d->fc3];
+            unsigned step = 128;
+            int nofc = 0;
+            do {
+                unsigned cand = pos + step;
+                if (nofc || cand <= (unsigned)d->fc3) {
+                    if (rem > (unsigned long)v3[cand]) {
+                        rem -= (unsigned long)v3[cand];
+                        pos = cand;
+                    }
+                } else if ((unsigned long)v3[cand]
+                    < (unsigned long)v48 + rem) {
+                    unsigned t = (unsigned)v3[cand];
+                    pos = cand;
+                    nofc = 1;
+                    rem -= (unsigned long)t - (unsigned long)v48;
+                    v48 = t;
+                }
+                step >>= 1;
+            } while (step);
+            v33 = pos;
+        } else {
+            unsigned pos = 0;
+            unsigned step = 128;
+            do {
+                if (rem > (unsigned long)v3[pos + step]) {
+                    rem -= (unsigned long)v3[pos + step];
+                    pos += step;
+                }
+                step >>= 1;
+            } while (step);
+            v33 = pos;
+        }
+        d->f_hi = (unsigned long)v49 + rem;
+        v34 = (unsigned)(d->f_hi - (unsigned long)(unsigned)cc[v33 & 0xFFu]);
+        idx = (((unsigned long)d->f_hi - (unsigned long)v34) << 14)
+            / d->f_total;
+        if (idx > 16383UL) {
+            idx = 16383UL;
+        }
+        d->f80a = v5_wrap32((unsigned long)d->f80a
+            + (unsigned long)DEC5_PRICE(idx));
+        d->f_lo = (unsigned long)v34;
+        d->low = DEC5_MASK32(d->low - d->range * d->f_lo);
+        d->range *= (d->f_hi - d->f_lo);
+        v5_norm(d);
+        if (d->err) {
+            return 0;
+        }
+        return v33;
+    }
+}
+
+static unsigned v5_litdec(W5t *d, unsigned ctx, unsigned gx)
+{
+    unsigned v2 = ctx;
+    unsigned char raw = 0;
+    unsigned char cl = 0;
+    unsigned v29 = 0;
+    unsigned cost_first = 0;
+    unsigned cost_second = 0;
+    int v27 = 1;
+    int v28 = 1;
+    unsigned char dh;
+    d->f70 = (d->f70 + 1u) & 0xFFu;
+    d->f80a = 0;
+    d->f78s = v5_wrap32((unsigned long)d->f78s
+        - (unsigned long)(unsigned long)d->la4c[(d->f70) + 1u]);
+    d->fac = gx;
+    dh = d->fc2;
+    if ((unsigned long)d->f78s < 0x6D4250UL
+        || (unsigned long)d->f78s >= 0xFEFF01UL) {
+        v29 = v5_ppmdec(d, v2);
+        if (d->err) {
+            return 0;
+        }
+        goto store;
+    }
+    if ((unsigned long)d->f78s < 0x91ADC0UL) {
+        if (d->f88[0] >= d->f84) {
+            v29 = v5_ppmdec(d, v2);
+            if (d->err) {
+                return 0;
+            }
+            d->fc2 = 0;
+            d->fac = 1026;
+            cost_second = (unsigned)d->f80a;
+            raw = (unsigned char)v29;
+            d->f80a = 0;
+            if (d->has_prev) {
+                if (d->fbE) {
+                    cl = (unsigned char)(d->prevb - raw);
+                } else {
+                    cl = (unsigned char)(raw + d->prevb);
+                }
+            } else {
+                cl = raw;
+            }
+            v5_smcount(d, 0x300u, (unsigned)cl);
+            if (d->err) {
+                return 0;
+            }
+            cost_first = (unsigned)d->f80a;
+            goto tail;
+        }
+        d->fc2 = 0;
+        d->fac = 1026;
+        v29 = v5_ppmdec(d, 0x300u);
+        if (d->err) {
+            return 0;
+        }
+        raw = (unsigned char)v29;
+        cl = raw;
+        cost_first = (unsigned)d->f80a;
+        v27 = 0;
+        d->f78s = v5_wrap32((unsigned long)d->f78s
+            + (unsigned long)(unsigned long)d->f80a);
+        d->la4c[(d->f70) + 1u] = d->f80a;
+        if (d->has_prev) {
+            if (d->fbE) {
+                v29 = (unsigned)((unsigned)d->prevb - (unsigned)raw) & 0xFFu;
+            } else {
+                raw = (unsigned char)((unsigned)raw - (unsigned)d->prevb);
+                v29 = (unsigned)raw;
+            }
+        } else {
+            v29 = (unsigned)raw;
+        }
+        d->f80a = 0;
+        d->fc2 = dh;
+        /* sub_4157AE restores dword_472FAC to the caller's gx (line
+         * 22939) before this sub_415F35 call; only the later
+         * sub_41488F(_, 768) runs with 1026. */
+        d->fac = gx;
+        v5_smcount(d, v2, v29);
+        if (d->err) {
+            return 0;
+        }
+        cost_second = (unsigned)d->f80a;
+        goto tail;
+    }
+    {
+        unsigned sym;
+        unsigned clo;
+        d->range /= 0x100UL;
+        if (d->range == 0UL) {
+            d->err = 4;
+            return 0;
+        }
+        sym = (unsigned)(d->low / d->range);
+        raw = (unsigned char)sym;
+        v29 = sym;
+        clo = sym;
+        d->f_lo = (unsigned long)sym;
+        d->f_hi = (unsigned long)sym + 1UL;
+        d->low = DEC5_MASK32(d->low - d->range * (unsigned long)clo);
+        d->range *= (d->f_hi - d->f_lo);
+        v5_norm(d);
+        if (d->err) {
+            return 0;
+        }
+        v5_smcount(d, v2, v29);
+        if (d->err) {
+            return 0;
+        }
+    }
+    goto store;
+tail:
+    d->fac = 1026;
+    v5_bitadd(d, (unsigned)cl, 0x300u);
+    if (d->err) {
+        return 0;
+    }
+    d->f88[0] = v5_wrap32((unsigned long)cost_first
+        + (((31u * (unsigned)d->f88[0]) & 0xFFFFFFFFUL) >> 5));
+    v28 = 0;
+    d->fac = gx;
+    d->f80a = (long)cost_second;
+store:
+    {
+        unsigned short *cc = d->cnt + (size_t)v2 * 256u;
+        unsigned v26 = (unsigned)d->ctxw[v2];
+        unsigned short *fe = d->fen + (size_t)v2 * 256u;
+        unsigned char r;
+        d->f88[v2 + 1u] = v5_wrap32((unsigned long)d->f88[v2 + 1u]
+            - (unsigned long)((unsigned)cc[v29 & 0xFFu]
+                + (unsigned)d->tot[v2]));
+        if (!cc[v29 & 0xFFu]) {
+            v5_bitadd(d, v29 & 0xFFu, v2);
+            if (d->err) {
+                return 0;
+            }
+            d->tot[v2] = (unsigned short)((unsigned)d->tot[v2] + v26);
+        }
+        cc[v29 & 0xFFu] =
+            (unsigned short)((unsigned)cc[v29 & 0xFFu] + v26);
+        r = (unsigned char)((v29 & 0xFFu) + 1u);
+        while (r != 0) {
+            unsigned char st = (unsigned char)(r & (unsigned char)(-(int)r));
+            fe[r] = (unsigned short)((unsigned)fe[r] + v26);
+            if ((unsigned char)(st + r) == 0) {
+                break;
+            }
+            r = (unsigned char)(r + st);
+        }
+        fe[0] = (unsigned short)((unsigned)fe[0] + v26);
+        if ((unsigned)d->tot[v2] + (unsigned)fe[0] >= 0x4000u
+            || d->f88[v2 + 1u] < 0L) {
+            v5_rescale_low(d, v2);
+            if (d->err) {
+                return 0;
+            }
+        }
+        if (v27) {
+            d->f78s = v5_wrap32((unsigned long)d->f78s
+                + (unsigned long)(unsigned long)d->f80a);
+            d->la4c[(d->f70) + 1u] = d->f80a;
+        }
+        if (v28) {
+            d->f88[0] = v5_wrap32((unsigned long)(unsigned long)d->f80a
+                + (((31u * (unsigned)d->f88[0]) & 0xFFFFFFFFUL) >> 5));
+        }
+        d->f84 = v5_wrap32((unsigned long)(unsigned long)d->f80a
+            + (((31u * (unsigned)d->f84) & 0xFFFFFFFFUL) >> 5));
+        return v29;
+    }
+}
+
+/* -------- 4150CF: match distance/length decode ------------------------ */
+
+static int v5_matchdist(W5t *d)
+{
+    if (d->fb1 == 2) {
+        d->e84 = d->mru[0];
+        d->fb3 = 0;
+    } else {
+        const unsigned char *nt;
+        long *lv;
+        unsigned v0;
+        unsigned v1;
+        if (d->fb1 == 1) {
+            nt = w5_next1;
+            lv = d->lec4;
+            v0 = 16;
+            v1 = 44;
+        } else {
+            nt = w5_next0;
+            lv = d->la20;
+            v0 = 1;
+            v1 = 11;
+        }
+        for (;;) {
+            unsigned bit;
+            long *slot;
+            unsigned long span;
+            unsigned long base;
+            if (v0 >= 64) {
+                d->err = 4;
+                return 0;
+            }
+            d->range >>= 12;
+            if (d->range == 0UL) {
+                d->err = 4;
+                return 0;
+            }
+            slot = lv + v0;
+            /* sub_4150CF reads the old probability into f_lo (or f_hi)
+             * before updating the node, so capture it first. */
+            {
+                long oldslot = *slot;
+                bit = (unsigned)(d->low / d->range) & 0xFFFFu;
+                if (bit >= (unsigned)oldslot) {
+                    *slot -= oldslot >> 6;
+                    base = (unsigned long)(unsigned)oldslot;
+                    span = d->range * (4096UL - base);
+                } else {
+                    v1 = v0;
+                    *slot += (4096L - oldslot) >> 6;
+                    base = 0UL;
+                    span = d->range * (unsigned long)(unsigned)oldslot;
+                }
+            }
+            d->low = DEC5_MASK32(d->low - d->range * base);
+            d->range = span;
+            v5_norm(d);
+            if (d->err) {
+                return 0;
+            }
+            v0 = (unsigned)nt[(size_t)2 * (size_t)v0 + (v1 > v0 ? 1u : 0u)];
+            if (!v0) {
+                break;
+            }
+        }
+        if (d->fb1 == 1) {
+            unsigned v8 = v1 - 1;
+            long v10;
+            long v11 = 0;
+            long v61 = -1;
+            d->e84 = w5_dist_b[v8];
+            if (v1 == 1) {
+                d->fb3 = -1;
+                goto lend;
+            }
+            v10 = w5_dist_a[v8];
+            if (v10 + d->e84 - 1L > (long)d->f94) {
+                v10 = (long)d->f94 - w5_dist_b[v8] + 1L;
+            }
+            if (v10 >= 4L) {
+                unsigned bit;
+                unsigned v48;
+                unsigned v52;
+                long nv;
+                d->range >>= 12;
+                if (d->range == 0UL) {
+                    d->err = 4;
+                    return 0;
+                }
+                bit = (unsigned)(d->low / d->range) & 0xFFFFu;
+                v61 = (bit >= (unsigned)d->e88) ? 1L : 0L;
+                if (bit < (unsigned)d->e88) {
+                    v48 = 0;
+                    v52 = (unsigned)d->e88;
+                    nv = (4096L - d->e88) >> 6;
+                    d->e88 += nv;
+                } else {
+                    v48 = (unsigned)d->e88;
+                    nv = d->e88 >> 6;
+                    d->e88 -= nv;
+                    v52 = 4096;
+                }
+                d->low = DEC5_MASK32(d->low - d->range * (unsigned long)v48);
+                d->range *= (unsigned long)(v52 - v48);
+                v5_norm(d);
+                if (d->err) {
+                    return 0;
+                }
+                v10 >>= 1;
+            }
+            if (v10 > 0x800L) {
+                unsigned sc = (unsigned)(((v10 - 1L) >> 11) + 1L);
+                unsigned v19;
+                unsigned v53;
+                if (sc == 0) {
+                    d->err = 4;
+                    return 0;
+                }
+                d->range /= (unsigned long)sc;
+                if (d->range == 0UL) {
+                    d->err = 4;
+                    return 0;
+                }
+                v19 = (unsigned)(d->low / d->range) & 0xFFFFu;
+                v53 = v19 + 1u;
+                d->low = DEC5_MASK32(d->low
+                    - d->range * (unsigned long)v19);
+                d->range *= (unsigned long)(v53 - v19);
+                v5_norm(d);
+                if (d->err) {
+                    return 0;
+                }
+                v11 = (long)((unsigned long)v19 << 11);
+                if (sc != v53) {
+                    v10 = 2048L;
+                    goto l29;
+                }
+                v10 -= (long)((unsigned long)v19 << 11);
+            }
+            if (v10 < 2L) {
+                goto l32;
+            }
+l29:
+            {
+                unsigned v26;
+                if (v10 <= 0L) {
+                    d->err = 4;
+                    return 0;
+                }
+                d->range /= (unsigned long)v10;
+                if (d->range == 0UL) {
+                    d->err = 4;
+                    return 0;
+                }
+                v26 = (unsigned)(d->low / d->range) & 0xFFFFu;
+                v11 += (long)v26;
+                d->low = DEC5_MASK32(d->low - d->range * (unsigned long)v26);
+                v5_norm(d);
+                if (d->err) {
+                    return 0;
+                }
+            }
+l32:
+            if (v61 != -1L) {
+                v11 = v61 + 2L * v11;
+            }
+            d->e84 += v11;
+            d->fb3 = -1;
+        } else {
+            unsigned vv = v1 & 0xFFu;
+            if (vv > 11u) {
+                d->err = 4;
+                return 0;
+            }
+            d->e84 = d->mru[vv];
+            d->fb3 = (int)vv;
+        }
+    }
+lend:
+    {
+        unsigned v59 = 2;
+        unsigned char *v34p = 0;
+        unsigned v60 = 0;
+        unsigned v58 = 0;
+        long v35;
+        unsigned v37;
+        unsigned v62 = 0;
+        if (d->fb1 == 1) {
+            v35 = 0;
+            if (d->e84 >= 0x100L) {
+                v35 = 1;
+                if (d->e84 >= 0x1000L) {
+                    v35 = 2;
+                    if (d->e84 >= 0x10000L) {
+                        v35 = 3;
+                        if (d->e84 >= 0x100000L) {
+                            v35 = 4;
+                        }
+                    }
+                }
+            }
+            v59 = (unsigned)v35 + 3u;
+        } else {
+            v35 = 5;
+            if (d->fb0) {
+                v35 = (long)((d->fb0 > 2u) + 6u);
+            }
+        }
+        if (v35 <= 5L && d->e84 > 1L) {
+            unsigned v36;
+            v36 = ((unsigned)d->dict[(d->fa4 - (unsigned)d->e84) & d->dictmask] << 8)
+                + (unsigned)d->dict[((d->fa4 - (unsigned)d->e84) + 1u) & d->dictmask];
+            if (v35 == 5L) {
+                v36 += 0x10000u;
+            }
+            v34p = d->win2 + v36;
+            v60 = *v34p;
+            v58 = *(v34p + 0x20000u);
+            *(v34p + 0x20000u) = (unsigned char)v60;
+        }
+        v37 = 10;
+        do {
+            unsigned char *v55 = (unsigned char *)d->banks
+                + (size_t)4096 * (size_t)(unsigned)v35;
+            v62 = v37 + 1u;
+            if (v59 < v62) {
+                unsigned long *e;
+                unsigned long p;
+                unsigned long v50;
+                unsigned long v54;
+                unsigned long span;
+                unsigned long base;
+                e = (unsigned long *)(v55
+                    + (v37 >= v58 ? 2048u : 0u)
+                    + (v37 >= v60 ? 1024u : 0u)
+                    + (size_t)4 * (size_t)v37);
+                d->range >>= 12;
+                if (d->range == 0UL) {
+                    d->err = 4;
+                    return 0;
+                }
+                p = (unsigned long)(unsigned)*e;
+                if ((unsigned)(d->low / d->range) >= (unsigned)p) {
+                    v54 = 4096UL;
+                    v50 = p;
+                    *e = (long)v5_wrap32((unsigned long)*e - (p >> 5));
+                } else {
+                    v50 = 0UL;
+                    v54 = p;
+                    v62 = v37;
+                    *e = (long)v5_wrap32((unsigned long)*e
+                        + (((unsigned long)4096 - p) >> 5));
+                }
+                base = v50;
+                span = d->range * (v54 - v50);
+                d->low = DEC5_MASK32(d->low - d->range * base);
+                d->range = span;
+                v5_norm(d);
+                if (d->err) {
+                    return 0;
+                }
+            }
+            {
+                unsigned nv = (unsigned)v37;
+                unsigned nx = (unsigned)w5_chain[(size_t)2 * (size_t)nv
+                    + (nv < v62 ? 1u : 0u)];
+                v37 = nx;
+                if (!nx) {
+                    break;
+                }
+            }
+        } while (1);
+        d->fb6 = (unsigned char)(v62 & 0xFFu);
+        if (v34p) {
+            *v34p = (unsigned char)(v62 & 0xFFu);
+        }
+    }
+    return d->err ? 0 : 1;
+}
+
+/* -------- 415666: escape: decode new group id ------------------------ */
+
+static void v5_escape(W5t *d)
+{
+    unsigned v1;
+    d->range /= 11UL;
+    if (d->range == 0UL) {
+        d->err = 4;
+        return;
+    }
+    v1 = (unsigned)(d->low / d->range);
+    d->f_lo = (unsigned long)v1;
+    d->f_hi = (unsigned long)v1 + 1UL;
+    d->low = DEC5_MASK32(d->low - d->range * (unsigned long)v1);
+    d->range *= 1UL;
+    v5_norm(d);
+    if (d->err) {
+        return;
+    }
+    if ((unsigned char)v1 == d->fb8) {
+        d->fc0 = 0;
+    } else {
+        unsigned lv = v1 & 0xFFu;
+        d->fc0 = (unsigned char)(lv == 10u);
+        if (lv == 10u) {
+            unsigned c;
+            for (c = 512; c < 0x300u; c++) {
+                v5_rescale_low(d, c);
+                if (d->err) {
+                    return;
+                }
+            }
+            lv = 0;
+        }
+        d->fb8 = (unsigned char)lv;
+        d->e94 = w5_b72[lv];
+        d->ec0[0] = w5_b9a[lv];
+        d->fbF = w5_bea[lv];
+        d->fbC = (unsigned char)(lv == 5u || lv == 6u);
+        d->fbE = 0;
+        d->fb7 = 0;
+        d->e90 = 0;
+        if (d->fb8 > 4u) {
+            v5_pred_init(d);
+        }
+        d->use_ppm = (d->fb8 != 0);
+    }
+}
+
+/* -------- 414D8C: decode one step; 0 = literal, 1 = match ------------ */
+
+static unsigned v5_stget(W5t *d, unsigned b, unsigned off)
+{
+    return (unsigned)d->state[(size_t)16 * (size_t)b + off]
+        | ((unsigned)d->state[(size_t)16 * (size_t)b + off + 1u] << 8);
+}
+
+static void v5_stput(W5t *d, unsigned b, unsigned off, unsigned v)
+{
+    d->state[(size_t)16 * (size_t)b + off] = (unsigned char)(v & 0xFFu);
+    d->state[(size_t)16 * (size_t)b + off + 1u] =
+        (unsigned char)((v >> 8) & 0xFFu);
+}
+
+static int v5_step(W5t *d)
+{
+    unsigned char v0;
+    unsigned v28;
+    if (d->fb0) {
+        v0 = (unsigned char)((d->fb0 > 2u) + 64u);
+    } else {
+        v0 = d->fc1;
+    }
+    v28 = v0;
+    if (v0 <= 0xFu) {
+        unsigned idx = (unsigned)(d->fa0 & 0xFFFFUL);
+        d->lastidx = (long)idx;
+        if ((d->lastctx[idx] & 0x38u) != 0u) {
+            v28 = ((unsigned)(d->lastctx[idx] >> 3)) + 32u;
+        }
+    }
+    for (;;) {
+        unsigned total;
+        unsigned sym;
+        unsigned v5;
+        unsigned char *w;
+        unsigned char *st;
+        st = d->state + (size_t)16 * (size_t)v28;
+        total = (unsigned)st[10] | ((unsigned)st[11] << 8);
+        if (total == 0u) {
+            d->err = 4;
+            return 0;
+        }
+        d->range /= (unsigned long)total;
+        if (d->range == 0UL) {
+            d->err = 4;
+            return 0;
+        }
+        sym = (unsigned)(d->low / d->range);
+        w = st + 10;
+        v5 = 5;
+        do {
+            w -= 2;
+            v5--;
+        } while (sym < (unsigned)w[0] + ((unsigned)w[1] << 8));
+        d->fb1 = (unsigned char)v5;
+        d->f_lo = (unsigned long)(unsigned)w[0]
+            + ((unsigned long)(unsigned)w[1] << 8);
+        d->f_hi = (unsigned long)(unsigned)w[2]
+            + ((unsigned long)(unsigned)w[3] << 8);
+        d->low = DEC5_MASK32(d->low - d->range * d->f_lo);
+        d->range *= (d->f_hi - d->f_lo);
+        v5_norm(d);
+        if (d->err) {
+            return 0;
+        }
+        if (d->fb1) {
+            break;
+        }
+        v5_escape(d);
+        if (d->err) {
+            return 0;
+        }
+    }
+    {
+        unsigned char lv = d->fb1;
+        if (lv < 4u) {
+            v5_stput(d, v28, 8, v5_stget(d, v28, 8) + 88u);
+            if (lv < 3u) {
+                v5_stput(d, v28, 6, v5_stget(d, v28, 6) + 88u);
+                if (lv < 2u) {
+                    v5_stput(d, v28, 4, v5_stget(d, v28, 4) + 88u);
+                }
+            }
+        }
+        v5_stput(d, v28, 10, v5_stget(d, v28, 10) + 88u);
+        if (v5_stget(d, v28, 10) >= 0x4000u) {
+            v5_smooth(d->state + (size_t)16 * (size_t)v28);
+        }
+    }
+    {
+        unsigned v14 = (unsigned)d->fb1 - 1u;
+        if (d->lastidx >= 0L) {
+            unsigned char *p = d->lastctx + (unsigned long)d->lastidx;
+            if (((unsigned)(*p >> 6)) == v14) {
+                if ((*p & 0x3Fu) != 63u) {
+                    (*p)++;
+                }
+            } else {
+                *p = (unsigned char)(v14 << 6);
+            }
+            d->lastidx = -1L;
+        }
+        d->fc1 = w5_trans[v14 * 32u + d->fc1];
+    }
+    if (d->fb1 == 4u) {
+        d->fb0 = 0;
+        return 0;
+    }
+    if (!v5_matchdist(d)) {
+        return 0;
+    }
+    {
+        unsigned char len = d->fb6;
+        long dist = d->e84;
+        unsigned src = (d->fa4 - (unsigned)dist) & d->dictmask;
+        unsigned n = (unsigned)len ? (unsigned)len : 256u;
+        /* sub_414D8C snapshots src + len before the copy loop; the slow
+         * path advances src, so it must not be recomputed afterwards. */
+        unsigned long endsrc = (unsigned long)src + (unsigned long)len;
+        if (dist > 1L || d->fb0 > 1u) {
+            if (d->fb3) {
+                unsigned m = (d->fb3 == -1) ? 11u : (unsigned)d->fb3;
+                int k;
+                for (k = (int)m; k > 0; k--) {
+                    d->mru[k] = d->mru[k - 1];
+                }
+                d->mru[0] = dist;
+            }
+        }
+        d->fc2 = (unsigned char)(len != 0xFFu);
+        if (len == 0xFFu) {
+            d->fb0++;
+        } else {
+            d->fb0 = 0;
+        }
+        if (((src + (unsigned)len) & 0xFFFFFFFFUL) > d->dictmask
+            || (unsigned)((unsigned)len + d->fa4) > d->dictmask) {
+            do {
+                unsigned char b = d->dict[src];
+                if (!v5_emit(d, b)) {
+                    return 1;
+                }
+                if (d->fb8) {
+                    if (d->use_ppm) {
+                        v5_ctx_ppm(d, (unsigned)b);
+                    } else {
+                        v5_ctx_order0(d, (unsigned)b);
+                    }
+                    if (d->err) {
+                        return 1;
+                    }
+                } else {
+                    d->f94 += 1u;
+                    d->fa0 = (d->fa0 << 8) | (unsigned long)b;
+                    d->fa0 &= 0xFFFFFFFFUL;
+                }
+                d->dict[d->fa4] = b;
+                src = (src + 1u) & d->dictmask;
+                d->fa4 = (d->fa4 + 1u) & d->dictmask;
+                n--;
+            } while (n);
+        } else {
+            unsigned char *vs = d->dict + src;
+            unsigned char *vd = d->dict + d->fa4;
+            d->fa4 = (d->fa4 + (unsigned)len) & d->dictmask;
+            if (d->fb8) {
+                do {
+                    unsigned char b = *vs;
+                    *vd = b;
+                    if (d->use_ppm) {
+                        v5_ctx_ppm(d, (unsigned)b);
+                    } else {
+                        v5_ctx_order0(d, (unsigned)b);
+                    }
+                    if (d->err) {
+                        return 1;
+                    }
+                    vs++;
+                    vd++;
+                    n--;
+                } while (n);
+            } else {
+                d->f94 += (unsigned)len;
+                do {
+                    d->fa0 = (d->fa0 << 8) | (unsigned long)*vs;
+                    d->fa0 &= 0xFFFFFFFFUL;
+                    *vd = (unsigned char)(d->fa0 & 0xFFUL);
+                    vs++;
+                    vd++;
+                    n--;
+                } while (n);
+            }
+            if (!v5_emit_run(d, d->dict + src, (unsigned)len)) {
+                return 1;
+            }
+        }
+        if (d->fc2) {
+            d->fc3 = d->dict[(unsigned)(d->dictmask & endsrc)];
+        }
+    }
+    return 1;
+}
+
+/* -------- 4143BB: block reset ---------------------------------------- */
+
+/* Block-boundary advance, from the tail of sub_4143BB.  The original
+ * does `add word ptr ds:dword_472F80+2, 2`, i.e. adds 0x20000 (128 KB)
+ * to the current block end, clamps to the total, then walks the
+ * container's cumulative table (dword_472FA8, index dword_472F98) to the
+ * first entry >= that value and makes it the new block end.  With no
+ * table the whole stream is one block, matching the old API. */
+static void v5_blk_advance(W5t *d)
+{
+    if (!d->cum || d->ncum == 0UL) {
+        d->blk_end = d->out_exp;
+        return;
+    }
+    d->blk_end += 0x20000UL;
+    if (d->blk_end > d->out_exp) {
+        d->blk_end = d->out_exp;
+    }
+    while (d->cum_idx < d->ncum && d->cum[d->cum_idx] < d->blk_end) {
+        d->cum_idx++;
+    }
+    if (d->cum_idx < d->ncum) {
+        d->blk_end = d->cum[d->cum_idx];
+    } else {
+        d->blk_end = d->out_exp;
+    }
+}
+
+static int v5_block_reset(W5t *d)
+{
+    unsigned i;
+    unsigned v8;
+    for (i = 1; i <= 769u; i++) {
+        d->f88[i] = 0x4000L;
+    }
+    memset(d->fen, 0, 0x60200u);
+    memset(d->cnt, 0, 0x60200u);
+    for (i = 0; i < 769u; i++) {
+        d->tot[i] = 1;
+    }
+    for (i = 0; i < 66u; i++) {
+        v5_smooth(d->state + (size_t)16 * (size_t)i);
+    }
+    for (i = 769; i < 0x3F9u; i++) {
+        v5_rescale_low(d, i);
+        if (d->err) {
+            return 0;
+        }
+    }
+    for (i = 0x3F9u; i < 0x40Cu; i++) {
+        v5_rescale_high(d, i);
+    }
+    for (i = 1; i <= 256u; i++) {
+        d->la4c[i] = 37440L;
+    }
+    d->f70 = 255u;
+    d->f78s = 9547200L;
+    d->f88[0] = 0L;
+    d->f84 = 0L;
+    d->f_total = 11UL;
+    d->range /= 11UL;
+    if (d->range == 0UL) {
+        d->err = 4;
+        return 0;
+    }
+    v8 = (unsigned)(d->low / d->range);
+    d->f_lo = (unsigned long)v8;
+    d->f_hi = (unsigned long)v8 + 1UL;
+    d->low = DEC5_MASK32(d->low - d->range * (unsigned long)v8);
+    d->range *= 1UL;
+    v5_norm(d);
+    if (d->err) {
+        return 0;
+    }
+    {
+        unsigned char v9 = (unsigned char)v8;
+        if (v9 == d->fb8) {
+            d->fc0 = 0;
+        } else {
+            unsigned lv = (unsigned)v9;
+            d->fc0 = (unsigned char)(lv == 10u);
+            if (lv == 10u) {
+                for (i = 512; i < 0x300u; i++) {
+                    v5_rescale_low(d, i);
+                    if (d->err) {
+                        return 0;
+                    }
+                }
+                lv = 0;
+            }
+            d->fb8 = (unsigned char)lv;
+            d->e94 = w5_b72[lv];
+            d->ec0[0] = w5_b9a[lv];
+            d->fbF = w5_bea[lv];
+            d->fbC = (unsigned char)(lv == 5u || lv == 6u);
+            d->fbE = 0;
+            d->fb7 = 0;
+            d->e90 = 0;
+            if (d->fb8 > 4u) {
+                v5_pred_init(d);
+            }
+            d->use_ppm = (d->fb8 != 0);
+        }
+    }
+    return 1;
+}
+
+/* -------- 414BF3: main decode loop ------------------------------------ */
+
+static int v5_main(W5t *d)
+{
+    v5_range_init(d);
+    if (d->err) {
+        return d->err;
+    }
+    if (!v5_block_reset(d)) {
+        return d->err ? d->err : 4;
+    }
+    v5_blk_advance(d);
+    for (;;) {
+        if (!v5_step(d)) {
+            unsigned char lit;
+            if (d->err) {
+                break;
+            }
+            if (d->fb8) {
+                unsigned cx;
+                unsigned gx;
+                d->has_prev = 1;
+                d->prevb = d->fb7;
+                if (d->fc2) {
+                    if (d->fbE) {
+                        d->fc3 = (unsigned char)(d->prevb - d->fc3);
+                    } else {
+                        d->fc3 = (unsigned char)(d->fc3 - d->prevb);
+                    }
+                }
+                cx = (unsigned)d->ec0[0];
+                gx = (unsigned)d->fb8 + 1026u;
+                lit = (unsigned char)v5_litdec(d, cx, gx);
+                if (d->err) {
+                    break;
+                }
+                /* sub_414BF3 applies the same delta to the symbol before
+                 * emitting it (the model update inside sub_4157AE uses
+                 * the raw value). */
+                if (d->fbE) {
+                    lit = (unsigned char)(d->prevb - lit);
+                } else {
+                    lit = (unsigned char)(lit + d->prevb);
+                }
+            } else {
+                unsigned v3;
+                unsigned v4;
+                d->has_prev = 0;
+                v3 = (unsigned)(d->fa0 & 0xFFUL);
+                if (d->fc0) {
+                    v4 = 1025;
+                    v3 = (unsigned)(d->fa0 & 0xFFUL) + 512u;
+                } else {
+                    if ((d->fa0 & 0xC0UL) == ((d->fa0 >> 8) & 0xC0UL)) {
+                        v3 += 256u;
+                    }
+                    v4 = ((unsigned)(d->fa0 & 0xE0UL) >> 5) + 1017u;
+                }
+                lit = (unsigned char)v5_litdec(d, v3, v4);
+            }
+            if (d->err) {
+                break;
+            }
+            if (!v5_emit(d, (unsigned)lit)) {
+                break;
+            }
+            if (d->use_ppm) {
+                v5_ctx_ppm(d, (unsigned)lit);
+            } else {
+                v5_ctx_order0(d, (unsigned)lit);
+            }
+            d->dict[d->fa4] = lit;
+            d->fc2 = 0;
+            d->fa4 = (d->fa4 + 1u) & d->dictmask;
+        }
+        if ((d->out_tot & 0xFu) == 0UL) {
+            v5_progress(d);
+        }
+        if (d->err) {
+            break;
+        }
+        if (d->out_tot >= d->out_exp) {
+            break;
+        }
+        /* sub_414BF3: at the top of every symbol, if output has reached
+         * the container block end, reset the models (sub_4143BB) and
+         * move to the next cumulative file boundary. */
+        if (d->cum && d->out_tot >= d->blk_end) {
+            if (!v5_block_reset(d)) {
+                break;
+            }
+            v5_blk_advance(d);
+        }
+    }
+    return d->err;
+}
+
+/* -------- 413C76 / 4142D7: init / free; public decode entry ---------- */
+
+void v5_free(W5t *d);
+
+W5t *v5_init(int method)
+{
+    W5t *d;
+    unsigned long dictsize;
+    int group;
+    unsigned i;
+    unsigned k;
+    if (method < 40 || method > 87) {
+        return 0;
+    }
+    if (method <= 55) {
+        group = 1;
+    } else if (method <= 71) {
+        group = 2;
+    } else {
+        group = 3;
+    }
+    dictsize = 1UL << (((unsigned)(method - 40) % 16u) + 10u);
+    d = (W5t *)calloc(1, sizeof(*d));
+    if (!d) {
+        return 0;
+    }
+    d->method = method;
+    d->group = group;
+    d->dictsize = dictsize;
+    d->dictmask = dictsize - 1UL;
+    d->dict = (unsigned char *)calloc(1, (size_t)(dictsize + 256UL));
+    d->fen = (unsigned short *)calloc(1, 0x81800u);
+    d->cnt = (unsigned short *)calloc(1, 0x81800u);
+    d->tot = (unsigned short *)calloc(1, (size_t)1088 * sizeof(unsigned short));
+    d->cctx = (unsigned char *)calloc(1, 0x25800u);
+    d->aux1 = (unsigned char *)calloc(1, 0x12C00u);
+    d->aux2 = (unsigned char *)calloc(1, 0x12C00u);
+    d->lastctx = (unsigned char *)calloc(1, 0x10000u);
+    d->win2 = (unsigned char *)calloc(1, 0x40000u);
+    d->mru = (long *)malloc(12u * sizeof(long));
+    if (!d->dict || !d->fen || !d->cnt || !d->tot || !d->cctx
+        || !d->aux1 || !d->aux2 || !d->lastctx || !d->win2 || !d->mru) {
+        v5_free(d);
+        return 0;
+    }
+    for (i = 0; i < 12u; i++) {
+        d->mru[i] = -1L;
+    }
+    for (i = 1; i <= 1017u; i++) {
+        d->f88[i] = 0x4000L;
+    }
+    for (i = 0; i < 1017u; i++) {
+        d->ctxw[i] = 32;
+        d->incw[i] = 16;
+    }
+    for (i = 0; i < 512u; i++) {
+        d->incw[i] = 8;
+    }
+    /* sub_416D40(8, incw + 993, 24): every predictor/literal context from
+     * 993 up (groups 5..10) uses an increment of 8, overriding the 16. */
+    for (i = 993u; i <= 1016u; i++) {
+        d->incw[i] = 8;
+    }
+    /* sub_416D40(10, ctxw + 1009, 8): the last eight contexts have a
+     * weight of 10, not 32. */
+    for (i = 1009u; i <= 1016u; i++) {
+        d->ctxw[i] = 10;
+    }
+    /* word_4735C6 = 6 overrides word_472FC6[768] after the 16-fill:
+     * it is the escape-context increment used by sub_41488F(_, 768). */
+    d->incw[768] = 6;
+    for (i = 769; i < 1017u; i++) {
+        d->tot[i] = 1;
+    }
+    for (i = 0; i < 8u; i++) {
+        unsigned short *f = d->fen + (size_t)(1017u + i) * 256u;
+        unsigned short *c = d->cnt + (size_t)(1017u + i) * 256u;
+        unsigned w;
+        f[0] = (unsigned short)(256u * 4u);
+        c[0] = 4;
+        for (w = 1; w < 256u; w++) {
+            f[w] = (unsigned short)((w & (unsigned)(-(int)w)) * 4u);
+            c[w] = 4;
+        }
+    }
+    for (i = 0; i < 11u; i++) {
+        unsigned short *f = d->fen + (size_t)(1025u + i) * 256u;
+        unsigned short *c = d->cnt + (size_t)(1025u + i) * 256u;
+        unsigned w;
+        f[0] = (unsigned short)(256u * 8u);
+        c[0] = 8;
+        for (w = 1; w < 256u; w++) {
+            f[w] = (unsigned short)((w & (unsigned)(-(int)w)) * 8u);
+            c[w] = 8;
+        }
+    }
+    for (k = 0; k < 64u; k++) {
+        unsigned j;
+        for (j = 0; j < 6u; j++) {
+            d->state[(size_t)16 * (size_t)k + (size_t)2 * (size_t)j]
+                = (unsigned char)(w5_tpl0[j] & 0xFFu);
+            d->state[(size_t)16 * (size_t)k + (size_t)2 * (size_t)j + 1u]
+                = (unsigned char)((w5_tpl0[j] >> 8) & 0xFFu);
+        }
+    }
+    for (k = 64; k < 66u; k++) {
+        unsigned j;
+        for (j = 0; j < 6u; j++) {
+            d->state[(size_t)16 * (size_t)k + (size_t)2 * (size_t)j]
+                = (unsigned char)(w5_tpl1[j] & 0xFFu);
+            d->state[(size_t)16 * (size_t)k + (size_t)2 * (size_t)j + 1u]
+                = (unsigned char)((w5_tpl1[j] >> 8) & 0xFFu);
+        }
+    }
+    for (i = 1; i <= 45u; i++) {
+        d->ec0[i] = 2048L;
+    }
+    /* dword_471EC4 (&dword_471EC0[1]) is the same array as dword_471EC0:
+     * the 44-node distance tree lives in ec0[1..44]. lec4 aliases it. */
+    for (i = 0; i < 45u; i++) {
+        d->lec4[i] = 2048L;
+    }
+    for (i = 0; i < 12u; i++) {
+        d->la20[i] = 2048L;
+    }
+    for (i = 0; i < 8192u; i++) {
+        d->banks[i / 1024u][i % 1024u] = 2048L;
+    }
+    d->f84 = -1L;
+    d->fb0 = 0;
+    d->fc2 = 0;
+    d->f94 = 0;
+    d->fa0 = 0UL;
+    d->fa4 = 0;
+    d->e90 = 0L;
+    d->e94 = 0L;
+    d->fb8 = 0;
+    d->fb7 = 0;
+    d->fbF = 0;
+    d->fbC = 0;
+    d->fbE = 0;
+    d->fb9 = 0;
+    d->fbB = 0;
+    d->fbA = 0;
+    d->fbD = 0;
+    d->f70 = 255u;
+    d->fb5 = 0;
+    d->e78 = 0;
+    d->e80 = 0;
+    d->e88 = 2048L;
+    d->e84 = -1L;
+    d->fb6 = 0;
+    d->fb3 = -1;
+    d->fb1 = 1;
+    d->fb2 = 0;
+    d->e64 = -1L;
+    d->use_ppm = 0;
+    d->e5cu = (long)(2 * group - 2);
+    d->f90u = 0L;
+    d->f88u = 0L;
+    d->fb4u = (long)(dictsize - 255UL);
+    d->e60u = 0L;
+    d->e54u = 0L;
+    {
+        int b = -2048;
+        do {
+            unsigned idx = (unsigned)(((b % 4096) + 4096) % 4096);
+            d->e45[idx] = (long)(-b);
+            b++;
+        } while (b < 0);
+    }
+    {
+        int v = 0;
+        do {
+            d->e45[(unsigned)v & 0xFFFu] = (long)v;
+            v++;
+        } while (v < 2048);
+    }
+    return d;
+}
+
+void v5_free(W5t *d)
+{
+    if (!d) {
+        return;
+    }
+    free(d->mru);
+    free(d->win2);
+    free(d->lastctx);
+    free(d->aux2);
+    free(d->aux1);
+    free(d->cctx);
+    free(d->tot);
+    free(d->cnt);
+    free(d->fen);
+    free(d->dict);
+    free(d->inb);
+    free(d->outb);
+    free(d);
+}
+
+int v5_decode_b(W5t *d,
+    const unsigned long *cum, unsigned long ncum,
+    Uha5ReadCb rcb, void *rctx,
+    Uha5WriteCb wcb, void *wctx,
+    unsigned long out_len)
+{
+    unsigned cap;
+    int rc;
+    if (!d || !rcb || !wcb) {
+        return 1;
+    }
+    if (out_len == 0UL) {
+        return 0;
+    }
+    if (cum && ncum == 0UL) {
+        cum = 0;
+    }
+    d->cum = cum;
+    d->ncum = cum ? ncum : 0UL;
+    d->cum_idx = 0UL;
+    d->blk_end = d->cum ? 0UL : out_len;
+    cap = out_len < 0x40000UL ? 0x10000u : 0x40000u;
+    if (!d->inb) {
+        d->inb = (unsigned char *)malloc(cap ? cap : 1u);
+        d->outb = (unsigned char *)malloc(cap ? cap : 1u);
+        if (!d->inb || !d->outb) {
+            free(d->inb);
+            d->inb = 0;
+            free(d->outb);
+            d->outb = 0;
+            return 2;
+        }
+        d->in_cap = cap;
+        d->out_cap = cap;
+    }
+    d->rcb = rcb;
+    d->rctx = rctx;
+    d->wcb = wcb;
+    d->wctx = wctx;
+    d->in_pos = 0;
+    d->in_avail = 0;
+    d->out_fill = 0;
+    d->out_tot = 0UL;
+    d->out_exp = out_len;
+    d->err = 0;
+    d->progress = 0UL;
+    rc = v5_main(d);
+    if (d->out_fill) {
+        v5_flush(d);
+    }
+    if (d->err) {
+        return d->err;
+    }
+    if (rc) {
+        return rc;
+    }
+    if (d->out_tot != d->out_exp) {
+        return 4;
+    }
+    return 0;
+}
+
+/* single-block wrapper (no container boundary table) */
+
+/* ---- public entries (house signatures) ---- */
 
 int UhaDec5_06Init(void** pctx, int method)
 {
-	Z5* d;
+	W5t* d;
 	if( !pctx || method < 40 || method > 87 )
 		return 1;
-	d = (Z5*)calloc(1, sizeof(*d));
+	*pctx = 0;
+	d = v5_init(method);
 	if( !d )
 		return 2;
-	d->dsz = 1UL << (((method - 40) % 16) + 10);
-	d->dmask = d->dsz - 1UL;
-	d->method = method;
-	d->group = method < 56 ? 1 : (method < 72 ? 2 : 3);
 	*pctx = d;
 	return 0;
 }
 
 void UhaDec5_06Free(void* ctx)
 {
-	Z5* d = (Z5*)ctx;
-	if( !d )
-		return;
-	free(d);
+	if( ctx )
+		v5_free((W5t*)ctx);
 }
 
 int UhaDec5_06(void* ctx, const unsigned long* cum, unsigned long ncum,
 	Uha5ReadCb rcb, void* rctx, Uha5WriteCb wcb, void* wctx,
 	unsigned long out_len)
 {
-	/* The PPM/PPM2 logic lands next; refuse loudly until then. */
-	(void)ctx; (void)cum; (void)ncum; (void)rcb; (void)rctx;
-	(void)wcb; (void)wctx; (void)out_len;
-	return 7;
+	return v5_decode_b((W5t*)ctx, cum, ncum, rcb, rctx, wcb, wctx,
+		out_len);
 }
 
 int UhaDec5_04Init(void** pctx, int method)
