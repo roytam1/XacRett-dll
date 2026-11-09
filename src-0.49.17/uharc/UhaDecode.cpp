@@ -273,7 +273,7 @@ static int uha02_open(const unsigned char* img, unsigned long flen,
 	arc->method = (int)h.method;
 	arc->total_unpacked = h.total_unpacked;
 	arc->packed_len = h.data_len;
-	arc->exe_filter = 0;	/* 0.2: always gated on MZ + len */
+	arc->exe_filter = 1;	/* 0.2: gated on MZ + len inside the filter */
 	arc->mm_filter = 0;
 	arc->pw_tables = 0;
 	arc->pw_stream = 0;
@@ -960,6 +960,20 @@ int UhaDecodeSolid(UhaArchive* arc, const unsigned char* packed,
 				uha_out_write, &bw, arc->total_unpacked);
 			UhaDec3_06Free(ctx);
 		}
+		else if( arc->ver == 2 )
+		{
+			void* ctx;
+			int irc = UhaDec3_02Init(&ctx, arc->method);
+			if( irc != 0 )
+			{
+				free(cum);
+				free(bw.b);
+				return irc == 2 ? 2 : 7;
+			}
+			rc = UhaDec3_02(ctx, uha_mem_read, &mr,
+				uha_out_write, &bw, arc->total_unpacked);
+			UhaDec3_02Free(ctx);
+		}
 		else
 		{
 			rc = 6;
@@ -988,7 +1002,60 @@ int UhaDecodeSolid(UhaArchive* arc, const unsigned char* packed,
 /* EXE post-filter placeholder (Phase 2 with core 1 RLE). */
 void UhaExeFilter(UhaArchive* arc, unsigned char* buf, unsigned long len)
 {
-	(void)arc; (void)buf; (void)len;
+	long v2, i, end;
+	if( !arc || arc->ver != 2 )
+		return;
+	if( !buf || len <= 15 )
+		return;
+	if( !((buf[0] == 0x4D && buf[1] == 0x5A) ||
+		(buf[0] == 0x5A && buf[1] == 0x4D)) )
+		return;
+	v2 = (long)len;
+	end = (long)len - 15;
+	i = 0;
+	while( i < end )
+	{
+		long v7, adv, v9;
+		if( buf[i] != 0xE8 && buf[i] != 0xE9 )
+		{
+			i++;
+			continue;
+		}
+		v7 = (long)((unsigned long)buf[i + 1] |
+			((unsigned long)buf[i + 2] << 8) |
+			((unsigned long)buf[i + 3] << 16) |
+			((unsigned long)buf[i + 4] << 24));
+		if( v7 >= 0x80000000L )
+			v7 -= 0x100000000L;
+		adv = 4;
+		if( v7 != 0 )
+		{
+			int done = 0;
+			if( v7 > 0 && v7 <= v2 - 1 )
+			{
+				long t = v7;
+				if( t == i )
+					t ^= i;
+				v9 = t - i;
+				done = 1;
+			}
+			else if( v7 < 0 && v7 >= -i )
+			{
+				v9 = v2 + v7;
+				done = 1;
+			}
+			if( done )
+			{
+				unsigned long u = (unsigned long)v9;
+				buf[i + 1] = (unsigned char)(u & 0xFFUL);
+				buf[i + 2] = (unsigned char)((u >> 8) & 0xFFUL);
+				buf[i + 3] = (unsigned char)((u >> 16) & 0xFFUL);
+				buf[i + 4] = (unsigned char)((u >> 24) & 0xFFUL);
+				adv = 5;
+			}
+		}
+		i += adv;
+	}
 }
 
 unsigned long UhaFileCrc(const unsigned char* d, unsigned long n)

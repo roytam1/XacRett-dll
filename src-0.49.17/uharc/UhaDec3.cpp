@@ -687,3 +687,1098 @@ int UhaDec3_06(void* ctx, const unsigned long* cum, unsigned long ncum,
 	d->inb = 0; d->outb = 0;
 	return err;
 }
+
+
+/* ------------------------------------------------------------------ */
+/* 0.2 core 3 (methods 8..43, PPM/LZ + range coder). Clean-room.
+ * Group = 8..19 / 20..31 / 32..43; dict 1 << (((m-8) % 12) + 10).
+ * 16-bit init range coder, token (control/run/match/literal) model.
+ * Verified against 02_M1 (9), 02_M2 (21), 02_M3 (33) and uha02.UHA.
+ */
+
+static const unsigned short w02_ctl[13] = {
+	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
+};
+
+static const unsigned short w02_state0[5] = {0, 1, 2, 0x0C00, 0x2000};
+
+static const unsigned short w02_len0[23] = {
+	0, 0x10, 0x18, 0x28, 0x38, 0x58, 0x7C, 0xCC, 0x130, 0x18C, 0x244, 0x2EF,
+	0x401, 0x4C9, 0x5CD, 0x71F, 0x8E1, 0xB39, 0xE59, 0x1241, 0x17B9, 0x2119, 0x2710
+};
+
+static const unsigned short w02_dmod0[45] = {
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x200, 0x400, 0x600,
+	0x800, 0xA00, 0xC00, 0xE00, 0x1000
+};
+
+static const unsigned short w02_lcls0[4] = {0, 0x780, 0xC80, 0xF00};
+
+static const unsigned short w02_small0[4] = {0x1000, 0, 0x1194, 0x238C};
+
+static const unsigned short w02_d20[14] = {
+	0, 0x190, 0x352, 0x546, 0x76C, 0x9C4, 0xC4E, 0xF0A, 0x11F8, 0x1518, 0x186A, 0x1BEE,
+	0x1FA4, 0x238C
+};
+
+static const unsigned char w02_lbase[22] = {
+	0xFF, 0xBF, 0x7F, 0x5F, 0x3F, 0x2F, 0x1F, 0x17, 0x13, 0x0F, 0x0D, 0x0C, 0x0B, 0x0A, 0x09, 0x08,
+	0x07, 0x06, 0x05, 0x04, 0x03, 0x02
+};
+
+static const unsigned char w02_lbits[22] = {
+	0x00, 0x40, 0x40, 0x20, 0x20, 0x10, 0x10, 0x08, 0x04, 0x04, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+static const unsigned char w02_de8[16] = {
+	0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0
+};
+
+static const unsigned char w02_df8[256] = {
+	0x00, 0x01, 0x01, 0x02, 0x02, 0x02, 0x03, 0x03,
+	0x03, 0x03, 0x03, 0x04, 0x04, 0x04, 0x04, 0x04,
+	0x04, 0x04, 0x04, 0x05, 0x05, 0x05, 0x05, 0x05,
+	0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+	0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
+	0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
+	0x06, 0x06, 0x06, 0x06, 0x06, 0x07, 0x07, 0x07,
+	0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
+	0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
+	0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07,
+	0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x08,
+	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+	0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+	0x08, 0x08, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09,
+	0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09,
+	0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09,
+	0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0x09,
+	0x09, 0x09, 0x09, 0x09, 0x0A, 0x0A, 0x0A, 0x0A,
+	0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A,
+	0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A,
+	0x0A, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B,
+	0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0C, 0x0C,
+	0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0D, 0x0D,
+	0x0D, 0x0D, 0x0D, 0x0E, 0x0E, 0x0E, 0x0F, 0x0F
+};
+
+static const unsigned char w02_ef8[256] = {
+	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+	0x07, 0x08, 0x08, 0x09, 0x09, 0x0A, 0x0A, 0x0A,
+	0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x0C, 0x0C, 0x0C,
+	0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0D, 0x0D, 0x0D,
+	0x0D, 0x0D, 0x0D, 0x0D, 0x0D, 0x0D, 0x0D, 0x0D,
+	0x0D, 0x0D, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E,
+	0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E,
+	0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0E, 0x0F,
+	0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
+	0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
+	0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
+	0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F,
+	0x0F, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+	0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+	0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+	0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+	0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+	0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+	0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+	0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+	0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+	0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+	0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+	0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+	0x11, 0x11, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,
+	0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,
+	0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x13,
+	0x13, 0x13, 0x13, 0x13, 0x13, 0x13, 0x13, 0x13,
+	0x13, 0x13, 0x13, 0x13, 0x14, 0x14, 0x14, 0x14,
+	0x14, 0x14, 0x14, 0x14, 0x15, 0x15, 0x15, 0x15,
+	0x15, 0x16, 0x16, 0x16, 0x17, 0x17, 0x18, 0x18,
+	0x19, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F
+};
+
+static const unsigned char w02_excl[16] = {
+	0x00, 0x00, 0x01, 0x02, 0x02, 0x00, 0x00, 0x01, 0x04, 0x02, 0x00, 0x00, 0x06, 0x04, 0x02, 0x00
+};
+
+static const unsigned char w02_db[4] = {0x00, 0x05, 0x08, 0x10};
+
+static const unsigned long w02_distbase[44] = {
+	0x001E0000UL, 0x001C0000UL, 0x001A0000UL, 0x00180000UL, 0x00160000UL, 0x00140000UL,
+	0x00120000UL, 0x00100000UL, 0x000E0000UL, 0x000C0000UL, 0x000A0000UL, 0x00080000UL,
+	0x00060000UL, 0x00040000UL, 0x00030000UL, 0x00020000UL, 0x00018000UL, 0x00010000UL,
+	0x0000C000UL, 0x00008000UL, 0x00006000UL, 0x00004000UL, 0x00003000UL, 0x00002000UL,
+	0x00001800UL, 0x00001000UL, 0x00000C00UL, 0x00000800UL, 0x00000600UL, 0x00000400UL,
+	0x00000300UL, 0x00000200UL, 0x00000100UL, 0x00000080UL, 0x00000040UL, 0x00000020UL,
+	0x00000010UL, 0x00000008UL, 0x00000004UL, 0x00000002UL, 0x00000001UL, 0x00000003UL,
+	0x00000001UL, 0x00000000UL
+};
+
+static const unsigned long w02_distspan[40] = {
+	0x00020000UL, 0x00020000UL, 0x00020000UL, 0x00020000UL, 0x00020000UL, 0x00020000UL,
+	0x00020000UL, 0x00020000UL, 0x00020000UL, 0x00020000UL, 0x00020000UL, 0x00020000UL,
+	0x00020000UL, 0x00020000UL, 0x00010000UL, 0x00010000UL, 0x00008000UL, 0x00008000UL,
+	0x00004000UL, 0x00004000UL, 0x00002000UL, 0x00002000UL, 0x00001000UL, 0x00001000UL,
+	0x00000800UL, 0x00000800UL, 0x00000400UL, 0x00000400UL, 0x00000200UL, 0x00000200UL,
+	0x00000100UL, 0x00000100UL, 0x00000100UL, 0x00000080UL, 0x00000040UL, 0x00000020UL,
+	0x00000010UL, 0x00000008UL, 0x00000004UL, 0x00000002UL
+};
+
+static const unsigned long w02_fillthr[37] = {
+	0xFFFFFFFFUL, 0x001E0000UL, 0x001C0000UL, 0x001A0000UL, 0x00180000UL, 0x00160000UL,
+	0x00140000UL, 0x00120000UL, 0x00100000UL, 0x000E0000UL, 0x000C0000UL, 0x000A0000UL,
+	0x00080000UL, 0x00060000UL, 0x00040000UL, 0x00030000UL, 0x00020000UL, 0x00018000UL,
+	0x00010000UL, 0x0000C000UL, 0x00008000UL, 0x00006000UL, 0x00004000UL, 0x00003000UL,
+	0x00002000UL, 0x00001800UL, 0x00001000UL, 0x00000C00UL, 0x00000800UL, 0x00000600UL,
+	0x00000400UL, 0x00000300UL, 0x00000200UL, 0x00000100UL, 0x00000080UL, 0x00000040UL,
+	0x00000020UL
+};
+
+typedef struct W02
+{
+	Uha3ReadCb rcb;
+	void* rctx;
+	Uha3WriteCb wcb;
+	void* wctx;
+	unsigned char inbuf[8192];
+	unsigned in_pos;
+	unsigned in_len;
+	int in_eof;
+	unsigned char cur_byte;
+	unsigned bit_mask;
+	unsigned char outbuf[65536];
+	unsigned out_fill;
+	unsigned long out_total;
+	unsigned long out_expect;
+	int err;
+	unsigned long code, rng;
+	unsigned long rtotal, rlow, rhigh;
+	unsigned short* tree;
+	unsigned short* freq;
+	unsigned short state[8][5];
+	unsigned short lenA[23];
+	unsigned short lenB[23];
+	unsigned short dmodel[45];
+	unsigned short smallm[4];
+	unsigned short d2[14];
+	unsigned short lenclass[4];
+	unsigned long* distlist;
+	unsigned char* dict;
+	unsigned long dsize;
+	unsigned long dwrap;
+	unsigned long dmask;
+	unsigned long ring_pos;
+	unsigned long ring_fill;
+	unsigned long hash;
+	unsigned long counter;
+	unsigned long mpos;
+	unsigned long list_max;
+	unsigned long class_max;
+	unsigned char group;
+	unsigned char state_idx;
+	unsigned char prev_ctx;
+	unsigned char last_out;
+	unsigned char last_sym;
+	unsigned char mode;
+	unsigned char db;
+	unsigned char order;
+	unsigned char prev_order;
+	unsigned char flag7;
+	unsigned char raw_lit;
+	unsigned char exc_lit;
+	unsigned char len_sel;
+	unsigned char len_val;
+	unsigned char fill_idx;
+} W02;
+
+static int w02_in_byte(W02* c)
+{
+	if(c->in_pos >= c->in_len) {
+		int n;
+		if(c->in_eof) { c->err = 3; return 0; }
+		n = c->rcb(c->rctx, c->inbuf, (int)sizeof(c->inbuf));
+		if(n <= 0) { c->in_eof = 1; c->err = 3; return 0; }
+		c->in_len = (unsigned)n;
+		c->in_pos = 0;
+	}
+	return c->inbuf[c->in_pos++];
+}
+
+static int w02_bit(W02* c)
+{
+	int b;
+	if(c->bit_mask == 0) {
+		c->cur_byte = (unsigned char)w02_in_byte(c);
+		c->bit_mask = 0x80;
+	}
+	b = (c->cur_byte & c->bit_mask) ? 1 : 0;
+	c->bit_mask >>= 1;
+	return b;
+}
+
+static void w02_flush(W02* c)
+{
+	if(c->out_fill) {
+		unsigned long n = c->out_fill;
+		if(c->out_expect && c->out_total >= c->out_expect &&
+		   c->out_total - n >= c->out_expect) {
+			c->out_fill = 0;
+			return;
+		}
+		if(c->out_expect && c->out_total - n < c->out_expect &&
+		   c->out_total > c->out_expect) {
+			n = c->out_expect - (c->out_total - n);
+		}
+		if(c->wcb(c->wctx, c->outbuf, n) != 0)
+			c->err = 4;
+		c->out_fill = 0;
+	}
+}
+
+static void w02_out_byte(W02* c, unsigned char b)
+{
+	if(c->out_fill >= sizeof(c->outbuf)) w02_flush(c);
+	c->outbuf[c->out_fill++] = b;
+	c->out_total++;
+}
+
+static void w02_fill_out(W02* c, unsigned char b, unsigned long n)
+{
+	while(n) {
+		unsigned room = (unsigned)(sizeof(c->outbuf) - c->out_fill);
+		unsigned take;
+		if(room == 0) { w02_flush(c); room = (unsigned)sizeof(c->outbuf); }
+		take = (n < room) ? (unsigned)n : room;
+		memset(c->outbuf + c->out_fill, b, take);
+		c->out_fill += take;
+		c->out_total += take;
+		n -= take;
+	}
+}
+
+static unsigned long w02_rget(W02* c, unsigned long total)
+{
+	unsigned long num;
+	if(total == 0) { c->err = 7; return 0; }
+	num = (((c->code + 1) * total) - 1) & 0xFFFFFFFFUL;
+	if(c->rng == 0) { c->err = 7; return 0; }
+	return (num / c->rng) & 0xFFFFFFFFUL;
+}
+
+static void w02_rupd(W02* c)
+{
+	unsigned long r = c->rng;
+	unsigned long lo, hi, span;
+	if(c->rtotal == 0 || r == 0) { c->err = 7; return; }
+	lo = ((c->rlow * r) & 0xFFFFFFFFUL) / c->rtotal;
+	c->code = (c->code - lo) & 0xFFFFFFFFUL;
+	hi = ((c->rhigh * r) & 0xFFFFFFFFUL) / c->rtotal;
+	span = (hi - lo) & 0xFFFFFFFFUL;
+	while(span <= 0x8000UL) {
+		int b = w02_bit(c);
+		span = (span << 1) & 0xFFFFFFFFUL;
+		c->code = ((c->code << 1) + (unsigned long)b) & 0xFFFFFFFFUL;
+		if(c->err) return;
+	}
+	c->rng = span;
+}
+
+static unsigned w02_dec_tree(W02* c, const unsigned short* w)
+{
+	unsigned long v;
+	unsigned edx, idx, step, mask, i;
+	unsigned char cl = 0;
+	unsigned short total = w[0];
+	edx = total;
+	v = w02_rget(c, total);
+	if(v < (unsigned long)((unsigned short)(edx - w[128]))) {
+		idx = 128; cl = 0x80; edx = (unsigned)(edx - w[128]);
+	} else {
+		idx = 0;
+	}
+	step = 64; mask = 0x40;
+	for(i = 0; i < 7; i++) {
+		unsigned di = (unsigned)((edx - w[idx + step]) & 0xFFFF);
+		if(v < (unsigned long)di) {
+			idx += step;
+			cl = (unsigned char)(cl | mask);
+			edx = di;
+		}
+		step >>= 1;
+		mask >>= 1;
+	}
+	c->rhigh = edx & 0xFFFF;
+	if(cl == 0xFF) {
+		c->rlow = 0;
+	} else if(!(cl & 1)) {
+		c->rlow = (unsigned)((edx - w[idx + 1]) & 0xFFFF);
+	} else {
+		unsigned c2 = (unsigned)((cl + 1) & 0xFF);
+		unsigned long p = 0;
+		unsigned val = total;
+		mask = 0x80;
+		for(i = 0; i < 8; i++) {
+			if(c2 & mask) {
+				p += mask * 2UL;
+				val = (unsigned)((val - w[p >> 1]) & 0xFFFF);
+			}
+			mask >>= 1;
+		}
+		c->rlow = val & 0xFFFF;
+	}
+	c->rtotal = total;
+	return (unsigned)cl;
+}
+
+static unsigned w02_dec_tree2(W02* c, const unsigned short* w)
+{
+	unsigned long v;
+	unsigned edx, idx, step, mask, i;
+	unsigned char cl = 0x80;
+	unsigned short total;
+	edx = (unsigned)((w[0] - w[128]) & 0xFFFF);
+	total = (unsigned short)edx;
+	v = w02_rget(c, edx);
+	idx = 128;
+	{
+		unsigned di = (unsigned)((edx - w[192]) & 0xFFFF);
+		if(v < (unsigned long)di) {
+			cl = 0xC0; idx += 64; edx = di;
+		}
+	}
+	step = 32; mask = 0x20;
+	for(i = 0; i < 6; i++) {
+		unsigned di = (unsigned)((edx - w[idx + step]) & 0xFFFF);
+		if(v < (unsigned long)di) {
+			idx += step;
+			cl = (unsigned char)(cl | mask);
+			edx = di;
+		}
+		step >>= 1;
+		mask >>= 1;
+	}
+	c->rhigh = edx & 0xFFFF;
+	if(cl == 0xFF) {
+		c->rlow = 0;
+	} else if(!(cl & 1)) {
+		c->rlow = (unsigned)((edx - w[idx + 1]) & 0xFFFF);
+	} else {
+		unsigned c2 = (unsigned)((cl + 1) & 0xFF);
+		unsigned long p = 0;
+		unsigned val = w[0];
+		mask = 0x80;
+		for(i = 0; i < 8; i++) {
+			if(c2 & mask) {
+				p += mask * 2UL;
+				val = (unsigned)((val - w[p >> 1]) & 0xFFFF);
+			}
+			mask >>= 1;
+		}
+		c->rlow = val & 0xFFFF;
+	}
+	c->rtotal = total;
+	return (unsigned)cl;
+}
+
+static void w02_halve_pairs(unsigned short* p, unsigned n)
+{
+	unsigned i;
+	for(i = 0; i + 1 < n; i += 2) {
+		unsigned long d = (unsigned long)p[i] | ((unsigned long)p[i+1] << 16);
+		d = (d + 0x10001UL) & 0xFFFEFFFEUL;
+		d >>= 1;
+		p[i] = (unsigned short)(d & 0xFFFF);
+		p[i+1] = (unsigned short)((d >> 16) & 0xFFFF);
+	}
+	if(n & 1) p[n-1] = (unsigned short)((p[n-1] + 1) >> 1);
+}
+
+static void w02_rebuild(W02* c, unsigned ctx)
+{
+	unsigned short* tr = c->tree + (unsigned long)ctx * 256;
+	unsigned short* fr = c->freq + (unsigned long)ctx * 256;
+	unsigned long total = 0;
+	unsigned i;
+	w02_halve_pairs(fr, 256);
+	for(i = 0; i < 256; i++) total += fr[i];
+	total &= 0xFFFF;
+	tr[0] = (unsigned short)total;
+	for(i = 1; i < 256; i++) tr[i] = fr[i-1];
+	for(i = 1; i < 256; i++) {
+		unsigned j = i + (i & (0u - i));
+		if(j < 256) tr[j] = (unsigned short)(tr[j] + tr[i]);
+	}
+}
+
+static void w02_halve(W02* c, unsigned ctx, unsigned shift)
+{
+	unsigned short* fr = c->freq + (unsigned long)ctx * 256;
+	unsigned n;
+	for(n = 1; n < shift; n++) w02_halve_pairs(fr, 256);
+	w02_rebuild(c, ctx);
+}
+
+static void w02_update(W02* c, unsigned char sym)
+{
+	static const unsigned short inc_tab[4] = {2, 8, 32, 128};
+	unsigned inc = inc_tab[c->order & 3];
+	unsigned long base = (unsigned long)c->prev_ctx * 256;
+	unsigned short* tr = c->tree + base;
+	unsigned short* fr = c->freq + base;
+	fr[sym] = (unsigned short)(fr[sym] + inc);
+	if(sym != 0xFF) {
+		unsigned i = (unsigned)(sym + 1) & 0xFF;
+		unsigned bit = 1;
+		while(i) {
+			if(i & bit) {
+				tr[i] = (unsigned short)(tr[i] + inc);
+				i = (i + bit) & 0xFF;
+			}
+			bit = (bit << 1) & 0xFF;
+			if(bit == 0) break;
+		}
+	}
+	tr[0] = (unsigned short)(tr[0] + inc);
+	if(tr[0] >= 0x4000) w02_rebuild(c, c->prev_ctx);
+	switch(c->mode) {
+	case 0:
+	case 5:
+		c->prev_ctx = sym;
+		break;
+	case 1:
+		c->prev_ctx = (unsigned char)((w02_de8[c->prev_ctx & 15] << 4) + w02_df8[sym]);
+		break;
+	case 3:
+		c->prev_ctx = (unsigned char)(w02_ef8[sym] + ((c->counter % 3) << 5));
+		break;
+	default:
+		c->prev_ctx = (unsigned char)(((c->counter & c->db) << 4) + w02_df8[sym]);
+		break;
+	}
+	c->counter++;
+}
+
+static unsigned char w02_hash_byte(W02* c)
+{
+	return (unsigned char)((c->hash >> (8 * (c->db & 3))) & 0xFF);
+}
+
+static void w02_put_orig(W02* c, unsigned char sym)
+{
+	unsigned char d = (unsigned char)(~sym);
+	if(c->mode) {
+		if(!c->flag7) d = (unsigned char)(0 - d);
+		if((unsigned char)(~sym) >= 0x80) c->flag7 = (unsigned char)!c->flag7;
+		d = (unsigned char)(d + w02_hash_byte(c));
+	}
+	c->hash = ((c->hash << 8) + d) & 0xFFFFFFFFUL;
+	c->last_out = d;
+	w02_out_byte(c, d);
+}
+
+static void w02_put_trans(W02* c, unsigned char b)
+{
+	unsigned char d;
+	if(c->mode) {
+		d = (unsigned char)(b - w02_hash_byte(c));
+		if(!c->flag7) d = (unsigned char)(0 - d);
+		if(d >= 0x80) c->flag7 = (unsigned char)!c->flag7;
+	} else {
+		d = b;
+	}
+	d = (unsigned char)(~d);
+	c->hash = ((c->hash << 8) + b) & 0xFFFFFFFFUL;
+	c->last_sym = d;
+	w02_out_byte(c, b);
+}
+
+static void w02_upd_state(W02* c, unsigned v)
+{
+	unsigned short* m = c->state[c->state_idx];
+	if(v == 2) m[3] = (unsigned short)(m[3] + 64);
+	m[4] = (unsigned short)(m[4] + 64);
+	if(m[4] >= 0x4000) {
+		unsigned long f2 = (unsigned)(m[3] - m[2]);
+		unsigned long f3 = (unsigned)(m[4] - m[3]);
+		unsigned long h2 = (f2 + 1) >> 1;
+		unsigned long h3 = (f3 + 1) >> 1;
+		m[3] = (unsigned short)(m[2] + h2);
+		m[4] = (unsigned short)(m[3] + h3);
+	}
+	c->state_idx = (unsigned char)((v + 2 * c->state_idx - 2) & 7);
+}
+
+static void w02_upd_lenclass(W02* c, unsigned v)
+{
+	unsigned short* m = c->lenclass;
+	if(v == 0) m[1] = (unsigned short)(m[1] + 64);
+	if(v <= 1) m[2] = (unsigned short)(m[2] + 64);
+	m[3] = (unsigned short)(m[3] + 64);
+	if(m[3] >= 0x4000) {
+		unsigned long f0 = m[1] - m[0];
+		unsigned long f1 = m[2] - m[1];
+		unsigned long f2 = m[3] - m[2];
+		unsigned long h0 = (f0 + 1) >> 1;
+		unsigned long h1 = (f1 + 1) >> 1;
+		unsigned long h2 = (f2 + 1) >> 1;
+		m[1] = (unsigned short)(m[0] + h0);
+		m[2] = (unsigned short)(m[1] + h1);
+		m[3] = (unsigned short)(m[2] + h2);
+	}
+}
+
+static void w02_rescale_cum(unsigned short* m, unsigned last)
+{
+	unsigned d;
+	for(d = last; d >= 1; d--) {
+		unsigned long diff = (unsigned)(m[d] - m[d-1]);
+		m[d] = (unsigned short)((diff + 1) >> 1);
+		if(d == 0) break;
+	}
+	{
+		unsigned a;
+		for(a = 2; a <= last; a++)
+			m[a] = (unsigned short)(m[a] + m[a-1]);
+	}
+}
+
+static void w02_upd_dmodel(W02* c, unsigned v)
+{
+	unsigned a;
+	for(a = (unsigned)v + 1; a < 44; a++)
+		c->dmodel[a] = (unsigned short)(c->dmodel[a] + 0x20);
+	c->dmodel[44] = (unsigned short)(c->dmodel[44] + 0x20);
+	if(c->dmodel[44] >= 0x4000) w02_rescale_cum(c->dmodel, 44);
+}
+
+static void w02_fill_step(W02* c, unsigned idx)
+{
+	unsigned inc = (unsigned)(c->dmodel[idx+1] + 1) >> 1;
+	unsigned a;
+	for(a = idx; a < 45; a++)
+		c->dmodel[a] = (unsigned short)(c->dmodel[a] + inc);
+	w02_rescale_cum(c->dmodel, 44);
+}
+
+static void w02_upd_lenmodel(W02* c, unsigned v)
+{
+	unsigned short* m = c->len_sel ? c->lenB : c->lenA;
+	unsigned last = c->len_sel ? 22 : 21;
+	unsigned a;
+	for(a = (unsigned)v + 1; a < last; a++)
+		m[a] = (unsigned short)(m[a] + 0x40);
+	m[last] = (unsigned short)(m[last] + 0x40);
+	if(m[last] >= 0x4000) w02_rescale_cum(m, last);
+}
+
+static void w02_upd_distlist(W02* c, unsigned v)
+{
+	unsigned char cl = (unsigned char)c->class_max;
+	if(v < 3) {
+		if(v == 2) c->smallm[2] = (unsigned short)(c->smallm[2] + 0x20);
+		c->smallm[3] = (unsigned short)(c->smallm[3] + 0x20);
+		if(c->smallm[3] >= 0x4000) {
+			unsigned long h2 = ((unsigned)(c->smallm[2] - c->smallm[1]) + 1) >> 1;
+			unsigned long h3 = ((unsigned)(c->smallm[3] - c->smallm[2]) + 1) >> 1;
+			if(h2 < 0x400) h2 = 0x400;
+			if(h3 < 0x400) h3 = 0x400;
+			c->smallm[2] = (unsigned short)(c->smallm[1] + h2);
+			c->smallm[3] = (unsigned short)(c->smallm[2] + h3);
+		}
+	} else {
+		unsigned a = (unsigned)c->list_max - 1 - v;
+		for(;;) {
+			a++;
+			if(a >= cl) break;
+			c->d2[a] = (unsigned short)(c->d2[a] + 0x20);
+		}
+		c->d2[cl] = (unsigned short)(c->d2[cl] + 0x20);
+		if(c->d2[cl] >= 0x4000) {
+			unsigned d;
+			for(d = cl; d >= 1; d--) {
+				unsigned long diff = (unsigned)(c->d2[d] - c->d2[d-1]);
+				unsigned long h = (diff + 1) >> 1;
+				if(h < 0x100) h = 0x100;
+				c->d2[d] = (unsigned short)h;
+				if(d == 0) break;
+			}
+			{
+				unsigned x;
+				for(x = 2; x <= cl; x++)
+					c->d2[x] = (unsigned short)(c->d2[x] + c->d2[x-1]);
+			}
+		}
+	}
+	c->class_max = cl;
+}
+
+static unsigned w02_dec_len(W02* c)
+{
+	unsigned short* m = c->len_sel ? c->lenB : c->lenA;
+	unsigned start = c->len_sel ? 22 : 21;
+	unsigned long v;
+	unsigned d = start;
+	unsigned bits, extra = 0;
+	c->rtotal = m[start];
+	v = w02_rget(c, c->rtotal);
+	do {
+		d--;
+	} while(v < (unsigned long)m[d] && d);
+	c->rlow = m[d];
+	c->rhigh = m[d+1];
+	w02_rupd(c);
+	bits = w02_lbits[d];
+	if(bits) {
+		c->rtotal = bits;
+		extra = (unsigned)w02_rget(c, bits);
+		c->rlow = extra & 0xFF;
+		c->rhigh = (extra + 1) & 0xFFFF;
+		w02_rupd(c);
+	}
+	c->len_val = (unsigned char)(w02_lbase[d] + (extra & 0xFF));
+	return d;
+}
+
+static unsigned w02_dec_dist(W02* c)
+{
+	unsigned long v;
+	unsigned d, ebx, ex, low, high;
+	unsigned short* m = c->dmodel;
+	c->rtotal = m[44];
+	v = w02_rget(c, c->rtotal);
+	d = 44;
+	do {
+		d--;
+	} while(v < (unsigned long)m[d] && d);
+	c->rlow = m[d];
+	c->rhigh = m[d+1];
+	w02_rupd(c);
+	c->mpos = w02_distbase[d];
+	if(d == 40) {
+		c->len_sel = 0;
+		return d;
+	}
+	if(d == 41) {
+		unsigned short* m2 = c->d2;
+		ebx = c->class_max;
+		ex = ebx * 2;
+		c->rtotal = m2[ebx];
+		v = w02_rget(c, c->rtotal);
+		do {
+			high = m2[ebx-1];
+			ex -= 2;
+			ebx--;
+			if(v >= (unsigned long)high) break;
+		} while(ebx);
+		c->rlow = m2[ebx];
+		c->rhigh = m2[ebx+1];
+		w02_rupd(c);
+		c->mpos += (unsigned long)(c->class_max - 1 - ebx);
+		c->len_sel = 1;
+		return d;
+	}
+	if(d == 42) {
+		unsigned short* sm = c->smallm;
+		ebx = 2;
+		c->rtotal = sm[3];
+		v = w02_rget(c, c->rtotal);
+		do {
+			high = sm[ebx];
+			ebx--;
+			if(v >= (unsigned long)high) break;
+		} while(ebx);
+		c->rlow = sm[ebx+1];
+		c->rhigh = sm[ebx+2];
+		w02_rupd(c);
+		c->mpos += (unsigned long)(1 - ebx);
+		c->len_sel = 1;
+		return d;
+	}
+	if(d == 43) {
+		c->len_sel = 1;
+		return d;
+	}
+	ebx = (unsigned)w02_distspan[d];
+	ex = (unsigned)(c->mpos + ebx - 1);
+	if(ex > c->ring_fill) ebx = (unsigned)(c->ring_fill - c->mpos + 1);
+	if(ebx >= 2) {
+		if(ebx > 0x1000) {
+			unsigned long q;
+			c->rtotal = ((ebx - 1) >> 12) + 1;
+			q = w02_rget(c, c->rtotal) & 0xFFFF;
+			c->rlow = (unsigned)q;
+			c->rhigh = (unsigned)(q + 1);
+			w02_rupd(c);
+			c->mpos = (c->mpos + (q << 12)) & 0xFFFFFFFFUL;
+			if(c->rhigh == c->rtotal) {
+				ebx -= (unsigned)(q << 12);
+			} else {
+				ebx = 0x1000;
+			}
+		}
+		if(ebx >= 2) {
+			c->rtotal = ebx;
+			low = (unsigned)w02_rget(c, ebx) & 0xFFFF;
+			c->rlow = low;
+			c->rhigh = (unsigned)(low + 1);
+			w02_rupd(c);
+			c->mpos = (c->mpos + low) & 0xFFFFFFFFUL;
+		}
+	}
+	c->len_sel = 0;
+	return d;
+}
+
+static unsigned w02_token(W02* c)
+{
+	unsigned short* m = c->state[c->state_idx];
+	unsigned long v;
+	unsigned d = 4;
+	c->rtotal = m[4];
+	v = w02_rget(c, c->rtotal);
+	do {
+		d--;
+		if(v >= (unsigned long)m[d]) break;
+	} while(d);
+	c->rlow = m[d];
+	c->rhigh = m[d+1];
+	w02_rupd(c);
+	if(d <= 1) return d;
+	w02_upd_state(c, d);
+	return d;
+}
+
+static void w02_reset_models(W02* c)
+{
+	unsigned i;
+	for(i = 0; i < 256; i++) {
+		unsigned j;
+		unsigned short* tr = c->tree + (unsigned long)i * 256;
+		unsigned short* fr = c->freq + (unsigned long)i * 256;
+		for(j = 0; j < 256; j++) fr[j] = 1;
+		tr[0] = 256;
+		for(j = 1; j < 256; j++) tr[j] = 1;
+		for(j = 1; j < 256; j++) {
+			unsigned k = j + (j & (0u - j));
+			if(k < 256) tr[k] = (unsigned short)(tr[k] + tr[j]);
+		}
+	}
+}
+
+static void w02_control(W02* c)
+{
+	unsigned long v;
+	unsigned d = 12;
+	int v15 = 0, v14 = 0;
+	c->rtotal = 12;
+	v = w02_rget(c, 12);
+	do {
+		d--;
+	} while(v < (unsigned long)w02_ctl[d] && d);
+	c->rlow = w02_ctl[d];
+	c->rhigh = w02_ctl[d+1];
+	w02_rupd(c);
+	if(d > 11) { c->err = 7; return; }
+	if(d <= 5) v15 = 1;
+	else if(d <= 9) v14 = 1;
+	else if(d == 10) c->raw_lit = (unsigned char)!c->raw_lit;
+	else if(d == 11) c->exc_lit = (unsigned char)!c->exc_lit;
+	if(v15) {
+		c->mode = (unsigned char)d;
+		c->db = (unsigned char)((d - 1) & 3);
+		if(c->out_total) w02_reset_models(c);
+	}
+	if(v14) {
+		unsigned shift;
+		c->prev_order = c->order;
+		c->order = (unsigned char)(d - 6);
+		if(c->out_total && !v15) {
+			shift = w02_excl[4 * c->prev_order + c->order];
+			if(shift) {
+				unsigned i;
+				for(i = 0; i < 256; i++)
+					w02_halve(c, i, shift);
+			}
+		}
+	}
+}
+
+static void w02_literal(W02* c)
+{
+	unsigned sym;
+	if(c->raw_lit) {
+		c->rtotal = 256;
+		sym = (unsigned)w02_rget(c, 256) & 0xFF;
+		c->rlow = sym;
+		c->rhigh = (sym + 1) & 0xFFFF;
+		w02_rupd(c);
+	} else if(c->exc_lit) {
+		sym = w02_dec_tree2(c, c->tree + (unsigned long)c->prev_ctx * 256);
+		w02_rupd(c);
+	} else {
+		sym = w02_dec_tree(c, c->tree + (unsigned long)c->prev_ctx * 256);
+		w02_rupd(c);
+	}
+	w02_update(c, (unsigned char)sym);
+	w02_put_orig(c, (unsigned char)sym);
+	c->dict[c->ring_pos] = c->last_out;
+	if(c->ring_fill < c->dwrap) c->ring_fill++;
+	c->ring_pos = (c->ring_pos + 1) & c->dmask;
+}
+
+static void w02_match(W02* c)
+{
+	unsigned dist_idx, sym, len_sym;
+	unsigned long dist, src;
+	unsigned bl;
+	for(;;) {
+		unsigned idx = c->fill_idx;
+		if(c->ring_fill >= w02_fillthr[idx]) {
+			c->fill_idx = (unsigned char)(idx - 1);
+			w02_fill_step(c, idx);
+		} else break;
+	}
+	sym = w02_dec_dist(c);
+	w02_upd_dmodel(c, sym);
+	if(c->len_sel) {
+		if(c->len_sel != 1) { c->err = 7; return; }
+		dist_idx = (unsigned)(c->mpos & 0xFF);
+		if(dist_idx >= 16) { c->err = 7; return; }
+		dist = c->distlist[dist_idx];
+		if(dist_idx) w02_upd_distlist(c, dist_idx);
+		bl = dist_idx;
+	} else {
+		dist = c->mpos;
+		bl = (unsigned)c->list_max - 1;
+	}
+	if(bl && dist > 1) {
+		unsigned k = bl;
+		while(k) {
+			c->distlist[k] = c->distlist[k-1];
+			k--;
+		}
+		c->distlist[0] = dist;
+	}
+	src = (c->ring_pos - dist) & c->dmask;
+	len_sym = w02_dec_len(c);
+	w02_upd_lenmodel(c, len_sym);
+	bl = c->len_val;
+	if(bl < 2) { c->err = 7; return; }
+	for(;;) {
+		unsigned char b = c->dict[src];
+		c->dict[c->ring_pos] = b;
+		if(c->ring_fill < c->dwrap) c->ring_fill++;
+		c->ring_pos = (c->ring_pos + 1) & c->dmask;
+		src = (src + 1) & c->dmask;
+		w02_put_trans(c, b);
+		w02_update(c, c->last_sym);
+		bl--;
+		if(!bl) break;
+	}
+}
+
+static void w02_run(W02* c)
+{
+	unsigned long v;
+	unsigned d = 3;
+	unsigned long len;
+	unsigned char b;
+	unsigned i;
+	c->rtotal = c->lenclass[3];
+	v = w02_rget(c, c->lenclass[3]);
+	do {
+		d--;
+	} while(v < (unsigned long)c->lenclass[d] && d);
+	c->rlow = c->lenclass[d];
+	c->rhigh = c->lenclass[d+1];
+	w02_rupd(c);
+	w02_upd_lenclass(c, d);
+	len = 0x100UL;
+	if(d == 2) {
+		c->rtotal = 256;
+		v = w02_rget(c, 256) & 0xFF;
+		c->rlow = (unsigned)v;
+		c->rhigh = (unsigned)(v + 1);
+		w02_rupd(c);
+		len += (v & 0xFF) << 16;
+	}
+	if(d == 1 || d == 2) {
+		c->rtotal = 256;
+		v = w02_rget(c, 256) & 0xFF;
+		c->rlow = (unsigned)v;
+		c->rhigh = (unsigned)(v + 1);
+		w02_rupd(c);
+		len += (v & 0xFF) << 8;
+	}
+	c->rtotal = 256;
+	v = w02_rget(c, 256) & 0xFF;
+	c->rlow = (unsigned)v;
+	c->rhigh = (unsigned)(v + 1);
+	w02_rupd(c);
+	len += v & 0xFF;
+	c->rtotal = 256;
+	v = w02_rget(c, 256) & 0xFF;
+	c->rlow = (unsigned)v;
+	c->rhigh = (unsigned)(v + 1);
+	w02_rupd(c);
+	b = (unsigned char)v;
+	if(c->ring_pos + 255 < c->dsize) {
+		memset(c->dict + c->ring_pos, b, 255);
+		{
+			unsigned long nf = c->ring_fill + 255;
+			if(nf > c->dwrap) nf = c->dwrap;
+			c->ring_fill = nf;
+		}
+		c->ring_pos += 255;
+	} else {
+		for(i = 0; i < 255; i++) {
+			c->dict[c->ring_pos] = b;
+			if(c->ring_fill < c->dwrap) c->ring_fill++;
+			c->ring_pos = (c->ring_pos + 1) & c->dmask;
+		}
+	}
+	for(i = 0; i < 5; i++) {
+		w02_put_trans(c, b);
+		w02_update(c, c->last_sym);
+	}
+	len -= 5;
+	w02_fill_out(c, b, len);
+	while(len) {
+		w02_update(c, c->last_sym);
+		len--;
+	}
+}
+
+static void w02_free(W02* c)
+{
+	if(!c) return;
+	free(c->tree);
+	free(c->freq);
+	free(c->distlist);
+	free(c->dict);
+	free(c);
+}
+
+int UhaDec3_02Init(void** pctx, int method)
+{
+	W02* c;
+	unsigned group, i;
+	unsigned long dict;
+	if(!pctx) return 1;
+	*pctx = 0;
+	if(method < 8 || method > 43) return 1;
+	group = (method < 20) ? 1u : (method < 32 ? 2u : 3u);
+	c = (W02*)calloc(1, sizeof(*c));
+	if(!c) return 2;
+	c->tree = (unsigned short*)malloc(256UL * 256UL * sizeof(unsigned short));
+	c->freq = (unsigned short*)malloc(256UL * 256UL * sizeof(unsigned short));
+	c->distlist = (unsigned long*)malloc(16 * sizeof(unsigned long));
+	dict = 1UL << (((unsigned)(method - 8) % 12u) + 10u);
+	c->dict = (unsigned char*)malloc(dict + 256);
+	if(!c->tree || !c->freq || !c->distlist || !c->dict) {
+		w02_free(c);
+		return 2;
+	}
+	c->dsize = dict;
+	c->dwrap = dict - 255;
+	c->dmask = dict - 1;
+	c->group = (unsigned char)group;
+	c->list_max = w02_db[group];
+	c->class_max = (unsigned long)(w02_db[group] - 3);
+	for(i = 0; i < 256; i++) {
+		unsigned j;
+		unsigned short* tr = c->tree + (unsigned long)i * 256;
+		unsigned short* fr = c->freq + (unsigned long)i * 256;
+		for(j = 0; j < 256; j++) fr[j] = 1;
+		tr[0] = 256;
+		for(j = 1; j < 256; j++) tr[j] = 1;
+		for(j = 1; j < 256; j++) {
+			unsigned k = j + (j & (0u - j));
+			if(k < 256) tr[k] = (unsigned short)(tr[k] + tr[j]);
+		}
+	}
+	for(i = 0; i < 8; i++) memcpy(c->state[i], w02_state0, 10);
+	memcpy(c->lenA, w02_len0, sizeof(c->lenA));
+	memcpy(c->lenB, w02_len0, sizeof(c->lenB));
+	memcpy(c->dmodel, w02_dmod0, sizeof(c->dmodel));
+	memcpy(c->smallm, w02_small0, sizeof(c->smallm));
+	memcpy(c->d2, w02_d20, sizeof(c->d2));
+	memcpy(c->lenclass, w02_lcls0, sizeof(c->lenclass));
+	for(i = 0; i < 16; i++) c->distlist[i] = 0xFFFFFFFFUL;
+	c->state_idx = 7;
+	c->prev_ctx = 0xFF;
+	c->last_out = 0;
+	c->last_sym = 0;
+	c->mode = 0;
+	c->db = 0;
+	c->order = 3;
+	c->prev_order = 3;
+	c->flag7 = 1;
+	c->raw_lit = 0;
+	c->exc_lit = 0;
+	c->len_sel = 0;
+	c->len_val = 0;
+	c->fill_idx = (unsigned char)(sizeof(w02_fillthr) / sizeof(w02_fillthr[0]) - 1);
+	c->hash = 0xFFFFFFFFUL;
+	c->counter = 0;
+	c->mpos = 0xFFFFFFFFUL;
+	c->ring_pos = 0;
+	c->ring_fill = 31;
+	c->code = 0;
+	c->rng = 0xFFFFUL;
+	*pctx = c;
+	return 0;
+}
+
+void UhaDec3_02Free(void* ctx)
+{
+	w02_free((W02*)ctx);
+}
+
+int UhaDec3_02(void* ctx, Uha3ReadCb rcb, void* rctx,
+	Uha3WriteCb wcb, void* wctx, unsigned long out_len)
+{
+	W02* c = (W02*)ctx;
+	unsigned i;
+	if(!c || !rcb || !wcb) return 1;
+	c->rcb = rcb; c->rctx = rctx;
+	c->wcb = wcb; c->wctx = wctx;
+	c->out_expect = out_len;
+	c->out_total = 0;
+	c->out_fill = 0;
+	c->in_pos = c->in_len = 0;
+	c->in_eof = 0;
+	c->err = 0;
+	c->bit_mask = 0;
+	c->code = 0;
+	for(i = 0; i < 16; i++)
+		c->code = ((c->code << 1) | (unsigned long)w02_bit(c)) & 0xFFFFFFFFUL;
+	c->rng = 0x10000UL;
+	if(c->err) return c->err;
+	while(c->out_total < c->out_expect && !c->err) {
+		unsigned t = w02_token(c);
+		switch(t) {
+		case 0: w02_control(c); break;
+		case 1: w02_run(c); break;
+		case 2: w02_match(c); break;
+		case 3: w02_literal(c); break;
+		default: c->err = 7; break;
+		}
+	}
+	w02_flush(c);
+	if(c->err) return c->err;
+	if(c->out_total < c->out_expect) return 4;
+	return 0;
+}

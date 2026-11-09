@@ -30,6 +30,12 @@ int UhaDec3_06(void* ctx, const unsigned long* cum, unsigned long ncum,
 int UhaDec3_06Init(void** pctx, int method);
 void UhaDec3_06Free(void* ctx);
 
+/* 0.2 core 3 (methods 8..43, 16-bit range init, token model). */
+int UhaDec3_02(void* ctx, Uha3ReadCb rcb, void* rctx,
+	Uha3WriteCb wcb, void* wctx, unsigned long out_len);
+int UhaDec3_02Init(void** pctx, int method);
+void UhaDec3_02Free(void* ctx);
+
 #ifdef __cplusplus
 }
 #endif
