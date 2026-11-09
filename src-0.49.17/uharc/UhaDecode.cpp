@@ -1355,12 +1355,19 @@ int UhaDecodeSolid(UhaArchive* arc, const unsigned char* packed,
 	return 0;
 }
 
-/* EXE post-filter placeholder (Phase 2 with core 1 RLE). */
+/* EXE post-filter (FORMAT 6.4). */
+static void UhaExeFilter345(UhaArchive* arc, unsigned char* buf, unsigned long len);
+
 void UhaExeFilter(UhaArchive* arc, unsigned char* buf, unsigned long len)
 {
 	long v2, i, end;
-	if( !arc || arc->ver != 2 )
+	if( !arc )
 		return;
+	if( arc->ver != 2 )
+	{
+		UhaExeFilter345(arc, buf, len);
+		return;
+	}
 	if( !buf || len <= 15 )
 		return;
 	if( !((buf[0] == 0x4D && buf[1] == 0x5A) ||
@@ -1417,4 +1424,270 @@ void UhaExeFilter(UhaArchive* arc, unsigned char* buf, unsigned long len)
 unsigned long UhaFileCrc(const unsigned char* d, unsigned long n)
 {
 	return uha_crc32(d, n);
+}
+
+/* ------------------------------------------------------------------ */
+/* 0.3/0.4/0.6 EXE post-filter (FORMAT 6.4).
+ * Inverse of the compressor's EXE filter: rewrites E8/E9 operands
+ * through a 128-entry move-to-front address table AND rebuilds the
+ * MZ relocation table (de-transpose, inverse delta). Gate: the
+ * caller applies the header flag + size gate; the routine itself
+ * accepts MZ/ZM/MQ, ELF (with the e_type/entry byte check) and
+ * "FBOV". The f6 pre-transform (0.6 methods 24..39) is armed only
+ * once core 4 lands; until then it is off.
+ */
+
+static unsigned uha_rd16(const unsigned char* p)
+{
+	return (unsigned)(p[0] | (p[1] << 8));
+}
+
+static unsigned long uha_rd32(const unsigned char* p)
+{
+	return (unsigned long)(p[0] | (p[1] << 8) | (p[2] << 16) |
+		((unsigned long)p[3] << 24));
+}
+
+static long uha_rd32s(const unsigned char* p)
+{
+	unsigned long u = uha_rd32(p);
+	if( u & 0x80000000UL )
+		return -(long)(0xFFFFFFFFUL - u) - 1;
+	return (long)u;
+}
+
+static void uha_wr16(unsigned char* p, unsigned v)
+{
+	p[0] = (unsigned char)(v & 0xFFU);
+	p[1] = (unsigned char)((v >> 8) & 0xFFU);
+}
+
+static void uha_wr32(unsigned char* p, unsigned long v)
+{
+	p[0] = (unsigned char)(v & 0xFFUL);
+	p[1] = (unsigned char)((v >> 8) & 0xFFUL);
+	p[2] = (unsigned char)((v >> 16) & 0xFFUL);
+	p[3] = (unsigned char)((v >> 24) & 0xFFUL);
+}
+
+static void UhaExeFilter345(UhaArchive* arc, unsigned char* buf, unsigned long len)
+{
+	unsigned long end, esi, d7c, d90;
+	unsigned long i;
+	unsigned char* tmp;
+	int exe, elf, fbov;
+	unsigned tab[128];
+	unsigned j;
+
+	(void)arc;
+	if( !buf || len < 0x400UL || len <= 15UL )
+		return;
+	end = len - 15UL;
+
+	/* gate: MZ/ZM/MQ word, ELF dword, or "FBOV" */
+	{
+		unsigned w0 = uha_rd16(buf);
+		unsigned long d0 = uha_rd32(buf);
+		exe = (w0 == 0x5A4DU || w0 == 0x4D5AU || w0 == 0x514DU);
+		elf = (d0 == 0x464C457FUL);
+		fbov = (d0 == 0x564F4246UL);
+	}
+	if( !exe && !elf && !fbov )
+		return;
+
+	esi = 0;
+
+	/* ELF: refuse e_type/entry bytes 18/19 == 3/0 mismatch */
+	if( elf )
+	{
+		while( esi < 20UL && esi < end )
+		{
+			if( (esi == 18UL && buf[esi] != 3) ||
+				(esi == 19UL && buf[esi] != 0) )
+				return;
+			esi++;
+		}
+	}
+
+	d7c = 0;
+	d90 = 0;
+
+	/* MZ header scan: e_crlc (+6) and e_lfarlc (+0x18) */
+	if( exe )
+	{
+		while( exe && esi < 26UL && esi < end )
+		{
+			if( esi == 6UL )
+			{
+				d90 = buf[esi];
+			}
+			else if( esi == 7UL )
+			{
+				d90 += (unsigned long)buf[esi] << 8;
+				if( d90 < 0x10UL || d90 > 0x2000UL )
+					exe = 0;
+			}
+			else if( esi == 24UL )
+			{
+				d7c = buf[esi];
+			}
+			else if( esi == 25UL )
+			{
+				d7c += (unsigned long)buf[esi] << 8;
+				d90 = d7c + 4UL * d90;
+				if( d7c < 0x1CUL || d90 >= len )
+					exe = 0;
+			}
+			esi++;
+		}
+	}
+
+	/* relocation table: de-transpose, inverse delta */
+	if( exe && esi >= 26UL )
+	{
+		while( esi < d7c && esi < end )
+			esi++;
+		if( esi == d7c )
+		{
+			unsigned long rlen;
+			unsigned long p = 0;
+			unsigned long k;
+			int r;
+
+			/* advance over the stored (filtered) relocation bytes */
+			while( esi < d90 && esi < end )
+				esi++;
+			if( esi == d90 )
+			{
+				rlen = d90 - d7c;
+				tmp = (unsigned char*)malloc((size_t)(rlen ? rlen : 1));
+				if( !tmp )
+					return;
+				for( r = 0; r < 4; r++ )
+				{
+					for( k = (unsigned long)r; k < rlen; k += 4UL )
+						tmp[k] = buf[d7c + p++];
+				}
+				/* inverse delta: word[k] += word[k-2] */
+				for( k = 2; k < (rlen >> 1); k++ )
+				{
+					unsigned w = uha_rd16(tmp + 2 * k) + uha_rd16(tmp + 2 * k - 4);
+					uha_wr16(tmp + 2 * k, w & 0xFFFFU);
+				}
+				memcpy(buf + d7c, tmp, (size_t)rlen);
+				free(tmp);
+				exe = 0;
+				/* scanning resumes at d90 (esi already there) */
+			}
+		}
+	}
+
+	/* E8/E9 rewrite with the 128-entry address table */
+	for( j = 0; j < 128; j++ )
+		tab[j] = j;
+
+	i = esi;
+	while( i < end )
+	{
+		unsigned char c = buf[i];
+		if( c != 0xE8 && c != 0xE9 )
+		{
+			i++;
+			continue;
+		}
+
+		{
+			long v = uha_rd32s(buf + i + 1);
+			unsigned long adv = 4;
+			/* the table path reads back what was stored */
+			unsigned long cur = (unsigned long)v;
+			long w = v;
+
+			if( v != 0 )
+			{
+				if( w > 0 && (unsigned long)w <= len - 1UL )
+				{
+					if( w == (long)i )
+						w = 0;
+					uha_wr32(buf + i + 1, (unsigned long)w - i);
+					adv = 5;
+				}
+				else if( w < 0 && w >= -(long)i )
+				{
+					uha_wr32(buf + i + 1, len + (unsigned long)w);
+					adv = 5;
+				}
+				else
+				{
+					/* hi/lo read from the current bytes */
+					unsigned hi = (unsigned)((cur >> 16) & 0xFFFFUL);
+					unsigned hitot = (unsigned)((len - 1UL) >> 16) & 0xFFFFU;
+					unsigned hineg = (unsigned)(((0UL - i) >> 16) & 0xFFFFUL);
+					if( hi != 0 && hi != hitot && hi != hineg )
+					{
+						unsigned low = (unsigned)cur & 0xFFFFU;
+						unsigned idx = (unsigned)((low - 0x8000U) & 0xFFFFU);
+						if( idx < 0x80U )
+						{
+							unsigned val = tab[idx];
+							uha_wr16(buf + i + 1,
+								(unsigned)((val - (unsigned)i) & 0xFFFFU));
+							if( idx != 0 )
+							{
+								unsigned q = idx;
+								while( q > 0 )
+								{
+									tab[q] = tab[q - 1];
+									q--;
+								}
+								tab[0] = val;
+							}
+							adv = 4;
+						}
+						else
+						{
+							unsigned guard = 0;
+							for( ;; )
+							{
+								unsigned target =
+									(unsigned)((low + (unsigned)i) & 0xFFFFU);
+								int found = -1;
+								unsigned a;
+								for( a = 0; a < 128U; a++ )
+								{
+									if( tab[a] == target )
+									{
+										found = (int)a;
+										break;
+									}
+								}
+								if( found < 0 )
+								{
+									/* insert unless the low word would
+									 * look like a table reference */
+									if( !(target >= 0x8000U && target < 0x8080U) )
+									{
+										unsigned q = 127U;
+										while( q > 0 )
+										{
+											tab[q] = tab[q - 1];
+											q--;
+										}
+										tab[0] = target;
+									}
+									break;
+								}
+								low = (unsigned)(0x8000U | (unsigned)found);
+								uha_wr16(buf + i + 1, low);
+								if( ++guard > 0x10000UL )
+									break;
+							}
+							adv = 4;
+						}
+					}
+				}
+			}
+			i += adv;
+		}
+	}
 }
