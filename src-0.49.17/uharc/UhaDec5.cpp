@@ -7772,6 +7772,7 @@ static unsigned w4step(w4 *d)
     {
         unsigned long end = src + (unsigned long)len;
         unsigned long dst = d->wpos + (unsigned long)len;
+        unsigned long s914pos = (src + (unsigned long)len) & d->dictmask;
 #if U4_DEBUG
         fprintf(stderr, "  preout err=%d len=%u src=%lu dst=%lu mask=%lu grp=%u c901=%u mode=%u\n",
                 d->err, len, src, dst, d->dictmask, (unsigned)d->group,
@@ -7815,9 +7816,9 @@ static unsigned w4step(w4 *d)
                     d->err, d->out_tot, d->out_fill);
 #endif
         }
+        if (d->s913)
+            d->s914 = d->dict[s914pos];
     }
-    if (d->s913)
-        d->s914 = d->dict[(src + (unsigned long)len) & d->dictmask];
 #if U4_DEBUG
     fprintf(stderr, "match pos=%lu m=%u dist=%lu len=%u c901=%u err=%d\n",
             d->out_tot, (unsigned)d->mode, d->mdist, len, (unsigned)d->c901,
