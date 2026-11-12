@@ -204,7 +204,23 @@ SOURCE=.\uharc\UhaDec5.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\uharc\UhaDec4.cpp
+SOURCE=.\uharc\UhaDec4_06.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDec4_04.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDec4_03.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\uha04_dec4_dg.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\uha03_dec4_dg.c
 # End Source File
 # Begin Source File
 
