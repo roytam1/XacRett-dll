@@ -1106,17 +1106,22 @@ call, so keep applying them:
 
 ## Win64 (AMD64) build -- MSVC 2003 SDK toolset
 
-`src-0.49.17/Makefile.x64` builds the whole DLL for AMD64: 250
+`src-0.49.17/Makefile.win64` builds the whole DLL for Win64: 269
 `XacRett.dsp` units plus the 49 vendored UnRAR units, into
-`%TEMP%\x64build` by default.  `nmake -f Makefile.x64` does everything
+`%TEMP%\x64build` by default.  `nmake -f Makefile.win64` does everything
 (objects, resource, `UnRAR.lib`, DLL); `clean` and `link` work as in
-`Makefile.vc4`.  The x86 builds are untouched: they never see
-`x64compat/` or the widened guards below, and every Win64-specific code
-change is either inside `#ifdef _WIN64` or a guard whose numeric bound
-was moved past 1400 (VC6 is 1200 and VC4 is 1000, so both keep the branch
-they had).  Generator: TEMP `opencode/genmakex64.py` (re-run it when
-sources are added, or add the object and rule by hand -- never re-run
-`genmakevc4.py`, see the lzip note).
+`Makefile.vc4`.  The architecture is selected with `ARCH=amd64` (the
+default) or `ARCH=ia64`; the SDK specific parts of the build (the /GS
+cookie library, the wchar_t option and the intrin.h shim) are isolated
+in `SECLIB`, `ZCHAR` and `COMPATFLAG`, all of which can be given on the
+command line for a different toolset.  The x86 builds are untouched:
+they never see `x64compat/` or the widened guards below, and every
+Win64-specific code change is either inside `#ifdef _WIN64` or a guard
+whose numeric bound was moved past 1400 (VC6 is 1200 and VC4 is 1000,
+so both keep the branch they had).  `src-0.49.17/Makefile.x64` is an
+untracked alias of the same makefile that the local build batch uses;
+regenerate both with TEMP `opencode/genmakewin64.py` when sources are
+added (never re-run `genmakevc4.py`, see the lzip note).
 
 **Toolchain, three traps, all measured:**
 
@@ -1133,7 +1138,8 @@ sources are added, or add the object and rule by hand -- never re-run
   `set LIB=C:\AMD64sdk\Lib\Win64-03sp1;C:\AMD64sdk\Lib\Win64`.
   A one-line C++ test program reproduces it, so it is the environment,
   not the tree.
-- The link line needs `bufferoverflowu.lib` (also in `Lib\Win64-03sp1`):
+- For the AMD64 toolset the link line needs `bufferoverflowu.lib`
+(also in `Lib\Win64-03sp1`):
   that is where this SDK keeps `__security_cookie` /
   `__security_check_cookie`, which `/GS` (on by default) expects.
   `libcmt.lib libcpmt.lib oldnames.lib` are named explicitly as well.
@@ -1154,6 +1160,21 @@ no C++11, no C99 variadic macros, no `_O_U16TEXT`, no `<intrin.h>`.
 - `unrar/consio.cpp`'s `_O_U16TEXT` guard moved from `>= 1400` to
   `>= 1500` for the same reason in the other direction (1400 has no
   `_O_U16TEXT`).
+
+**IA64.**  The tree has one 64 bit guard in `Tool.h` that used to
+test `_WIN64` only: the progress dialog stores its object pointer
+in the window user data, and `SetWindowLong`/`GWL_USERDATA` are
+32 bits wide on both 64 bit targets, so the guard is now
+`defined(_WIN64) || defined(_M_IA64)`.  Everything else is
+already pointer sized (`ULONG_PTR`, `WPARAM`, `LPARAM`, the
+`gmtime32`/`localtime32` path).  The IA64 build could not be
+tested here (no IA64 toolchain is installed): it needs the IA64
+edition of the compiler, `ARCH=ia64` and the SDK specific
+variables of the makefile (SECLIB, ZCHAR, COMPATFLAG) set to
+whatever that toolset wants -- the defaults are the ones of the
+VC6 era, which has no /GS and no /Zc:wchar_t.  `x64compat/intrin.h`
+is AMD64 only and is not on the include path for IA64, so a
+toolset whose compiler is 14.00 needs the SDK intrin.h instead.
 
 `sevenz/Aes.c` (`_MSC_VER > 1200` -> `> 1500`) and `sevenz/Sha256.c`
 (`Z7_MSC_VER_ORIGINAL > 1200` -> `> 1500`) had to be narrowed: the NI

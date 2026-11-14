@@ -1,12 +1,13 @@
-# Makefile.x64 - XacRett.dll Win64 (AMD64) build.
+# Makefile.win64 - XacRett.dll Win64 build (AMD64 and IA64).
 #
 # Usage (run from this directory):
 #   call C:\AMD64sdk\VCVARS_AMD64.BAT
 #   set PATH=C:\AMD64sdk\Bin\Win64-03sp1;%PATH%
 #   set LIB=C:\AMD64sdk\Lib\Win64-03sp1;C:\AMD64sdk\Lib\Win64
-#   nmake -f Makefile.x64                  (objects, resource, UnRAR.lib, DLL)
-#   nmake -f Makefile.x64 OUTDIR=C:\x64out
-#   nmake -f Makefile.x64 clean
+#   nmake -f Makefile.win64                  (objects, resource, UnRAR.lib, DLL)
+#   nmake -f Makefile.win64 OUTDIR=C:\x64out
+#   nmake -f Makefile.win64 ARCH=ia64        (the IA64 build)
+#   nmake -f Makefile.win64 clean
 #
 # VCVARS_AMD64.BAT is VCVARS32 + SetWin64.Bat.  The two lines after it are
 # MANDATORY: bin\Win64 cannot run (its c1xx.dll wants MSVCP70.dll, which the
@@ -28,10 +29,26 @@
 # The link line names the 2003 SDK x64 CRT explicitly (libcmt/libcpmt/
 # oldnames) because these objects carry no /DEFAULTLIB for it, plus
 # bufferoverflowu.lib, which is where that SDK keeps the /GS cookie
-# (__security_cookie / __security_check_cookie).
+# (__security_cookie / __security_check_cookie).  Both are SDK properties
+# and not architecture properties, so they live in the variables below:
+#
+#   SECLIB      the /GS cookie library.  The 2003 SDK keeps it in
+#               bufferoverflowu.lib; a compiler without /GS (the VC6 era
+#               IA64 edition) does not have it at all.
+#   ZCHAR       the wchar_t option.  The 2003 SDK headers assume that
+#               wchar_t is an unsigned short, so /Zc:wchar_t- is needed
+#               there; VC6 has no such option (it is the default).
+#   COMPATFLAG  the include directory with the intrin.h shim.  It is
+#               needed by the 2003 SDK, whose CRT has no <intrin.h>, and
+#               it is AMD64 only (the shim refuses any other target).
+#
+# Every one of them can be given on the command line, for a toolset that
+# needs something else:
+#
+#   nmake -f Makefile.win64 ARCH=ia64 SECLIB= ZCHAR= COMPATFLAG=
 #
 # Generated from XacRett.dsp SOURCE lines + the 49 UnRAR units; re-run
-# the generator (TEMP/opencode/genmakex64.py) when sources change.
+# the generator (TEMP/opencode/genmakewin64.py) when sources change.
 
 !IFNDEF OUTDIR
 OUTDIR = $(TEMP)\x64build
@@ -39,11 +56,36 @@ OUTDIR = $(TEMP)\x64build
 OBJDIR = $(OUTDIR)\obj
 UNRAR_OBJDIR = $(OUTDIR)\unrar
 UNRARLIB = $(OUTDIR)\UnRAR.lib
-UNRAR_RSP = $(OUTDIR)\unrar.rsp
-LINK_RSP = $(OUTDIR)\link.rsp
 
 !IFNDEF ARCH
 ARCH = amd64
+!ENDIF
+
+# The SDK specific parts of the build.  The defaults are the ones of the
+# 2003 Platform SDK, which is what the AMD64 build uses; an IA64 build
+# with another toolset overrides them on the command line.
+!IFNDEF SECLIB
+!IF "$(ARCH)" == "amd64"
+SECLIB = bufferoverflowu.lib
+!ELSE
+SECLIB =
+!ENDIF
+!ENDIF
+
+!IFNDEF ZCHAR
+!IF "$(ARCH)" == "amd64"
+ZCHAR = /Zc:wchar_t-
+!ELSE
+ZCHAR =
+!ENDIF
+!ENDIF
+
+!IFNDEF COMPATFLAG
+!IF "$(ARCH)" == "amd64"
+COMPATFLAG = /I"x64compat"
+!ELSE
+COMPATFLAG =
+!ENDIF
 !ENDIF
 
 CC = cl
@@ -51,7 +93,7 @@ RC = rc
 
 # Same defines as the VC6 production flags, minus the x86-only bits:
 #   /EHsc           instead of /GX (/GX is deprecated from 14.00 on)
-#   /Ix64compat     intrin.h and friends, missing from the 2003 SDK CRT
+#   $(COMPATFLAG)   intrin.h and friends, missing from the 2003 SDK CRT
 #
 # Shift-JIS literals: 14.00 decodes narrow literals with the BUILD MACHINE
 # ANSI code page, so a high-bit byte pair that is invalid in that code page
@@ -62,9 +104,8 @@ RC = rc
 # Win64 target on a Japanese (932) system for byte-exact titles; the affected
 # literals are display-only -- 149 of them, all tool titles, the JAK/REZ mode
 # markers and two message boxes; nothing compares against them.
-#   /Zc:wchar_t-    the 2003 SDK headers assume wchar_t is unsigned short
 #   nullptr=NULL    C++11 keyword the vendored UnRAR still spells
-CFLAGS = /nologo /MT /W3 /O2 /c /EHsc /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS /D _USRDLL /D XACRETT_EXPORTS /D NO_GZCOMPRESS /I"x64compat" /I"." /I"lhasa" $(CEXTRA)
+CFLAGS = /nologo /MT /W3 /O2 /c /EHsc /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS /D _USRDLL /D XACRETT_EXPORTS /D NO_GZCOMPRESS $(COMPATFLAG) /I"." /I"lhasa" $(CEXTRA)
 CFLAGS_CPP = $(CFLAGS)
 CFLAGS_UNSQX = $(CFLAGS) /I"unsqx" /D __SQX_OS_WIN32__
 CFLAGS_LHASA = $(CFLAGS) /I"lhasa"
@@ -89,6 +130,25 @@ OBJS = \
     $(OBJDIR)\BgaTool_cpp.obj \
     $(OBJDIR)\BlzTool_cpp.obj \
     $(OBJDIR)\BooTool_cpp.obj \
+    $(OBJDIR)\BsaCodec_cpp.obj \
+    $(OBJDIR)\BsaDecode_cpp.obj \
+    $(OBJDIR)\BsaTool_cpp.obj \
+    $(OBJDIR)\UhaTool_cpp.obj \
+    $(OBJDIR)\QipDecode_cpp.obj \
+    $(OBJDIR)\QipTool_cpp.obj \
+    $(OBJDIR)\QuantumDecode_cpp.obj \
+    $(OBJDIR)\QuantumTool_cpp.obj \
+    $(OBJDIR)\uharc_UhaCrypt_cpp.obj \
+    $(OBJDIR)\uharc_UhaDecode_cpp.obj \
+    $(OBJDIR)\uharc_UhaDec0_cpp.obj \
+    $(OBJDIR)\uharc_UhaDec2_cpp.obj \
+    $(OBJDIR)\uharc_UhaDec3_cpp.obj \
+    $(OBJDIR)\uharc_UhaDec5_cpp.obj \
+    $(OBJDIR)\uharc_UhaDec4_06_cpp.obj \
+    $(OBJDIR)\uharc_UhaDec4_04_cpp.obj \
+    $(OBJDIR)\uharc_UhaDec4_03_cpp.obj \
+    $(OBJDIR)\uharc_uha04_dec4_dg_c.obj \
+    $(OBJDIR)\uharc_uha03_dec4_dg_c.obj \
     $(OBJDIR)\Bz2Tool_cpp.obj \
     $(OBJDIR)\CabDecode_cpp.obj \
     $(OBJDIR)\CabLzx_cpp.obj \
@@ -103,13 +163,6 @@ OBJS = \
     $(OBJDIR)\DgcDecode_cpp.obj \
     $(OBJDIR)\DgcTool_cpp.obj \
     $(OBJDIR)\DgdDecode_cpp.obj \
-    $(OBJDIR)\BsaCodec_cpp.obj \
-    $(OBJDIR)\BsaDecode_cpp.obj \
-    $(OBJDIR)\BsaTool_cpp.obj \
-    $(OBJDIR)\QipDecode_cpp.obj \
-    $(OBJDIR)\QipTool_cpp.obj \
-    $(OBJDIR)\QuantumDecode_cpp.obj \
-    $(OBJDIR)\QuantumTool_cpp.obj \
     $(OBJDIR)\DgdTool_cpp.obj \
     $(OBJDIR)\DmgTool_cpp.obj \
     $(OBJDIR)\DzTool_cpp.obj \
@@ -165,8 +218,8 @@ OBJS = \
     $(OBJDIR)\SplitCmdLine_cpp.obj \
     $(OBJDIR)\SplTool_cpp.obj \
     $(OBJDIR)\SqxPpmd_cpp.obj \
-    $(OBJDIR)\SqxUltra_cpp.obj \
     $(OBJDIR)\SqxTool_cpp.obj \
+    $(OBJDIR)\SqxUltra_cpp.obj \
     $(OBJDIR)\StdAfx_cpp.obj \
     $(OBJDIR)\TarTool_cpp.obj \
     $(OBJDIR)\Tool_cpp.obj \
@@ -183,6 +236,7 @@ OBJS = \
     $(OBJDIR)\ZooTool_cpp.obj \
     $(OBJDIR)\ZstdTool_cpp.obj \
     $(OBJDIR)\OpenArchive_OpenBsa_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenUha_cpp.obj \
     $(OBJDIR)\OpenArchive_OpenQip_cpp.obj \
     $(OBJDIR)\OpenArchive_OpenQuantum_cpp.obj \
     $(OBJDIR)\zlib_adler32_c.obj \
@@ -316,12 +370,12 @@ OBJS = \
     $(OBJDIR)\lhasa_lh1_decoder_c.obj \
     $(OBJDIR)\lhasa_lh5_decoder_c.obj \
     $(OBJDIR)\lhasa_lh6_decoder_c.obj \
-    $(OBJDIR)\lhasa_lx1_decoder_c.obj \
     $(OBJDIR)\lhasa_lh7_decoder_c.obj \
     $(OBJDIR)\lhasa_lha_decoder_c.obj \
     $(OBJDIR)\LhasaBridge_cpp.obj \
     $(OBJDIR)\lhasa_lhx_decoder_c.obj \
     $(OBJDIR)\lhasa_lk7_decoder_c.obj \
+    $(OBJDIR)\lhasa_lx1_decoder_c.obj \
     $(OBJDIR)\lhasa_lz5_decoder_c.obj \
     $(OBJDIR)\lhasa_lzs_decoder_c.obj \
     $(OBJDIR)\lhasa_null_decoder_c.obj \
@@ -389,6 +443,63 @@ $(OBJDIR)\BlzTool_cpp.obj : BlzTool.cpp
 $(OBJDIR)\BooTool_cpp.obj : BooTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
+$(OBJDIR)\BsaCodec_cpp.obj : BsaCodec.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\BsaDecode_cpp.obj : BsaDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\BsaTool_cpp.obj : BsaTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\UhaTool_cpp.obj : UhaTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QipDecode_cpp.obj : QipDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QipTool_cpp.obj : QipTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QuantumDecode_cpp.obj : QuantumDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QuantumTool_cpp.obj : QuantumTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_UhaCrypt_cpp.obj : uharc\UhaCrypt.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_UhaDecode_cpp.obj : uharc\UhaDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_UhaDec0_cpp.obj : uharc\UhaDec0.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_UhaDec2_cpp.obj : uharc\UhaDec2.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_UhaDec3_cpp.obj : uharc\UhaDec3.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_UhaDec5_cpp.obj : uharc\UhaDec5.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_UhaDec4_06_cpp.obj : uharc\UhaDec4_06.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_UhaDec4_04_cpp.obj : uharc\UhaDec4_04.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_UhaDec4_03_cpp.obj : uharc\UhaDec4_03.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_uha04_dec4_dg_c.obj : uharc\uha04_dec4_dg.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_uha03_dec4_dg_c.obj : uharc\uha03_dec4_dg.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
 $(OBJDIR)\Bz2Tool_cpp.obj : Bz2Tool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
@@ -429,27 +540,6 @@ $(OBJDIR)\DgcTool_cpp.obj : DgcTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\DgdDecode_cpp.obj : DgdDecode.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\BsaCodec_cpp.obj : BsaCodec.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\BsaDecode_cpp.obj : BsaDecode.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\BsaTool_cpp.obj : BsaTool.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\QipDecode_cpp.obj : QipDecode.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\QipTool_cpp.obj : QipTool.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\QuantumDecode_cpp.obj : QuantumDecode.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\QuantumTool_cpp.obj : QuantumTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\DgdTool_cpp.obj : DgdTool.cpp
@@ -617,10 +707,10 @@ $(OBJDIR)\SplTool_cpp.obj : SplTool.cpp
 $(OBJDIR)\SqxPpmd_cpp.obj : SqxPpmd.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
-$(OBJDIR)\SqxUltra_cpp.obj : SqxUltra.cpp
+$(OBJDIR)\SqxTool_cpp.obj : SqxTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
-$(OBJDIR)\SqxTool_cpp.obj : SqxTool.cpp
+$(OBJDIR)\SqxUltra_cpp.obj : SqxUltra.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\StdAfx_cpp.obj : StdAfx.cpp
@@ -669,6 +759,9 @@ $(OBJDIR)\ZstdTool_cpp.obj : ZstdTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\OpenArchive_OpenBsa_cpp.obj : OpenArchive\OpenBsa.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenUha_cpp.obj : OpenArchive\OpenUha.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\OpenArchive_OpenQip_cpp.obj : OpenArchive\OpenQip.cpp
@@ -1070,9 +1163,6 @@ $(OBJDIR)\lhasa_lh5_decoder_c.obj : lhasa\lh5_decoder.c
 $(OBJDIR)\lhasa_lh6_decoder_c.obj : lhasa\lh6_decoder.c
 	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
 
-$(OBJDIR)\lhasa_lx1_decoder_c.obj : lhasa\lx1_decoder.c
-	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
-
 $(OBJDIR)\lhasa_lh7_decoder_c.obj : lhasa\lh7_decoder.c
 	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
 
@@ -1086,6 +1176,9 @@ $(OBJDIR)\lhasa_lhx_decoder_c.obj : lhasa\lhx_decoder.c
 	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
 
 $(OBJDIR)\lhasa_lk7_decoder_c.obj : lhasa\lk7_decoder.c
+	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
+
+$(OBJDIR)\lhasa_lx1_decoder_c.obj : lhasa\lx1_decoder.c
 	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
 
 $(OBJDIR)\lhasa_lz5_decoder_c.obj : lhasa\lz5_decoder.c
@@ -1111,16 +1204,14 @@ clean :
 	-del /q "$(OBJDIR)\XacRett.res" 2>nul
 	-del /q "$(UNRAR_OBJDIR)\*.obj" 2>nul
 	-del /q "$(UNRARLIB)" 2>nul
-	-del /q "$(UNRAR_RSP)" 2>nul
-	-del /q "$(LINK_RSP)" 2>nul
 
-# --- vendored UnRAR (the same 49 units as the VC6 and VC4 builds) ---
+# --- vendored UnRAR (the same 49 units as the VC6 and the VC4 builds) ---
 # Do NOT reuse unrar\UnRAR.lib: that one is VC6/x86.  The Win64 library
 # is built fresh into $(OUTDIR).  UNICODE/_UNICODE must be on the command
 # line because os.hpp includes windows.h before its own defines, and
-# /Zc:wchar_t- keeps the 2003 SDK headers (ComDef.h) consistent with the
+# $(ZCHAR) keeps the SDK headers (ComDef.h) consistent with the
 # rartypes.hpp wchar typedef the VC6 inheritance already has.
-UNRAR_CFLAGS = /nologo /MT /W3 /O2 /c /EHsc /Zc:wchar_t- /D WIN32 /D NDEBUG /D _CONSOLE /D _MBCS /D UNRAR /D RARDLL /D nullptr=NULL /D UNICODE /D _UNICODE /I"x64compat" /I"unrar" /I"unrar\vc6compat" $(CEXTRA)
+UNRAR_CFLAGS = /nologo /MT /W3 /O2 /c /EHsc $(ZCHAR) /D WIN32 /D NDEBUG /D _CONSOLE /D _MBCS /D UNRAR /D RARDLL /D nullptr=NULL /D UNICODE /D _UNICODE $(COMPATFLAG) /I"unrar" /I"unrar\vc6compat" $(CEXTRA)
 UNRAR_OBJS = \
 	$(UNRAR_OBJDIR)\archive.obj \
 	$(UNRAR_OBJDIR)\arcread.obj \
@@ -1330,7 +1421,20 @@ $(UNRARLIB) : dirs $(UNRAR_OBJS)
 
 $(OUTDIR)\XacRett.dll : dirs $(OBJS) $(OBJDIR)\XacRett.res $(UNRARLIB)
 	link /machine:$(ARCH) /out:"$(OUTDIR)\XacRett.dll" $(LEXTRA) @<<
-  /nologo /dll /incremental:no /def:"XacRett.def" libcmt.lib libcpmt.lib oldnames.lib bufferoverflowu.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib $(UNRARLIB) $(OBJS) "$(OBJDIR)\XacRett.res"
+  /nologo /dll /incremental:no /def:"XacRett.def" $(SECLIB) libcmt.lib libcpmt.lib oldnames.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib $(UNRARLIB) $(OBJS) "$(OBJDIR)\XacRett.res"
 <<
 
 link : $(OUTDIR)\XacRett.dll
+
+# The resolved build settings, for a build on another toolset:
+#   nmake -f Makefile.win64 vars
+# (this target has to be the last one: NMAKE evaluates the macros in file
+#  order, so every macro it prints has to be defined above it)
+vars :
+	@echo ARCH       = $(ARCH)
+	@echo SECLIB     = $(SECLIB)
+	@echo ZCHAR      = $(ZCHAR)
+	@echo COMPATFLAG = $(COMPATFLAG)
+	@echo CFLAGS     = $(CFLAGS)
+	@echo UNRAR_CFLAGS = $(UNRAR_CFLAGS)
+	@echo objects    = 269

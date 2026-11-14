@@ -14,8 +14,10 @@
 typedef BOOL (CALLBACK *ARCHIVERPROC)(HWND _hwnd, UINT _uMsg,WPARAM _nState, LPARAM _lpEis);
 
 // A pointer round-tripped through the window user data needs the
-// pointer-sized entry points on Win64 (Get/SetWindowLong truncate it).
-#ifdef _WIN64
+// pointer-sized entry points on the 64 bit targets (Get/SetWindowLong
+// truncate it).  _WIN64 is AMD64 and _M_IA64 is IA64; on x86 neither
+// is defined and the 32 bit entry points are the right ones.
+#if defined(_WIN64) || defined(_M_IA64)
 #define XR_SET_USERDATA(h,p) SetWindowLongPtr(h,GWLP_USERDATA,(LONG_PTR)(p))
 #define XR_GET_USERDATA(h)   GetWindowLongPtr(h,GWLP_USERDATA)
 #else
