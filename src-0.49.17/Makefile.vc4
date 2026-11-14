@@ -92,6 +92,12 @@ OBJS = \
     $(OBJDIR)\UhaDec4_03.obj \
     $(OBJDIR)\uha04_dec4_dg.obj \
     $(OBJDIR)\uha03_dec4_dg.obj \
+    $(OBJDIR)\QipDecode.obj \
+    $(OBJDIR)\QipTool.obj \
+    $(OBJDIR)\OpenArchive_OpenQip.obj \
+    $(OBJDIR)\QuantumDecode.obj \
+    $(OBJDIR)\QuantumTool.obj \
+    $(OBJDIR)\OpenArchive_OpenQuantum.obj \
     $(OBJDIR)\CompactCTool.obj \
     $(OBJDIR)\complib.obj \
     $(OBJDIR)\CompressZTool.obj \
@@ -454,6 +460,24 @@ $(OBJDIR)\BsaTool.obj : BsaTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\OpenArchive_OpenBsa.obj : OpenArchive\OpenBsa.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QipDecode.obj : QipDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QipTool.obj : QipTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenQip.obj : OpenArchive\OpenQip.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QuantumDecode.obj : QuantumDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QuantumTool.obj : QuantumTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenQuantum.obj : OpenArchive\OpenQuantum.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\CompactCTool.obj : CompactCTool.cpp

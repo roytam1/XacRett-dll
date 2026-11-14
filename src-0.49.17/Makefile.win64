@@ -106,6 +106,10 @@ OBJS = \
     $(OBJDIR)\BsaCodec_cpp.obj \
     $(OBJDIR)\BsaDecode_cpp.obj \
     $(OBJDIR)\BsaTool_cpp.obj \
+    $(OBJDIR)\QipDecode_cpp.obj \
+    $(OBJDIR)\QipTool_cpp.obj \
+    $(OBJDIR)\QuantumDecode_cpp.obj \
+    $(OBJDIR)\QuantumTool_cpp.obj \
     $(OBJDIR)\DgdTool_cpp.obj \
     $(OBJDIR)\DmgTool_cpp.obj \
     $(OBJDIR)\DzTool_cpp.obj \
@@ -179,6 +183,8 @@ OBJS = \
     $(OBJDIR)\ZooTool_cpp.obj \
     $(OBJDIR)\ZstdTool_cpp.obj \
     $(OBJDIR)\OpenArchive_OpenBsa_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenQip_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenQuantum_cpp.obj \
     $(OBJDIR)\zlib_adler32_c.obj \
     $(OBJDIR)\zlib_crc32_c.obj \
     $(OBJDIR)\zlib_gzclose_c.obj \
@@ -434,6 +440,18 @@ $(OBJDIR)\BsaDecode_cpp.obj : BsaDecode.cpp
 $(OBJDIR)\BsaTool_cpp.obj : BsaTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
+$(OBJDIR)\QipDecode_cpp.obj : QipDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QipTool_cpp.obj : QipTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QuantumDecode_cpp.obj : QuantumDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QuantumTool_cpp.obj : QuantumTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
 $(OBJDIR)\DgdTool_cpp.obj : DgdTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
@@ -651,6 +669,12 @@ $(OBJDIR)\ZstdTool_cpp.obj : ZstdTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\OpenArchive_OpenBsa_cpp.obj : OpenArchive\OpenBsa.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenQip_cpp.obj : OpenArchive\OpenQip.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenQuantum_cpp.obj : OpenArchive\OpenQuantum.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\zlib_adler32_c.obj : zlib\adler32.c

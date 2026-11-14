@@ -180,6 +180,22 @@ SOURCE=.\UhaTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\QipDecode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\QipTool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\QuantumDecode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\QuantumTool.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\uharc\UhaCrypt.cpp
 # End Source File
 # Begin Source File
@@ -671,6 +687,22 @@ SOURCE=.\UhaTool.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\QipDecode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\QipTool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\QuantumDecode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\QuantumTool.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\uharc\UhaCrypt.h
 # End Source File
 # Begin Source File
@@ -895,11 +927,27 @@ SOURCE=.\OpenArchive\OpenUha.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\OpenArchive\OpenQip.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenQuantum.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\OpenArchive\OpenBsa.h
 # End Source File
 # Begin Source File
 
 SOURCE=.\OpenArchive\OpenUha.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenQip.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenQuantum.h
 # End Source File
 # Begin Source File
 

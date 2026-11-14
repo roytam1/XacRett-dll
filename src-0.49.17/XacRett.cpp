@@ -162,6 +162,10 @@ using namespace std;   //こいつを入れないと使えません。
 #include "OpenArchive\OpenBsa.h"
 #include "UhaTool.h"
 #include "OpenArchive\OpenUha.h"
+#include "QipTool.h"
+#include "OpenArchive\OpenQip.h"
+#include "QuantumTool.h"
+#include "OpenArchive\OpenQuantum.h"
 #include "OpenArchive\OpenDummy.h"//未対応用のダミー
 
 #ifndef _DEBUG
@@ -732,6 +736,14 @@ void DllSub(void)//ロードする
 
 	t=t->AddTail( new CUhaTool );
 	o=o->AddTail( new COpenUha);
+	ArchiveListMap[t]=o;
+
+	t=t->AddTail( new CQipTool );
+	o=o->AddTail( new COpenQip);
+	ArchiveListMap[t]=o;
+
+	t=t->AddTail( new CQuantumTool );
+	o=o->AddTail( new COpenQuantum);
 	ArchiveListMap[t]=o;
 
 	g_pToolList->Msg=RegisterWindowMessage(WM_ARCEXTRACT);
@@ -1358,6 +1370,10 @@ int ArcNameToNum(LPCSTR buffer )
 		return ARCHIVETYPE_BSA;
 	else if (lstrcmp(buffer,"Uha Extract")==0)
 		return ARCHIVETYPE_UHA;
+	else if (lstrcmp(buffer,"Qip Extract")==0)
+		return ARCHIVETYPE_QIP;
+	else if (lstrcmp(buffer,"Quantum Extract")==0)
+		return ARCHIVETYPE_QUANTUM;
 	else
 		return ARCHIVETYPE_UNKNOWN ;
 }

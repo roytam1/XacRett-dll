@@ -3976,6 +3976,133 @@ No regression: all 86 archives of the recon corpus and the nine
 are unchanged, the full VC6 build reports 0 FAIL, and VC4 compiles both
 touched units (`vc4one.bat BsaTool` / `BsaDecode`).
 
+## QIP (the .QIP archives of the QEMM386 / QPACK installers)
+
+`ARCHIVETYPE_QIP` 82 (`QipTool.cpp` + `OpenArchive/OpenQip.cpp`, with the
+format in `QipDecode.h/.cpp`).  The container is a 16 byte "QP" header, one
+16 byte index entry per packed file and then a chain of "QD" blocks; a raw
+"QD" archive (the chain from offset 0, no container) is the version 1 form.
+A "QD" block is a 10 byte header (version 1) or a 14 byte header (version 2,
+with a CRC-32 of the decompressed data); a file block is followed by a 22
+byte record (five archive metadata bytes, the original size and the NUL
+terminated name) and then the compressed data, a directory block by the NUL
+terminated directory name that the following file blocks belong to.  The
+compressed data is an LZ77 with static Huffman codes over a 4096 byte
+window.
+
+The reference is the reverse engineering of `QUNPCK32.DLL` (the 32 bit
+unpacker library of the QIP support library) and of its 16 bit sibling
+`QUNPACK.DLL`, in the `qunpack/` project of the workarea root; the
+implementation here is an independent one of that description.  The static
+tables (the 16 length codes, the 64 distance groups and the 256 literal
+codes of mode 1) are the constants of the format and are in
+`QipDecode.cpp`; they were extracted from the DLL by the `qunpack/`
+project.
+
+Traps, all measured here:
+
+- **the file name of a record is at offset 9, not at offset 0.**  The
+  first nine bytes are the five archive metadata bytes plus the original
+  size.  The authentic `QEMM386.QIP` really stores a member called
+  `4DOS.CMD`, so that name is not an artefact of the offset.
+- **the length code 517 is the end of block marker** (the length code 15
+  with the eight extra bits all set), so the largest real length is 518.
+  The marker may end exactly at the end of the file, so the read of its
+  extra bits is allowed to fail - that is the only read failure the
+  decoder accepts.
+- **a match of length 2 uses a two bit distance field**, so its distance
+  is limited to 256; every other length uses the `codebits` field of the
+  stream header (4..6).
+- **the two DLLs disagree on the mode 1 literal code.**  The 16 bit
+  `QUNPACK.DLL` expands the table the self consistent way (the symbol `n`
+  uses the word `n`) and decodes all 256 symbols; the 32 bit
+  `QUNPCK32.DLL` walks the word table backwards and stores the marker
+  outside its table, so it only manages 69 of the 256.  The self
+  consistent rule is used here.  Mode 1 is rare: the original packer
+  always used mode 0, because the fixed literal table is worse than the
+  raw byte for most of the data.
+- **the version 1 format has no checksum at all**, so a damaged member of
+  a version 1 archive decodes to the right length and the wrong bytes.
+  That is the format, not a defect of the decoder.
+- **the five archive metadata bytes look like an archive wide DOS
+  timestamp** (read big endian they give 1996-02-14 for `WINSYS.QIP` and
+  2004-03-13 for `QEMM386.QIP`), but the unpacker library does not use
+  them - it hands an uninitialised time stamp to `SetFileTime`.  So no
+  time stamp is shown for a QIP member.
+- **`qipack -R` writes a broken raw archive**: it writes the version 2
+  block header (14 bytes with the CRC) into a container that has no
+  version field, so the reader (which reads the 10 byte version 1 header
+  of a raw archive, like the authentic `QEMM386.QIP`) lands in the middle
+  of the record.  The reference unpacker and this decoder fail on such an
+  archive in the same way; the packer needs `-v1` for the raw form.
+
+Verified: `fixtures/qip/WINSYS.QIP` (the "QP" container, version 2, two
+members in the directory `SYSTEM`) and `fixtures/qip/QEMM386.QIP` (the raw
+version 1 archive, 27 members) list and extract **byte for byte identical
+to the reference unpacker** of the `qunpack/` project (29 files compared).
+The mode 1 path is covered by the archives that `qipack -m1` builds from
+the same files: they extract byte identically to the reference unpacker as
+well (the reference implements the 16 bit convention, so it is the oracle
+for that path).  The CRC-32 of a version 2 member is verified against the
+value in the block header and the original size is verified against the
+record; a mismatch deletes the member and fails the archive.
+
+## Quantum (the .Q archives of Cinematronics / Dynamix)
+
+`ARCHIVETYPE_QUANTUM` 83 (`QuantumTool.cpp` +
+`OpenArchive/OpenQuantum.cpp`, with the format in
+`QuantumDecode.h/.cpp`).  The container is an 8 byte header (the magic
+`DS`, the version, the number of the files, the window exponent and the
+compression level), the file table (a length prefixed name, a length
+prefixed comment, the size and the DOS date and time per file) and then
+the compressed data of all the files in one continuous MSB first bit
+stream, with the 16 bit CRC of every file behind its data.
+
+The compressed data is an LZ77 with an adaptive binary arithmetic coder,
+the carry less ("Subbotin") variant with the 16 bit low/high/code
+registers.  The reference is the reverse engineering of `PAQ.EXE` and
+`UNPAQ.EXE` in the `paq/` project of the workarea root; the
+implementation here is an independent one of that description.
+
+Traps, all measured here:
+
+- **the coder is initialised once for the whole archive**, so the models
+  and the coder state carry over from one file to the next.  The files
+  therefore have to be decoded in their order, and a member that is not
+  wanted still has to be decoded (the provider decodes it without
+  writing it).  A response list that names one member of `DOC.Q` gives
+  that member byte for byte.
+- **the cumulative counts of the models are 16 bit and the arithmetic is
+  32 bit unsigned.**  Both widths are load bearing: the light rescale
+  rebuilds the counts of the symbols that are not in use, and the
+  truncation of `cum[28]` to 0 is what keeps the distance model of a
+  small window from running into the symbols above it.  Changing the
+  widths breaks the decoder.
+- **the CRC of a member is not a CRC-32**: the byte is XORed into a 16
+  bit register and the register is shifted left, the bit that falls out
+  is fed back in.  It sits in the stream behind the data of its member,
+  so it is not known before the member is decoded - the listing shows 0
+  for it.
+- **only the compressed data is a bit stream.**  The header and the file
+  table are ordinary byte fields, but they are read with the same bit
+  reader in the original, so the reader has to stay byte aligned - it
+  is, because every field of the table is a multiple of eight bits.
+- **the stored path is normalised before anything else**: absolute paths,
+  drive letters and every ".." component are dropped, so a hostile
+  member cannot escape the output directory.  A member whose path is not
+  usable is neither listed nor extracted, and it is still decoded (the
+  coder state has to advance).
+
+The original `UNPAQ.EXE` extracts only the base name of the stored path
+unless it is run with its `-d` switch; this provider uses the whole
+stored path, and `-j` flattens it like everywhere else.
+
+Verified: `fixtures/quantum/BIDSAPI.Q` (two members) and
+`fixtures/quantum/DOC.Q` (twelve members) list and extract **byte for
+byte identical to the original `UNPAQ.EXE`** (14 files compared).  The
+negatives (truncations, flipped bits, garbage) fail loudly with no
+output, no hang and no crash.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).
