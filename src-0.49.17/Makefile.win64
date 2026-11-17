@@ -47,6 +47,11 @@
 #
 #   nmake -f Makefile.win64 ARCH=ia64 SECLIB= ZCHAR= COMPATFLAG=
 #
+# SECLIB and ZCHAR are off by default: the AMD64 razzle compiler does
+# not need them.  The 2003 Platform SDK (bin\Win64-03sp1) does:
+#
+#   nmake -f Makefile.win64 SECLIB=bufferoverflowu.lib ZCHAR=/Zc:wchar_t-
+#
 # Generated from XacRett.dsp SOURCE lines + the 49 UnRAR units; re-run
 # the generator (TEMP/opencode/genmakewin64.py) when sources change.
 
@@ -66,6 +71,7 @@ ARCH = amd64
 # with another toolset overrides them on the command line.
 !IFNDEF SECLIB
 !IF "$(ARCH)" == "amd64"
+# the 2003 SDK needs this, the AMD64 razzle compiler does not
 #SECLIB = bufferoverflowu.lib
 !ELSE
 SECLIB =

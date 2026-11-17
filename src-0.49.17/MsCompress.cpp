@@ -5,7 +5,8 @@
 //
 // SZDD header (14 bytes)
 //   0..7   "SZDD" signature 53 5A 44 44 88 F0 27 33
-//   8      compression mode, only "A" (0x41) is valid
+//   8      compression mode: "A" (0x41) or "B" (0x42)
+//          A writes into the window from 4096-16, B from 4096-18
 //   9      the character missing from the end of the file name
 //   10..13 the length of the file when unpacked (32 bit LE)
 //
@@ -108,8 +109,8 @@ static int MsLzssDecode( FILE *in, FILE *out, unsigned long origsize,
 // the blocks, so they have to be unpacked in order.
 // KWAJ method 4: the data is a deflate stream in blocks of 32 KB
 // that share their history.  Every block starts with its length in
-// two bytes and the "CK" signature, and the length is the number of
-// deflate bytes that follow.
+// two bytes and the "CK" signature; the length counts the two "CK"
+// bytes, so the deflate stream that follows is clen-2 bytes long.
 static int MsMszipDecode( FILE *in, FILE *out, unsigned long origsize )
 {
 	unsigned long written = 0;
@@ -132,12 +133,15 @@ static int MsMszipDecode( FILE *in, FILE *out, unsigned long origsize )
 		if( head[2]!='C' || head[3]!='K' ) { err = MSCOMPRESS_ERR_DATA; break; }
 		if( clen<3 ) { err = MSCOMPRESS_ERR_DATA; break; }
 
-		inbuf = (unsigned char*)malloc(clen+4);
+		/* the header length counts the two "CK" bytes, so the deflate
+		   stream is clen-2 bytes; reading clen bytes would leave the
+		   next block header two bytes late (only visible past 32 KB) */
+		inbuf = (unsigned char*)malloc(clen+2);
 		outbuf = (unsigned char*)malloc(32768+64);
 		if( !inbuf || !outbuf ) {
 			free(inbuf); free(outbuf); err = MSCOMPRESS_ERR_DATA; break;
 		}
-		if( fread(inbuf,1,clen,in)!=clen ) {
+		if( fread(inbuf,1,clen-2,in)!=clen-2 ) {
 			free(inbuf); free(outbuf); err = MSCOMPRESS_ERR_READ; break;
 		}
 
@@ -147,13 +151,23 @@ static int MsMszipDecode( FILE *in, FILE *out, unsigned long origsize )
 		   one that is wanted here. */
 		inflateResetKeep( &s );
 		s.next_in = inbuf;
-		s.avail_in = clen;
+		s.avail_in = clen-2;
 		s.next_out = outbuf;
 		s.avail_out = 32768+64;
-		/* the result of the inflater is not the error code: it is
-		   Z_STREAM_END when the block was read to the end */
+		/* Z_FINISH here would mark the stream as finished and zlib
+		   would not copy the output into the shared window, so the
+		   next block could not reach back into this one.  The Cabinet
+		   MSZIP reader uses this same loop with Z_NO_FLUSH. */
 		{
-			int zret = inflate( &s, Z_FINISH );
+			int zret;
+			for(;;) {
+				zret = inflate( &s, Z_NO_FLUSH );
+				if( zret==Z_STREAM_END ) break;
+				if( zret!=Z_OK ) { err = MSCOMPRESS_ERR_DATA; break; }
+				if( s.avail_out==0 || s.avail_in==0 ) {
+					err = MSCOMPRESS_ERR_DATA; break;
+				}
+			}
 			outlen = (32768+64) - s.avail_out;
 			free(inbuf);
 			if( zret!=Z_STREAM_END ) { free(outbuf); err = MSCOMPRESS_ERR_DATA; break; }
@@ -205,8 +219,11 @@ int MsCompressReadHeader( FILE *in, MsCompressHeader *h )
 
 	if( memcmp(buf,MSC_SIG_SZDD,8)==0 ) {
 		if( fread(buf,1,6,in)!=6 ) return MSCOMPRESS_ERR_READ;
-		if( buf[0]!=0x41 ) return MSCOMPRESS_ERR_DATA;
+		/* mode B uses the same LZSS with the window starting at
+		   4096-18 instead of 4096-16 (APPS.IN_ from COMPRE10) */
+		if( buf[0]!=0x41 && buf[0]!=0x42 ) return MSCOMPRESS_ERR_DATA;
 		h->format = MSCOMPRESS_SZDD;
+		h->method = (int)buf[0];
 		h->missingchar = (char)buf[1];
 		h->origsize = (unsigned long)buf[2] | ((unsigned long)buf[3]<<8) |
 					   ((unsigned long)buf[4]<<16) | ((unsigned long)buf[5]<<24);
@@ -641,7 +658,7 @@ const char *MsCompressModeName( const MsCompressHeader *h )
 	switch( h->format )
 	{
 	case MSCOMPRESS_SZDD:
-		return "SZDD";
+		return h->method==0x42 ? "SZDD-B" : "SZDD";
 	case MSCOMPRESS_SZDD_QBASIC:
 		return "SZDD-QB";
 	case MSCOMPRESS_KWAJ:
@@ -663,7 +680,8 @@ int MsCompressDecode( FILE *in, FILE *out, const MsCompressHeader *h )
 	switch( h->format )
 	{
 	case MSCOMPRESS_SZDD:
-		return MsLzssDecode( in, out, h->origsize, MSC_START_EXPAND );
+		return MsLzssDecode( in, out, h->origsize,
+			h->method==0x42 ? MSC_START_QBASIC : MSC_START_EXPAND );
 	case MSCOMPRESS_SZDD_QBASIC:
 		return MsLzssDecode( in, out, h->origsize, MSC_START_QBASIC );
 	case MSCOMPRESS_KWAJ:

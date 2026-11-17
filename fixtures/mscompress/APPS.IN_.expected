@@ -1,0 +1,233 @@
+[pif]
+;
+;Exe file   = PIF file,Win Title                      ,Params  ,Start-up Dir  ,Close win on exit         ,Conflict Section Name 
+;                                                                       ,Min Mem  ,Icon file                      ,Optimizations Section Name
+;                                                                                   ,Icon num
+;                                                                                      ,286sect ,386sect
+;
+; It is VERY important that this list remain and be maintained in lexicographical order
+; (by exe name, no extension)
+;
+123.COM     = 123     ,"Lotus 1-2-3"                  ,        ,        ,256  ,cwe, ,3 ,g286    ,        ,        ,
+ACAD.EXE    = ACAD    ,AutoCad                        ,        ,        ,512  ,cwe, ,6 ,g286    ,np386   ,        ,   
+ACCESS.COM  = ACCESS  ,"PFS Access"                   ,        ,        ,128  ,cwe, ,5 ,c286    ,npb386  ,        ,
+AGENDA.EXE  = AGENDA  ,"Lotus Agenda"                 ,        ,        ,128  ,cwe, ,6 ,        ,        ,        ,
+B.EXE       = B       ,Brief                          ,        ,        ,128  ,cwe, ,2 ,        ,        ,        ,
+BASIC.COM   = BASIC   ,"Microsoft Basic"              ,        ,        ,64   ,cwe, ,6 ,g286    ,np386   ,        ,
+BASICA.EXE  = BASICA  ,"Microsoft Advanced Basic"     ,        ,        ,80   ,cwe, ,6 ,gc286   ,np386   ,        ,
+BOOKS.EXE   = BOOKS   ,"Microsoft Bookshelf"          ,        ,        ,128  ,cwe, ,6 ,g286    ,np386   ,        ,
+CADD.EXE    = CADD    ,"Generic Cadd"                 ,        ,        ,384  ,cwe, ,6 ,g286    ,np386   ,        ,
+CHART.COM   = CHART   ,"Microsoft Chart"              ,        ,        ,256  ,cwe, ,6 ,g286    ,np386   ,        ,
+CL.EXE      = CL      ,"Microsoft C Compiler"         ,?       ,        ,128  ,cwe, ,6 ,        ,np386   ,        ,
+CLOUT.EXE   = CLOUT   ,"MicroRim rBase Clout"         ,        ,        ,128  ,cwe, ,4 ,        ,np386   ,        ,
+DBASE.EXE   = DBASE   ,"Ashton Tate dBase"            ,        ,        ,384  ,cwe, ,4 ,        ,        ,        ,
+DEASE.EXE   = DEASE   ,"DataEase"                     ,        ,        ,128  ,cwe, ,6 ,        ,b386    ,        ,
+DW3PG.COM   = DW3PG   ,"DisplayWrite 3"               ,",user,d",       ,228  ,cwe, ,2 ,        ,        ,        ,
+DW4.BAT     = DW4     ,"DisplayWrite 4"               ,        ,        ,128  ,cwe, ,2 ,        ,        ,        ,
+DWA.BAT     = DWA     ,"DisplayWrite Assistant"       ,        ,        ,128  ,cwe, ,6 ,        ,        ,        ,
+EDIT.EXE    = EDIT    ,"IBM Professional Editor"      ,        ,        ,128  ,cwe, ,2 ,        ,np386   ,        ,
+EDITOR.EXE  = EDITOR  ,"XY Write"                     ,        ,        ,96   ,cwe, ,2 ,        ,np386   ,        ,
+FILE.EXE    = FILE    ,"IBM Filing Assistant"         ,        ,        ,128  ,cwe, ,4 ,        ,np386   ,        ,
+FIRST.EXE   = FIRST   ,"PFS: First Choice"            ,        ,        ,128  ,cwe, ,6 ,        ,np386   ,        ,
+FL.COM      = FREELANC,Freelance                      ,"=-s"   ,        ,384  ,cwe, ,6 ,g286    ,np386   ,        ,
+FL.EXE      = FL      ,"Fortran Compiler"             ,?       ,        ,128  ,cwe, ,6 ,        ,np386   ,        ,
+FORMTOOL.EXE= FORMTOOL,FormTool                       ,        ,        ,128  ,cwe, ,2 ,        ,np386   ,        ,
+FOXPLUS.EXE = FOXPLUS ,"Foxbase Plus"                 ,        ,        ,384  ,cwe, ,4 ,        ,        ,        ,
+FP.EXE      = FP      ,"PFS: First Publisher"         ,        ,        ,128  ,cwe, ,2 ,        ,np386   ,        ,
+FW.EXE      = FW      ,Framework                      ,        ,        ,384  ,cwe, ,6 ,c286    ,b386    ,        ,
+GRAPH.EXE   = GRAPH   ,"IBM Graphing Assistant"       ,        ,        ,128  ,cwe, ,6 ,        ,np386   ,        ,
+GW.COM      = GW      ,"GraphWriter"                  ,        ,        ,400  ,cwe, ,6 ,        ,        ,        ,
+HG.EXE      = HG      ,"Harvard Graphics"             ,        ,        ,384  ,cwe, ,6 ,g286    ,np386   ,        ,
+HTPM.EXE    = HTPM    ,"Harvard Project Manager"      ,        ,        ,384  ,cwe, ,6 ,        ,np386   ,        ,
+LINK.EXE    = LINK    ,"LINK Utility"                 ,?       ,        ,128  ,cwe, ,6 ,        ,np386   ,        ,
+LOTUS.COM   = LOTUS   ,"Lotus Access System"          ,        ,        ,256  ,cwe, ,3 ,g286    ,        ,        ,
+MAIL.EXE    = MAIL    ,Mail                           ,        ,        ,128  ,cwe, ,5 ,        ,        ,        ,
+MAKE.EXE    = MAKE    ,"Make utility"                 ,?       ,        ,128  ,cwe, ,6 ,        ,        ,        ,
+MASM.EXE    = MASM    ,"Microsoft Macro Assembler"    ,?       ,        ,182  ,cwe, ,6 ,        ,np386   ,        ,
+MM.EXE      = MM      ,MultiMate                      ,        ,        ,128  ,cwe, ,2 ,        ,        ,        ,
+MP.EXE      = MP      ,"Microsoft Multiplan"          ,        ,        ,208  ,cwe, ,3 ,        ,np386   ,        ,
+MP.COM      = MP      ,"Microsoft Multiplan"          ,        ,        ,208  ,cwe, ,3 ,        ,np386   ,        ,
+NI.EXE      = NI      ,"Norton Advanced Utilities"    ,        ,        ,128  ,cwe, ,6 ,        ,np386   ,        ,
+SHELL.EXE   = SHELL   ,"Word Perfect Office"          ,        ,        ,200  ,cwe, ,6 ,        ,npb386  ,        ,
+ONLINE.COM  = ONLINE  ,"Microsoft Online"             ,        ,        ,128  ,cwe, ,5 ,c286    ,b386    ,        ,
+PARADOX2.EXE= PARADOX2,Paradox                        ,        ,        ,128  ,cwe, ,4 ,        ,        ,        ,
+PARADOX3.EXE= PARADOX3,Paradox                        ,        ,        ,128  ,cwe, ,4 ,        ,        ,        ,
+PCPLUS.EXE  = PCPLUS  ,"Procomm Plus"                 ,        ,        ,256  ,cwe, ,5 ,c286    ,b386    ,        ,
+PE.EXE      = PE      ,"IBM Personal Editor"          ,?       ,        ,128  ,cwe, ,2 ,        ,np386   ,        ,
+PF.EXE      = PF      ,"PFS File"                     ,        ,        ,128  ,cwe, ,2 ,        ,        ,        ,
+PL.EXE      = PL      ,"Microsoft Pascal Compiler"    ,?       ,        ,128  ,cwe, ,6 ,        ,np386   ,        ,
+PLAN.EXE    = PLAN    ,"PFS Plan"                     ,        ,        ,128  ,cwe, ,6 ,        ,        ,        ,
+PN.EXE      = PN      ,"PFS: Professional Network"    ,        ,        ,128  ,cwe, ,6 ,        ,np386   ,        ,
+PROCOMM.EXE = PROCOMM ,Procomm                        ,        ,        ,128  ,cwe, ,5 ,        ,b386    ,        ,
+PROJ.COM    = PROJ    ,"Microsoft Project"            ,        ,        ,256  ,cwe, ,6 ,        ,np386   ,        ,
+PW.COM      = PW      ,"Professional Write"           ,        ,        ,128  ,cwe, ,2 ,        ,        ,        ,
+Q.EXE       = Q       ,Quattro                        ,        ,        ,128  ,cwe, ,3 ,        ,np386   ,        ,
+QA.COM      = QA      ,"Q & A Report Writer"          ,        ,        ,384  ,cwe, ,4 ,        ,np386   ,        ,
+QB.EXE      = QB      ,"Microsoft QuickBASIC"         ,        ,        ,-1   ,cwe, ,6 ,g286    ,        ,        ,
+QBASIC.EXE  = QBASIC  ,"Microsoft QuickBASIC"         ,        ,        ,-1   ,cwe, ,6 ,g286    ,        ,        ,
+QC.EXE      = QC      ,"Microsoft Quick C"            ,        ,        ,-1   ,cwe, ,6 ,        ,        ,        ,
+QMODEM.EXE  = QMODEM  ,QModem                         ,        ,        ,384  ,cwe, ,5 ,c286    ,b386    ,        ,
+QP.EXE      = QP      ,"Microsoft Quick Pascal"       ,        ,        ,-1   ,cwe, ,6 ,        ,np386   ,        ,
+RB5000.EXE  = RB5000  ,"MicroRim rBase 5000"          ,        ,        ,400  ,cwe, ,4 ,        ,np386   ,        ,
+RBASE.EXE   = RBASE   ,"MicroRim rBase"               ,        ,        ,512  ,cwe, ,4 ,        ,np386   ,        ,
+READY.EXE   = READY   ,Ready!                         ,        ,        ,152  ,cwe, ,6 ,        ,        ,        ,
+RELAY.COM   = RELAY   ,Relay                          ,        ,        ,128  ,cwe, ,5 ,c286    ,npb386  ,        ,
+REPORT.EXE  = REPORT  ,"IBM Reporting Assistant"      ,        ,        ,173  ,cwe, ,6 ,        ,np386   ,        ,
+RIGHT.EXE   = RIGHT   ,RightWriter                    ,        ,        ,128  ,cwe, ,2 ,        ,        ,        ,
+SC4.COM     = SC4     ,"SuperCalc 4"                  ,        ,        ,128  ,cwe, ,6 ,        ,b386    ,        ,
+SC5.COM     = SC5     ,"SuperCalc 5"                  ,        ,        ,300  ,cwe, ,6 ,        ,b386    ,        ,
+SCOM.EXE    = SCOM    ,"Smartcom II"                  ,        ,        ,128  ,cwe, ,5 ,c286    ,npb386  ,        ,
+SK.BAT      = SOFTKICK,"Soft Kicker"                  ,        ,        ,512  ,cwe, ,2 ,g286    ,np386   ,        ,
+SK.COM      = SK      ,Sidekick                       ,        ,        ,128  ,cwe, ,2 ,g286    ,np386   ,        ,
+SKETCH.EXE  = SKETCH  ,Autosketch                     ,        ,        ,128  ,cwe, ,6 ,        ,        ,        ,
+SKPLUS.COM  = SKPLUS  ,"Sidekick Plus"                ,        ,        ,384  ,cwe, ,2 ,g286    ,np386   ,        ,
+SPELL.COM   = SPELL   ,"Microsoft Spell"              ,        ,        ,64   ,cwe, ,6 ,        ,np386   ,        ,
+SYMPHONY.EXE= SYMPHONY,"Lotus Symphony"               ,        ,        ,320  ,cwe, ,3 ,gc286   ,npb386  ,        ,
+TURBO.EXE   = TURBO   ,"Turbo Pascal"                 ,        ,        ,320  ,cwe, ,6 ,g286    ,        ,        ,
+VP.BAT      = VP      ,"Ventura Publisher"            ,        ,        ,512  ,cwe, ,2 ,g286    ,np386   ,        ,
+VW3.EXE     = VW3     ,"Volkswriter 3"                ,        ,        ,220  ,cwe, ,2 ,        ,        ,        ,
+WORD.COM    = WORD    ,"Microsoft Word"               ,        ,        ,256  ,cwe, ,2 ,g286    ,        ,        ,
+WORD.EXE    = WORD5   ,"Microsoft Word"               ,        ,        ,384  ,cwe, ,2 ,g286    ,        ,        ,
+WORKS.EXE   = WORKS   ,"Microsoft Works"              ,        ,        ,384  ,cwe, ,6 ,gc286   ,        ,        ,
+WP.EXE      = WP      ,WordPerfect                    ,        ,        ,384  ,cwe, ,2 ,g286    ,        ,        ,
+WRITE.COM   = WRITE   ,"IBM Writing Assistant"        ,        ,        ,196  ,cwe, ,2 ,        ,np386   ,        ,
+WS.EXE      = WS      ,"WordStar Professional"        ,        ,        ,384  ,cwe, ,2 ,g286    ,        ,        ,
+WS2.EXE     = WS2     ,"WordStar 2000"                ,        ,        ,200  ,cwe, ,2 ,        ,        ,        ,
+XTALK.EXE   = XTALK   ,CrossTalk                      ,        ,        ,256  ,cwe, ,5 ,c286    ,b386    ,        ,
+;
+; This is an example
+;
+XYZAPP.exe  = xyzapp  ,"XYZ - Example APP"            ,Param   ,        ,345  ,cwe, ,1 ,        ,        ,xyzamb  ,xyzopt
+
+[xyzamb]
+XYZAPP.exe  = xyzapp  ,"XYZ - 1st Conflicting APP"    ,Param   ,        ,345  ,cwe, ,2 ,        ,        ,        ,
+XYZAPP.exe  = xyzapp  ,"XYZ - 2nd Conflicting APP"    ,Param   ,        ,345  ,cwe, ,3 ,        ,        ,        ,xyz2opt
+XYZAPP.exe  = xyzapp  ,"XYZ - 3rd Conflicting APP"    ,Param   ,        ,345  ,cwe, ,4 ,        ,        ,        ,
+
+[xyzopt]
+XYZAPP.exe  = xyzapp  ,"XYZ - Example APP, 1st Opt."  ,Param   ,        ,345  ,cwe, ,1 ,        ,        ,        ,
+XYZAPP.exe  = xyzapp  ,"XYZ - Example APP, 2nd Opt."  ,Param   ,        ,345  ,cwe, ,3 ,        ,        ,        ,
+XYZAPP.exe  = xyzapp  ,"XYZ - Example APP, 3rd Opt."  ,Param   ,        ,345  ,cwe, ,4 ,        ,        ,        ,
+
+[xyz2opt]
+XYZAPP.exe  = xyzapp  ,"XYZ - 2nd Conflict,1st Opt."  ,Param   ,        ,345  ,cwe, ,1 ,        ,        ,        ,
+XYZAPP.exe  = xyzapp  ,"XYZ - 2nd Conflict,2nd Opt."  ,Param   ,        ,345  ,cwe, ,2 ,        ,        ,        ,
+XYZAPP.exe  = xyzapp  ,"XYZ - 2nd Conflict,3rd Opt."  ,Param   ,        ,345  ,cwe, ,3 ,        ,        ,        ,
+XYZAPP.exe  = xyzapp  ,"XYZ - 2nd Conflict,4th Opt."  ,Param   ,        ,345  ,cwe, ,4 ,        ,        ,        ,
+XYZAPP.exe  = xyzapp  ,"XYZ - 2nd Conflict,5th Opt."  ,Param   ,        ,345  ,cwe, ,5 ,        ,        ,        ,
+XYZAPP.exe  = xyzapp  ,"XYZ - 2nd Conflict,6th Opt."  ,Param   ,        ,345  ,cwe, ,6 ,        ,        ,        ,
+
+[g286]
+; graphics mode app but doesn't directly modify COM ports
+videomode= gra
+xmsmem= 0,0
+
+[c286]
+; text mode app which directly modifies COM ports
+videomode= txt
+xmsmem= 0,0
+checkboxes= c1,c2,c3,c4
+
+[gc286]
+; graphics mode app which directly modifies COM ports
+videomode= gra
+xmsmem= 0,0
+checkboxes= c1,c2,c3,c4
+
+[dflt286sect]
+; default is text mode app which does not directly modify COM ports
+;
+; Other Possible options are given for reference 
+; ( (or) means entry corresponds to radio button group)
+;
+videomode   = txt    ; (or) gra
+xmsmem      = 0,0    ; ##,, ## (min, max)
+checkboxes  =        ; c1,c2,c3,c4,kbd,nse,pps,ata,aes,ces,psc,aps,nss
+
+[np386]
+; does not allow fast paste
+maxmem= 640
+dispusage= fs
+multaskopt= 50,100
+emsmem= 0,1024
+xmsmem= 0,1024
+procmemflags= dit, hma
+dispoptvideo= txt
+dispoptports= hgr
+dispflags= emt
+
+[b386]
+; allows fast paste / background execution
+maxmem= 640
+dispusage= fs
+execflags= bgd
+multaskopt= 50,100
+emsmem= 0,1024
+xmsmem= 0,1024
+procmemflags= dit, hma
+dispoptvideo= txt
+dispoptports= hgr
+dispflags= emt
+otheroptions= afp
+
+[npb386]
+; does not allow fast paste / background execution
+maxmem= 640
+dispusage= fs
+execflags= bgd
+multaskopt= 50,100
+emsmem= 0,1024
+xmsmem= 0,1024
+procmemflags= dit, hma
+dispoptvideo= txt
+dispoptports= hgr
+dispflags= emt
+
+[dflt386sect]
+; default is as follows
+;
+; Other Possible options are given for reference
+; ( (or) means entry corresponds to radio button group)
+;
+maxmem         = 640       ; ##
+dispusage      = fs        ; (or) win
+execflags      =           ; bgd, exc
+multaskopt= 50,100    ; ##,, ## (min, max)
+emsmem= 0,1024    ; ##,, ## (min, max)
+xmsmem= 0,1024    ; ##,, ## (min, max)
+procmemflags= dit, hma  ; eml,, xml, hma, lam
+dispoptvideo   = txt       ; (or) lgr, hgr
+dispoptports   = hgr       ; txt, lgr
+dispflags      = emt       ; rvm
+otheroptions   = afp       ; cwa, ata,, aes, ces, psc, aps, asp, aen
+
+[dialog]
+    caption= "Setup Applications"
+
+[dontfind]
+   calc.exe
+   calendar.exe
+   cardfile.exe
+   clipbrd.exe
+   clock.exe
+   control.exe
+   msdos.exe
+   notepad.exe
+   packager.exe
+   pbrush.exe
+   pifedit.exe
+   printman.exe
+   progman.exe
+   recorder.exe
+   reversi.exe
+   setup.exe
+   sol.exe
+   spooler.exe
+   swapfile.exe
+   sysedit.exe
+   taskman.exe
+   terminal.exe
+   winfile.exe
+   winhelp.exe
+   winver.exe
+   write.exe

@@ -1138,11 +1138,17 @@ added (never re-run `genmakevc4.py`, see the lzip note).
   `set LIB=C:\AMD64sdk\Lib\Win64-03sp1;C:\AMD64sdk\Lib\Win64`.
   A one-line C++ test program reproduces it, so it is the environment,
   not the tree.
-- For the AMD64 toolset the link line needs `bufferoverflowu.lib`
-(also in `Lib\Win64-03sp1`):
+- For the 2003 Platform SDK toolset the link line needs
+`bufferoverflowu.lib` (also in `Lib\Win64-03sp1`):
   that is where this SDK keeps `__security_cookie` /
   `__security_check_cookie`, which `/GS` (on by default) expects.
   `libcmt.lib libcpmt.lib oldnames.lib` are named explicitly as well.
+  The AMD64 razzle compiler needs neither that library nor
+  `/Zc:wchar_t-`, so `SECLIB` and `ZCHAR` are commented out in the
+  makefile by default.  A 2003 SDK build has to put them back on
+  the command line: `nmake -f Makefile.win64
+  "ZCHAR=/Zc:wchar_t-" SECLIB=bufferoverflowu.lib` (the quotes around
+  `ZCHAR` matter: NMAKE otherwise reads `/Z` as its own option).
 - The SDK ships **no `dumpbin.exe`**, and VC6's cannot read x64 objects
   (`LNK4048: Invalid format file`), so use TEMP `opencode/peinfo.py` to
   check machine type, exports and the version resource.
@@ -3126,6 +3132,8 @@ and the length is the match length symbol plus two.
 | `fixtures/mscompress/licence-szdd.tx_` | SZDD | 18340 B, sha `6C4BEACE9AD98F65` |
 | `fixtures/mscompress/LICENCE-kwaj2.tx_` | KWAJ method 2 | 18340 B, sha `6C4BEACE9AD98F65` |
 | `fixtures/mscompress/LICENCE-kwaj3.tx_` | KWAJ method 3 | 18340 B, sha `6C4BEACE9AD98F65` |
+| `fixtures/mscompress/APPS.IN_` | SZDD mode **B** (byte 8 = `B`) | 14729 B, byte-identical to the reference `EXPAND.EXE` |
+| `fixtures/mscompress/kwaj4-twoblock.da_` | KWAJ 4, two MS-ZIP blocks | 40000 B, byte-identical to the reference `EXPAND.EXE` |
 | `SMALL/TEXT/DATA/REPEAT/ONE/EMPTY.TX_` | SZDD | match |
 
 The oracle is the `LICENCE` member of `GPLv2-rar4.rar` (18340 bytes,
@@ -3137,12 +3145,42 @@ additionally decoded through Microsoft's own `lz32.dll`.
 `KWAJ-XOR`, `KWAJ-LZ`, `KWAJ-HUF`, `KWAJ-ZIP` (it has to fit in the
 eight bytes `INDIVIDUALINFO::szMode` has).
 
-**Still open:** nothing.  All four KWAJ methods and both SZDD
-variants are decoded, and there is a fixture for each of them under
-`fixtures/mscompress/` (the KWAJ method 4 one is `LICENCE-kwaj4.tx_`).
-The Cabinet format is decoded by our own code as well, so a `.cab`
-also works on a target that has neither `cabinet.dll` nor `FDI.DLL`
-(NT 3.51); see the Cabinet sections below.
+**Two real gaps were found by the `mscompress-expand/` reverse
+engineering (see below), both fixed:**
+
+- **SZDD mode B was refused.**  The byte at offset 8 of a real SZDD
+  header can be `B` (`0x42`) as well as `A`; the published
+  description says only `A` is valid, and our parser rejected `B`
+  outright.  `APPS.IN_` is such an archive.  It is the same LZSS
+  stream with the write pointer starting at `4096-18` instead of
+  `4096-16`, like the QBasic variant and KWAJ method 2.  Both modes
+  are now accepted, the method is kept in the header, and the
+  listing shows `SZDD-B` for the B variant.
+- **KWAJ method 4 only worked for a single block.**  The 16 bit
+  length at the start of an MS-ZIP block counts the two `CK` bytes,
+  so the raw DEFLATE stream that follows is `clen-2` bytes.  We
+  read `clen` bytes, which consumed two bytes of the next block
+  header; that is invisible when the archive fits in one block and
+  breaks every archive over 32 KB.  The `Z_FINISH` call was wrong
+  too: it makes zlib mark the stream finished without copying the
+  output into the shared window, so the next block cannot reach
+  back into the previous one.  Both use the same pattern as the
+  Cabinet MSZIP reader now (`clen-2` bytes and a `Z_NO_FLUSH`
+  loop with `inflateResetKeep`).
+
+All four KWAJ methods, both SZDD modes and the QBasic variant are
+decoded now, and a fixture for each variant is under
+`fixtures/mscompress/`.  The Cabinet format is decoded by our own
+code as well, so a `.cab` also works on a target that has neither
+`cabinet.dll` nor `FDI.DLL` (NT 3.51); see the Cabinet sections
+below.
+
+The reference for the two fixes is the `mscompress-expand/`
+project in the workarea root: a C89 `COMPRESS.EXE`/`EXPAND.EXE`
+reconstruction that covers SZDD A/B, SZDD-QBasic and KWAJ 0-4 and
+was verified against the original DOS programs.  Its `msinflate.c`
+is a self-contained raw-DEFLATE reader for KWAJ 4; the tree keeps
+using zlib with the shared window, which is the same algorithm.
 
 ## Cabinet: our own decoder (the container, and the none and the MSZIP methods)
 

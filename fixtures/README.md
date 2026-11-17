@@ -13,7 +13,7 @@ in `AGENTS.md`.  What is here is the input side of those checks.
 
 | directory | what it holds | where it came from | what it proves |
 |---|---|---|---|
-| `mscompress/` | the `COMPRESS.EXE` samples: `SZDD` (`*.TX_`), `KWAJ` methods 1-4 and the `.expected` files with the original bytes | made with the format description, and the `KWAJ` ones by the period tools | the SZDD and the KWAJ decoders give the original bytes back |
+| `mscompress/` | the `COMPRESS.EXE` samples: `SZDD` (`*.TX_`), `KWAJ` methods 1-4, the authentic SZDD-B sample `APPS.IN_` and the two-block `kwaj4-twoblock.da_`, with the `.expected` files holding the original bytes | made with the format description, by the period tools, and with the `COMPRESS.EXE` of the `mscompress-expand/` project | the SZDD (A and B), QBasic and KWAJ (1-4) decoders give the original bytes back; the two-block KWAJ 4 fixture pins the shared DEFLATE window and the `clen-2` block length |
 | `cab/` | one cabinet per compression method and per window size: `LICENCE-mzsip.cab` (MSZIP), `LICENCE-x15.cab` .. `LICENCE-x20.cab` and `LICENCE-lzx.cab` (LZX, window bits 15 to 21), `LICENCE-q15.cab` .. `LICENCE-q20.cab` and `LICENCE-quantum.cab` (Quantum, window bits 15 to 21) | made with `makecab` | the Cabinet decoders (none, MSZIP, LZX, Quantum) all give the same 18340 bytes as the `LICENCE` member of `fixtures/rar/GPLv2-rar4.rar` |
 | `rar/` | the RAR 1.5/2.0/2.9/4.x/5.x samples and the 72 member `aida64.rar` | `rar15.rar` ... `rar29.rar` from the era, `GPLv2-rar4/5.rar` and `aida64.rar` made for this tree | the RAR provider, and the RAR5 listing |
 | `7z/` | `aida64.7z` and `7z-zstd.7z` (the authentic 7-Zip 19.00 + zstd archive) | the 7-Zip command line tool | the 7z provider, including the zstd coder |

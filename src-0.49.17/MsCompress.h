@@ -13,7 +13,7 @@
 enum ms_compress_format
 {
 	MSCOMPRESS_NONE = 0,		// not one of these formats
-	MSCOMPRESS_SZDD,			// the "expand" variant
+	MSCOMPRESS_SZDD,			// the "expand" variant, mode A or B
 	MSCOMPRESS_SZDD_QBASIC,	// the QBasic variant
 	MSCOMPRESS_KWAJ			// the KWAJ variant
 };
@@ -31,7 +31,7 @@ enum ms_compress_result
 struct MsCompressHeader
 {
 	int format;			// one of ms_compress_format
-	int method;			// the KWAJ compression method
+	int method;			// the KWAJ method, or the SZDD mode (0x41/0x42)
 	unsigned long origsize;	// the length of the file when unpacked
 	unsigned long dataoffset;	// where the compressed data starts
 	char missingchar;		// the character missing from the name
