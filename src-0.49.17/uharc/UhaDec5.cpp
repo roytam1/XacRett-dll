@@ -3625,6 +3625,21 @@ store:
 
 /* -------- 4150CF: match distance/length decode ------------------------ */
 
+/* Binary range decision for the match-distance tree.  The caller has
+ * already applied `range >>= 12`, so on every valid stream
+ *   low < (range << 12)   and   low / range  is a 12-bit value [0,4096).
+ * Comparing `low >= range * prob` (range <= 0xFFFFF, prob <= 4096, so the
+ * product fits in 32 bits) replaces the integer divide at each tree node.
+ * Damaged streams can break the invariant; they keep the original division
+ * path so the wrapped 16-bit behaviour of the initial port is preserved. */
+static int v5_bit_ge(W5t *d, unsigned long prob)
+{
+    unsigned long r = d->range;
+    if (d->low < (r << 12))
+        return d->low >= r * prob;
+    return ((unsigned)(d->low / r) & 0xFFFFu) >= (unsigned)prob;
+}
+
 static int v5_matchdist(W5t *d)
 {
     if (d->fb1 == 2) {
@@ -3647,7 +3662,6 @@ static int v5_matchdist(W5t *d)
             v1 = 11;
         }
         for (;;) {
-            unsigned bit;
             long *slot;
             unsigned long span;
             unsigned long base;
@@ -3665,8 +3679,7 @@ static int v5_matchdist(W5t *d)
              * before updating the node, so capture it first. */
             {
                 long oldslot = *slot;
-                bit = (unsigned)(d->low / d->range) & 0xFFFFu;
-                if (bit >= (unsigned)oldslot) {
+                if (v5_bit_ge(d, (unsigned long)(unsigned)oldslot)) {
                     *slot -= oldslot >> 6;
                     base = (unsigned long)(unsigned)oldslot;
                     span = d->range * (4096UL - base);
@@ -3703,7 +3716,7 @@ static int v5_matchdist(W5t *d)
                 v10 = (long)d->f94 - w5_dist_b[v8] + 1L;
             }
             if (v10 >= 4L) {
-                unsigned bit;
+                int hi;
                 unsigned v48;
                 unsigned v52;
                 long nv;
@@ -3712,9 +3725,9 @@ static int v5_matchdist(W5t *d)
                     d->err = 4;
                     return 0;
                 }
-                bit = (unsigned)(d->low / d->range) & 0xFFFFu;
-                v61 = (bit >= (unsigned)d->e88) ? 1L : 0L;
-                if (bit < (unsigned)d->e88) {
+                hi = v5_bit_ge(d, (unsigned long)(unsigned)d->e88);
+                v61 = hi ? 1L : 0L;
+                if (!hi) {
                     v48 = 0;
                     v52 = (unsigned)d->e88;
                     nv = (4096L - d->e88) >> 6;
@@ -3865,7 +3878,7 @@ lend:
                     return 0;
                 }
                 p = (unsigned long)(unsigned)*e;
-                if ((unsigned)(d->low / d->range) >= (unsigned)p) {
+                if (v5_bit_ge(d, p)) {
                     v54 = 4096UL;
                     v50 = p;
                     *e = (long)v5_wrap32((unsigned long)*e - (p >> 5));

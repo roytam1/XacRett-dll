@@ -264,6 +264,23 @@ static unsigned long dec4c_rc_div(dec4c_ctx *c, unsigned long total)
     return v;
 }
 
+/* Binary decision in a fixed-total range.  Replaces
+ *   v = dec4c_rc_div(c, total); if (v < p) ...
+ * with a single comparison: after range /= total, v = code / range is
+ * < p exactly when code < range * p.  For total <= 0x2000 the product
+ * fits in 32 bits (range <= 2^32/total, p <= total).  rc_t is updated
+ * exactly as in dec4c_rc_div so later users of the last total agree. */
+static int dec4c_rc_lt(dec4c_ctx *c, unsigned long total, unsigned long p)
+{
+    unsigned long range;
+    c->rc_t = total & 0xFFFFFFFFUL;
+    if (total == 0) { c->bad = 1; return 1; }
+    range = c->range / total;
+    if (range == 0) { c->bad = 1; return 1; }
+    c->range = range;
+    return c->code < range * p;
+}
+
 static void dec4c_rc_dec(dec4c_ctx *c, unsigned long lo, unsigned long hi)
 {
     unsigned long range = c->range;
@@ -1978,10 +1995,9 @@ static int dec4c_match_model(dec4c_ctx *c)
             unsigned long pa, p;
             len = ((unsigned char)node + 1U) & 0xFFU;
             if (lb < len) {
-                unsigned long v = dec4c_rc_div(c, 0x1000UL) & 0xFFFFUL;
                 pa = (tab + node) & (DEC4C_SEE_LEN - 1UL);
                 p = c->see[pa];
-                if (v < p) {
+                if (dec4c_rc_lt(c, 0x1000UL, p)) {
                     unsigned long lo = 0, hi = p;
                     len = (unsigned char)node;
                     c->see[pa] = (p + ((0x1000UL - p) >> 4)) & 0xFFFFFFFFUL;
@@ -2269,7 +2285,7 @@ static void dec4c_o4_single(dec4c_ctx *c, const unsigned char b[32],
     unsigned char s0 = b[0x0D];
     unsigned long datv = b[1];
     unsigned long acc = 0;
-    unsigned long pa, v, p;
+    unsigned long pa, p;
     if ((unsigned)s0 == l3c) {
         datv = (datv + ((unsigned)rec[0x13] >> 4)) & 0xFFFFFFFFUL;
         acc = 1;
@@ -2307,9 +2323,8 @@ static void dec4c_o4_single(dec4c_ctx *c, const unsigned char b[32],
         unsigned lvl = (datv & 0x1FFUL) < 288UL ? dec4c_rom32(0x423df0UL + 4UL * (datv & 0x1FFUL)) : 0UL;
         pa = D4C_S_O4BIN + ((lvl << 10) + acc);
     }
-    v = dec4c_rc_div(c, 0x2000UL) & 0xFFFFUL;
     p = c->see[pa & (DEC4C_SEE_LEN - 1UL)];
-    if (v < p) {
+    if (dec4c_rc_lt(c, 0x2000UL, p)) {
         *esc = 0;
         c->g_e3a3 = 0;
         *sym = s0;
@@ -2947,7 +2962,7 @@ static void dec4c_order2(dec4c_ctx *c, unsigned long o2i,
         unsigned s9 = r[9];
         unsigned long acc = (unsigned)r[1] >> 1;
         unsigned long cntv = 0;
-        unsigned long pa, v, p;
+        unsigned long pa, p;
         if ((unsigned)s9 == l50) {
             acc = (acc + c->mru_n[l10c & 0x3FFUL]) & 0xFFFFFFFFUL;
             cntv = 1;
@@ -2967,9 +2982,8 @@ static void dec4c_order2(dec4c_ctx *c, unsigned long o2i,
         if (dec4c_marked(c, (unsigned char)s9))
             cntv |= 0x10UL;
         pa = D4C_S_O2BIN + ((((acc & 0x1FFUL) < 288UL ? dec4c_rom32(0x423df0UL + 4UL * (acc & 0x1FFUL)) : 0UL) << 5) + cntv);
-        v = dec4c_rc_div(c, 0x2000UL) & 0xFFFFUL;
         p = c->see[pa & (DEC4C_SEE_LEN - 1UL)];
-        if (v < p) {
+        if (dec4c_rc_lt(c, 0x2000UL, p)) {
             *esc = 0;
             c->g_e3a5 = 0;
             c->g_e3a4 = 1;
@@ -3615,8 +3629,7 @@ static unsigned char dec4c_o1_symbol(dec4c_ctx *c, unsigned long ctx)
             unsigned long x = dec4c_mru_see(c, ctx, s, f, siv, escc);
             unsigned long pa = D4C_S_O1MRU + x;
             unsigned long p = c->see[pa & (DEC4C_SEE_LEN - 1UL)];
-            unsigned long vv = dec4c_rc_div(c, 0x2000UL) & 0xFFFFUL;
-            int hit = (vv < p) ? 1 : 0;
+            int hit = dec4c_rc_lt(c, 0x2000UL, p) ? 1 : 0;
             unsigned long lo = hit ? 0UL : p;
             unsigned long hi = hit ? p : 0x2000UL;
             unsigned long cst = dec4c_cost(c, 2UL * (hi - lo));
