@@ -153,7 +153,7 @@ OBJS = \
     $(OBJDIR)\uharc_UhaDec4_06_cpp.obj \
     $(OBJDIR)\uharc_UhaDec4_04_cpp.obj \
     $(OBJDIR)\uharc_UhaDec4_03_cpp.obj \
-    $(OBJDIR)\uharc_uha04_dec4_dg_c.obj \
+    $(OBJDIR)\uharc_uha04_dec4_seed_c.obj \
     $(OBJDIR)\uharc_uha03_dec4_dg_c.obj \
     $(OBJDIR)\Bz2Tool_cpp.obj \
     $(OBJDIR)\CabDecode_cpp.obj \
@@ -500,7 +500,7 @@ $(OBJDIR)\uharc_UhaDec4_04_cpp.obj : uharc\UhaDec4_04.cpp
 $(OBJDIR)\uharc_UhaDec4_03_cpp.obj : uharc\UhaDec4_03.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
-$(OBJDIR)\uharc_uha04_dec4_dg_c.obj : uharc\uha04_dec4_dg.c
+$(OBJDIR)\uharc_uha04_dec4_seed_c.obj : uharc\uha04_dec4_seed.c
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\uharc_uha03_dec4_dg_c.obj : uharc\uha03_dec4_dg.c

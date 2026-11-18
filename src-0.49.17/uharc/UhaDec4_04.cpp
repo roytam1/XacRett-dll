@@ -67,7 +67,8 @@ typedef Uha4ReadCb uharc_dec_read_cb;
 typedef Uha4WriteCb uharc_dec_write_cb;
 #endif
 
-extern "C" const unsigned char d4v_dgroup[73728];
+extern "C" const unsigned char d4v_seed_436100[512];
+extern "C" const unsigned char d4v_price_seed[34458];
 #include "uha04_dec4_addr.h"
 #include "uha04_dec4_state.h"
 #include <stddef.h>
@@ -1660,7 +1661,11 @@ int UhaDec4_04Init(void **pctx, int method)
     /* DGROUP static image (config bytes, pointer tables, price seeds):
      * 1:1 copy into the state's globals array, so absolute-address reads
      * match the original. */
-    memcpy(d4v_ptr(c, D4V_DGROUP_BASE), d4v_dgroup, 73728);
+    { /* Only two DGROUP slices are live; the rest of the calloc'd globals stays zero. */
+        unsigned char *img = d4v_ptr(c, D4V_DGROUP_BASE);
+        memcpy(img + 0x8100, d4v_seed_436100, 512);
+        memcpy(img + 0x9966, d4v_price_seed, 34458);
+    }
     rc = d4vc_init_file(c, method, 0);
     if (rc) { free(c->io_mem); free(c->model_mem); free(c); return rc; }
     *pctx = c;

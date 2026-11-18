@@ -90,7 +90,7 @@ OBJS = \
     $(OBJDIR)\UhaDec4_06.obj \
     $(OBJDIR)\UhaDec4_04.obj \
     $(OBJDIR)\UhaDec4_03.obj \
-    $(OBJDIR)\uha04_dec4_dg.obj \
+    $(OBJDIR)\uha04_dec4_seed.obj \
     $(OBJDIR)\uha03_dec4_dg.obj \
     $(OBJDIR)\QipDecode.obj \
     $(OBJDIR)\QipTool.obj \
@@ -451,7 +451,7 @@ $(OBJDIR)\UhaDec4_04.obj : uharc\UhaDec4_04.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 $(OBJDIR)\UhaDec4_03.obj : uharc\UhaDec4_03.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-$(OBJDIR)\uha04_dec4_dg.obj : uharc\uha04_dec4_dg.c
+$(OBJDIR)\uha04_dec4_seed.obj : uharc\uha04_dec4_seed.c
 	$(CC) $(CFLAGS) /Fo$@ $**
 $(OBJDIR)\uha03_dec4_dg.obj : uharc\uha03_dec4_dg.c
 	$(CC) $(CFLAGS) /Fo$@ $**

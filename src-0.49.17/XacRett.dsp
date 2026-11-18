@@ -232,7 +232,7 @@ SOURCE=.\uharc\UhaDec4_03.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\uharc\uha04_dec4_dg.c
+SOURCE=.\uharc\uha04_dec4_seed.c
 # End Source File
 # Begin Source File
 
