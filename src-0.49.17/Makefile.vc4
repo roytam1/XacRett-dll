@@ -97,6 +97,9 @@ OBJS = \
     $(OBJDIR)\OpenArchive_OpenQip.obj \
     $(OBJDIR)\QuantumDecode.obj \
     $(OBJDIR)\QuantumTool.obj \
+    $(OBJDIR)\Is3Decode.obj \
+    $(OBJDIR)\Is3Tool.obj \
+    $(OBJDIR)\OpenArchive_OpenIs3.obj \
     $(OBJDIR)\OpenArchive_OpenQuantum.obj \
     $(OBJDIR)\CompactCTool.obj \
     $(OBJDIR)\complib.obj \
@@ -476,8 +479,14 @@ $(OBJDIR)\QuantumDecode.obj : QuantumDecode.cpp
 
 $(OBJDIR)\QuantumTool.obj : QuantumTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+$(OBJDIR)\Is3Decode.obj : Is3Decode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+$(OBJDIR)\Is3Tool.obj : Is3Tool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\OpenArchive_OpenQuantum.obj : OpenArchive\OpenQuantum.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+$(OBJDIR)\OpenArchive_OpenIs3.obj : OpenArchive\OpenIs3.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\CompactCTool.obj : CompactCTool.cpp

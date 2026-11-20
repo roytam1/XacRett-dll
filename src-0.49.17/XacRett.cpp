@@ -165,7 +165,9 @@ using namespace std;   //こいつを入れないと使えません。
 #include "QipTool.h"
 #include "OpenArchive\OpenQip.h"
 #include "QuantumTool.h"
+#include "Is3Tool.h"
 #include "OpenArchive\OpenQuantum.h"
+#include "OpenArchive\OpenIs3.h"
 #include "OpenArchive\OpenDummy.h"//未対応用のダミー
 
 #ifndef _DEBUG
@@ -744,6 +746,10 @@ void DllSub(void)//ロードする
 
 	t=t->AddTail( new CQuantumTool );
 	o=o->AddTail( new COpenQuantum);
+	ArchiveListMap[t]=o;
+
+	t=t->AddTail( new CIs3Tool );
+	o=o->AddTail( new COpenIs3);
 	ArchiveListMap[t]=o;
 
 	g_pToolList->Msg=RegisterWindowMessage(WM_ARCEXTRACT);
@@ -1374,6 +1380,8 @@ int ArcNameToNum(LPCSTR buffer )
 		return ARCHIVETYPE_QIP;
 	else if (lstrcmp(buffer,"Quantum Extract")==0)
 		return ARCHIVETYPE_QUANTUM;
+	else if (lstrcmp(buffer,"Is3 Extract")==0)
+		return ARCHIVETYPE_IS3;
 	else
 		return ARCHIVETYPE_UNKNOWN ;
 }

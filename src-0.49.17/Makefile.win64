@@ -144,6 +144,8 @@ OBJS = \
     $(OBJDIR)\QipTool_cpp.obj \
     $(OBJDIR)\QuantumDecode_cpp.obj \
     $(OBJDIR)\QuantumTool_cpp.obj \
+    $(OBJDIR)\Is3Decode_cpp.obj \
+    $(OBJDIR)\Is3Tool_cpp.obj \
     $(OBJDIR)\uharc_UhaCrypt_cpp.obj \
     $(OBJDIR)\uharc_UhaDecode_cpp.obj \
     $(OBJDIR)\uharc_UhaDec0_cpp.obj \
@@ -245,6 +247,7 @@ OBJS = \
     $(OBJDIR)\OpenArchive_OpenUha_cpp.obj \
     $(OBJDIR)\OpenArchive_OpenQip_cpp.obj \
     $(OBJDIR)\OpenArchive_OpenQuantum_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenIs3_cpp.obj \
     $(OBJDIR)\zlib_adler32_c.obj \
     $(OBJDIR)\zlib_crc32_c.obj \
     $(OBJDIR)\zlib_gzclose_c.obj \
@@ -471,6 +474,10 @@ $(OBJDIR)\QuantumDecode_cpp.obj : QuantumDecode.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\QuantumTool_cpp.obj : QuantumTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+$(OBJDIR)\Is3Decode_cpp.obj : Is3Decode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+$(OBJDIR)\Is3Tool_cpp.obj : Is3Tool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\uharc_UhaCrypt_cpp.obj : uharc\UhaCrypt.cpp
@@ -774,6 +781,8 @@ $(OBJDIR)\OpenArchive_OpenQip_cpp.obj : OpenArchive\OpenQip.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\OpenArchive_OpenQuantum_cpp.obj : OpenArchive\OpenQuantum.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+$(OBJDIR)\OpenArchive_OpenIs3_cpp.obj : OpenArchive\OpenIs3.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\zlib_adler32_c.obj : zlib\adler32.c

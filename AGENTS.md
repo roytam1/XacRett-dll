@@ -4162,6 +4162,44 @@ byte identical to the original `UNPAQ.EXE`** (14 files compared).  The
 negatives (truncations, flipped bits, garbage) fail loudly with no
 output, no hang and no crash.
 
+## InstallShield 3 (.Z archives) -- DONE
+
+`ARCHIVETYPE_IS3` 84 (`CIs3Tool` / `COpenIs3`, engine `Is3Decode.h/.cpp`).
+The container is the ICOMP 3.00.062 "Z" format: magic `13 5D 65 8C`,
+a 0x3A header size byte and a 58 byte header, then a directory list and
+a file list at the end; the payload region starts at `taken` (255).
+Each member is PKWARE DCL implode (ctype 0/1, dict 4..6) decoded with the
+vendored `pkdcl` (ZIP method 10 engine), or stored verbatim when file
+flag 0x10 is set.  Multi-part archives (`<base>.1`, `.2`, ...; file flag
+0x100) are followed across parts.  The provider registers for `.Z` and
+`.is3` and overrides `IsType` so pass-1 routing is deterministic.
+
+The reference is the GPLv3 `idecomp.py` / `pwexplode.py` in the `i3comp/`
+project of the workarea root -- study only, NEVER vendored; this port is
+independent.  Fixtures were made with the original `ICOMP.EXE` 3.00.062.
+
+Traps, all measured here:
+
+- **the file record has WORD fields where bytes look natural**: flags
+  is a WORD at +25 (the 0x100 split bit is in its high byte) and attrs
+  a DWORD at +19; the header has_password is at +4 and flags at +5.
+  A byte-sized flags field silently loses the split bit and a shifted
+  header read misparses the directory/file lists.
+- **a stored empty member has comp==orig==0** and must create an empty
+  file; rejecting comp==0 outright breaks `-sn` archives.
+- **changing the shared `Is3File` struct requires rebuilding all three
+  TUs** (Is3Decode/Is3Tool/OpenIs3): a stale object uses the old field
+  offsets and extracts nothing while rc still looks plausible.
+- `pkdcl` is a C library; the C++ engine wraps its header in `extern "C"`
+  or the link fails with an unresolved `pkdcl_explode_ex`.
+
+Verified: `fixtures/is3/` (all four compression levels plus stored) list
+and extract byte-identically to the oracle (`idecomp.py`) and to the
+original ICOMP output; negatives (empty, bad magic, bad header size,
+truncation, payload flip, junk) refuse loud with no output and no hang;
+VC6 full build 0 FAIL and the other providers (ZIP m10 DCL, 7z, RAR,
+CAB LZX, UHARC, tar, GCA) still extract.  VC4 compiles all three units.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).

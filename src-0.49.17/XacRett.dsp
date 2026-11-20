@@ -196,6 +196,14 @@ SOURCE=.\QuantumTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\Is3Decode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\Is3Tool.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\uharc\UhaCrypt.cpp
 # End Source File
 # Begin Source File
@@ -703,6 +711,14 @@ SOURCE=.\QuantumTool.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\Is3Decode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\Is3Tool.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\uharc\UhaCrypt.h
 # End Source File
 # Begin Source File
@@ -935,6 +951,10 @@ SOURCE=.\OpenArchive\OpenQuantum.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\OpenArchive\OpenIs3.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\OpenArchive\OpenBsa.h
 # End Source File
 # Begin Source File
@@ -948,6 +968,10 @@ SOURCE=.\OpenArchive\OpenQip.h
 # Begin Source File
 
 SOURCE=.\OpenArchive\OpenQuantum.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenIs3.h
 # End Source File
 # Begin Source File
 

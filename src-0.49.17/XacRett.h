@@ -288,7 +288,8 @@ typedef struct {
 #define ARCHIVETYPE_UHA	81
 #define ARCHIVETYPE_QIP	82
 #define ARCHIVETYPE_QUANTUM	83
+#define ARCHIVETYPE_IS3	84
 
-#define NUM_ARCHIVETYPE		83
+#define NUM_ARCHIVETYPE		84
 
 #endif
