@@ -4193,6 +4193,15 @@ Traps, all measured here:
 - `pkdcl` is a C library; the C++ engine wraps its header in `extern "C"`
   or the link fails with an unresolved `pkdcl_explode_ex`.
 
+Multipart is covered by `fixtures/is3/multipart/` (the 5-disk `PCCLIN/`
+set): opening any of `DATA.1`..`DATA.5` lists all 51 members and
+extracts them byte-identically to the oracle.  The fix was to read the
+authoritative file list from part 1 (`get_part(1)`) -- other parts
+carry rewritten, part-relative offsets -- and to bound each split
+member's slice by THAT part's `dirs_list_offset` /
+`start_integral_data` (the reference reads them from the part being
+read, not from the part that was opened).
+
 Verified: `fixtures/is3/` (all four compression levels plus stored) list
 and extract byte-identically to the oracle (`idecomp.py`) and to the
 original ICOMP output; negatives (empty, bad magic, bad header size,

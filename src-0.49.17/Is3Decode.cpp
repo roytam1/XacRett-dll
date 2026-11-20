@@ -159,6 +159,19 @@ bool Is3Open( const char* fname, Is3Archive* arc )
 	if( fread( magic, 1, 5, arc->fp ) != 5 ) return false;
 	if( magic[4] != 0x3A || le32(magic) != 0x8C655D13UL )
 		return false;
+	// A split archive keeps the authoritative file list (global offsets and
+	// start/end part ids) only in part 1; the other parts carry a rewritten
+	// list with part-relative offsets.  The reference unpacker always reads
+	// part 1's list (get_part(1)), so do the same here.
+	{
+		unsigned char sh[12];
+		WORD fl;
+		if( fseek( arc->fp, 5, SEEK_SET ) || fread( sh, 1, 12, arc->fp )!=12 )
+			return false;
+		fl = le16( sh+5 );
+		if( (fl & 0x3) && !is3_part( arc, 1 ) )
+			return false;
+	}
 	return is3_read_list( arc );
 }
 
@@ -235,44 +248,57 @@ bool Is3Extract( Is3Archive* arc, int index, const char* outpath )
 	packed = (unsigned char*)malloc( (size_t)f->comp );
 	if( !packed ) return false;
 
-	// A single-part member is contiguous in the archive.  Split members
-	// concatenate the slices from each part; part 1+ is named <base>.N.
-	if( !(f->flags & 0x100) || !(arc->flags & 0x3) || f->start_part==f->end_part )
-	{
-		if( !arc->fp ) goto done;
-		if( fseek( arc->fp, (long)f->ofs, SEEK_SET ) ) goto done;
-		if( fread( packed, 1, (size_t)f->comp, arc->fp ) != f->comp ) goto done;
-		total = f->comp;
-	}
-	else
+	// Follow the reference unpacker's mpv logic exactly.  Every part is a
+	// complete archive with its own header: the data slice of a member in
+	// part N is bounded by that part's dirs_list_offset (for a middle part)
+	// or start_integral_data (for the last part).  A member that is not
+	// marked split (0x100) lives wholly in its start part.
 	{
 		int p;
 		for( p=f->start_part; p<=f->end_part; p++ )
 		{
 			FILE* part;
 			char pp[MAX_PATH*2];
-			DWORD start, len;
-			if( p==arc->part_id && p==0 ) part = arc->fp;
-			else if( p==0 ) part = arc->fp;
+			unsigned char ph[58];
+			DWORD start, len, pdir, pstart;
+			bool own;
+
+			if( p==0 )
+				{ part = arc->fp; own = false; }
+			else if( p==arc->part_id && arc->fp )
+				{ part = arc->fp; own = false; }
 			else
 			{
 				wsprintf( pp, "%s.%d", arc->base, p );
 				part = fopen( pp, "rb" );
+				own = true;
 			}
 			if( !part ) goto done;
+
+			// read this part's own header fields
+			if( fseek( part, 5, SEEK_SET ) || fread( ph, 1, 58, part )!=58 )
+			{
+				if( own ) fclose( part );
+				goto done;
+			}
+			pdir   = le32( ph+36 );	// dirs_list_offset of this part
+			pstart = le32( ph+32 );	// start_integral_data of this part
+
 			start = (p==f->start_part) ? f->ofs : 255;
-			if( p==f->end_part )
-				len = arc->start_integral_data - start;
+			if( !(f->flags & 0x100) )
+				len = f->comp;				// whole member in this part
+			else if( p==f->end_part )
+				len = pstart - start;		// stop at first integral file
 			else
-				len = arc->dirs_list_offset - start;
+				len = pdir - start;			// to the directory list
 			if( len > f->comp - total ) len = f->comp - total;
 			if( fseek( part, (long)start, SEEK_SET ) || fread( packed+total, 1, len, part )!=len )
 			{
-				if( p!=0 ) fclose( part );
+				if( own ) fclose( part );
 				goto done;
 			}
 			total += len;
-			if( p!=0 ) fclose( part );
+			if( own ) fclose( part );
 		}
 		if( total != f->comp ) goto done;
 	}
