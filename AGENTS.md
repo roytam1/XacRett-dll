@@ -3341,6 +3341,46 @@ folder reader has to hand the decoder that byte.
 | `fixtures/cab/LICENCE-quantum.cab` | 18340 bytes, the same as the `LICENCE` member of `fixtures/rar/GPLv2-rar4.rar` |
 | `fixtures/cab/LICENCE-mzsip.cab` | 18340 bytes, the same |
 
+## CAB: a Windows Update "delta" container, and 7-Zip equivalence
+
+`Windows11.0-KB5127690-x64-NDP481.cab` (96,721,052 B) is a Windows Update
+container: one folder, `typeCompress` 0x1503 (LZX, window bits 21), 4240
+CFDATA blocks, 2733 members named `0`..`2731` plus `_manifest_.cix.xml`,
+and 10,648 bytes of trailing data past `cbCabinet` (7-Zip warns about the
+tail and extracts anyway; so do we).
+
+**Our decoder is equivalent to 7-Zip on it: 2733/2733 members are
+byte-identical, total 138,921,528 B.** Measured against an authentic
+`7za.exe` 25.01 (the `-extra` package's standalone build, itself unpacked
+with our own 7z provider). Both list the same names and sizes and report
+`LZX:21`; `comp` and `crc` are 0 in both, because a CAB stores neither per
+member.
+
+Independent second proof, needing no external archiver: the manifest
+records a SHA-256 for every **source** payload, and our extraction matches
+**2732/2732** of them, so the LZX decode is byte-exact against the
+packager's own hashes.
+
+**What the manifest is, and why `expand.exe` output looks different.**
+Each `<File>` carries `<Delta><Source type="RAW|PA30" name="N">`, where
+`N` is the numeric CAB member and the type says what to do with it. Of the
+2732 entries **1605 are `RAW`** (member == final file) and **1127 are
+`PA30`** (a delta that `expand.exe` applies before renaming to the
+manifest path). `expand.exe` yields all 2732 final files, verified against
+the manifest SHA-256 (2732/2732). A plain archiver - 7-Zip and ours -
+never reads the manifest: it emits the 2733 raw members under their
+stored numeric names. That is the expected behaviour, not a decode
+defect, and it is why a name-based compare against `expand.exe` reports
+~1127 "mismatches" while a source-hash compare reports 0. `expand.exe`
+also does not write `_manifest_.cix.xml` into its output, so an oracle run
+must take the manifest from our extraction. PA30 is an update-patching
+feature, not an archive format: deliberately NOT implemented.
+
+Routing note: for this file the system decoder is never reached.
+`CabCanDecode` accepts `CAB_COMP_LZX`, so `CabExtractAll` (our own
+`CabLzx`) does the work, and the DLL imports neither `cabinet.dll` nor
+`FDI.DLL`.
+
 ## GCA: the new SDK (the GCA3 format and the encrypted archives)
 
 `src-0.49.17/GcaSDK/` now holds a decoder that was written from the
