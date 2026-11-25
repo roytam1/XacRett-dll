@@ -188,6 +188,10 @@ SOURCE=.\QipTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\QuantumCore.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\QuantumDecode.cpp
 # End Source File
 # Begin Source File
@@ -700,6 +704,10 @@ SOURCE=.\QipDecode.h
 # Begin Source File
 
 SOURCE=.\QipTool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\QuantumCore.h
 # End Source File
 # Begin Source File
 

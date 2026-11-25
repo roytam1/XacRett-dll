@@ -142,6 +142,7 @@ OBJS = \
     $(OBJDIR)\UhaTool_cpp.obj \
     $(OBJDIR)\QipDecode_cpp.obj \
     $(OBJDIR)\QipTool_cpp.obj \
+    $(OBJDIR)\QuantumCore_cpp.obj \
     $(OBJDIR)\QuantumDecode_cpp.obj \
     $(OBJDIR)\QuantumTool_cpp.obj \
     $(OBJDIR)\Is3Decode_cpp.obj \
@@ -468,6 +469,9 @@ $(OBJDIR)\QipDecode_cpp.obj : QipDecode.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\QipTool_cpp.obj : QipTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QuantumCore_cpp.obj : QuantumCore.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\QuantumDecode_cpp.obj : QuantumDecode.cpp

@@ -13,47 +13,26 @@
 #include <stdlib.h>
 #include <string.h>
 
-// A model is rescaled when its total is above this.
-#define QUANTUM_RESCALE	0xED8
 // The number of the padding bytes a valid archive may need at its end.
 #define QUANTUM_MAXPAD	64
 
 //==========================================================================//
 // The tables
+//
+// The length and position tables are the same as in the Cabinet Quantum
+// method and live in QuantumCore.cpp.  This format declares two more
+// distance slots than the Cabinet one, both with zero extra bits, so the
+// base of those two is worked out here.
 
-// The number of the raw bits of the length class (27 classes).
-static const unsigned char CTX_BITS[27] = {
-	0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,
-	4,4,4,4,5,5,5,5,0
-};
-
-// The number of the raw bits of the distance class (43 classes).
-static const unsigned char DIST_BITS[43] = {
-	0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,
-	8,8,9,9,10,10,11,11,12,12,13,13,14,14,15,15,
-	16,16,17,17,18,18,19
-};
-
-// The bases are the running sums of 1 << bits.
-static unsigned CTX_BASE[27];
-static unsigned DIST_BASE[43];
-
-static void quantum_make_bases( void )
+static unsigned quantum_pos_base( int n )
 {
-	int i;
-	unsigned acc = 0;
+	if( n < 42 ) return QtmPositionBase[n];
+	return QtmPositionBase[41] + (unsigned)(n - 41);
+}
 
-	for( i=0; i<27; i++ )
-	{
-		CTX_BASE[i] = acc;
-		acc += 1u << CTX_BITS[i];
-	}
-	acc = 0;
-	for( i=0; i<43; i++ )
-	{
-		DIST_BASE[i] = acc;
-		acc += 1u << DIST_BITS[i];
-	}
+static int quantum_pos_bits( int n )
+{
+	return (n < 42) ? (int)QtmPositionExtra[n] : 0;
 }
 
 // The number of the distance classes that are valid below a limit.
@@ -61,76 +40,8 @@ static int quantum_nclasses( unsigned limit )
 {
 	int n = 0;
 
-	while( n < 43 && DIST_BASE[n] < limit ) n++;
+	while( n < 43 && quantum_pos_base(n) < limit ) n++;
 	return n;
-}
-
-//==========================================================================//
-// The models
-
-static void quantum_model_init( QuantumModel* m, int n, int total, int base )
-{
-	int i;
-
-	m->n = n;
-	for( i=0; i<=n; i++ )
-		m->cum[i] = (unsigned short)((total - i) & 0xFFFF);
-	for( i=0; i<256; i++ )
-		m->inv[i] = 0;
-	for( i=0; i<n; i++ )
-	{
-		m->sym[i] = (unsigned char)(base + i);
-		m->inv[m->sym[i]] = (unsigned char)i;
-	}
-	m->counter = 4;
-}
-
-static void quantum_model_update( QuantumModel* m, int rank )
-{
-	int i, j;
-	unsigned short t;
-	unsigned char s;
-
-	for( i=0; i<=rank; i++ )
-		m->cum[i] = (unsigned short)(m->cum[i] + 8);
-	if( m->cum[0] <= QUANTUM_RESCALE )
-		return;
-	m->counter--;
-	if( m->counter )
-	{
-		// the light rescale: halve the counts and keep them strictly
-		// decreasing
-		for( i=m->n-1; i>=0; i-- )
-		{
-			m->cum[i] = (unsigned short)(m->cum[i] >> 1);
-			if( m->cum[i] <= m->cum[i+1] )
-				m->cum[i] = (unsigned short)(m->cum[i+1] + 1);
-		}
-	}
-	else
-	{
-		// the full rescale: the counts become frequencies, the entries
-		// are sorted by their frequency (the symbol moves with its
-		// count) and the frequencies become cumulative counts again
-		m->counter = 50;
-		for( i=0; i<m->n; i++ )
-			m->cum[i] = (unsigned short)((((m->cum[i] - m->cum[i+1]) & 0xFFFF) + 1) >> 1);
-		for( i=0; i<m->n; i++ )
-		{
-			for( j=i+1; j<m->n; j++ )
-			{
-				if( m->cum[i] < m->cum[j] )
-				{
-					t = m->cum[i]; m->cum[i] = m->cum[j]; m->cum[j] = t;
-					s = m->sym[i];  m->sym[i]  = m->sym[j];  m->sym[j]  = s;
-				}
-			}
-		}
-		for( i=m->n-1; i>=0; i-- )
-			m->cum[i] = (unsigned short)(m->cum[i] + m->cum[i+1]);
-		for( i=0; i<m->n; i++ )
-			m->inv[m->sym[i]] = (unsigned char)i;
-	}
 }
 
 //==========================================================================//
@@ -181,67 +92,11 @@ static int quantum_byte( QuantumBitIn* b )
 }
 
 //==========================================================================//
-// The arithmetic decoder
+// The bit source of the shared arithmetic decoder
 
-static void quantum_arith_init( QuantumDec* d )
+static int quantum_getbit( void* ctx )
 {
-	int i;
-
-	d->low = 0;
-	d->high = 0xFFFF;
-	d->code = 0;
-	for( i=0; i<16; i++ )
-		d->code = ((d->code << 1) | (unsigned)quantum_bit(&d->in)) & 0xFFFF;
-}
-
-static void quantum_arith_update( QuantumDec* d, unsigned base, unsigned cum, unsigned total )
-{
-	unsigned rng;
-
-	rng = d->high - d->low + 1;
-	d->high = (d->low + (unsigned)(((unsigned long)rng * cum) / total) - 1) & 0xFFFF;
-	d->low  = (d->low + (unsigned)(((unsigned long)rng * base) / total)) & 0xFFFF;
-	for(;;)
-	{
-		if( (d->high & 0x8000) == (d->low & 0x8000) )
-		{
-			// the bit is decided
-		}
-		else if( (d->low & 0x4000) && !(d->high & 0x4000) )
-		{
-			// the underflow
-			d->code ^= 0x4000;
-			d->low  &= 0x3FFF;
-			d->high |= 0x4000;
-		}
-		else
-		{
-			break;
-		}
-		d->low  = (d->low  << 1) & 0xFFFF;
-		d->high = ((d->high << 1) | 1) & 0xFFFF;
-		d->code = (d->code << 1) & 0xFFFF;
-		d->code = (d->code + (unsigned)quantum_bit(&d->in)) & 0xFFFF;
-	}
-}
-
-// Decode one symbol of a model.
-static int quantum_model_decode( QuantumModel* m, QuantumDec* d )
-{
-	unsigned total, val;
-	int i, sym;
-
-	total = m->cum[0];
-	val = ((d->code - d->low + 1) * total - 1) / (d->high - d->low + 1);
-	i = 0;
-	while( i < m->n && val < m->cum[i+1] )
-		i++;
-	if( i >= m->n )
-		i = m->n - 1;
-	sym = m->sym[i];
-	quantum_arith_update( d, m->cum[i+1], m->cum[i], total );
-	quantum_model_update( m, i );
-	return sym;
+	return quantum_bit( (QuantumBitIn*)ctx );
 }
 
 //==========================================================================//
@@ -430,22 +285,22 @@ bool QuantumOpen( const char* fname, QuantumArchive* arc )
 	if( !arc->dec->win ) goto fail;
 	memset( arc->dec->win, 0, arc->window );
 
-	quantum_make_bases();
-	quantum_model_init( &arc->dec->token, 7, 7, 0 );
+	QtmInitModel( &arc->dec->token, arc->dec->tokenSyms, 0, 7, 7 );
 	for( i=0; i<4; i++ )
-		quantum_model_init( &arc->dec->literal[i], 64, 64, 64*i );
-	quantum_model_init( &arc->dec->ctx, 27, 27, 0 );
-	quantum_model_init( &arc->dec->dist_full, 43,
-						quantum_nclasses((unsigned)arc->window), 0 );
-	quantum_model_init( &arc->dec->dist_4k, 43,
-						quantum_nclasses((unsigned)((arc->window < 0x1000UL) ? arc->window : 0x1000UL)), 0 );
-	quantum_model_init( &arc->dec->dist_256k, 43,
-						quantum_nclasses((unsigned)((arc->window < 0x40000UL) ? arc->window : 0x40000UL)), 0 );
+		QtmInitModel( &arc->dec->literal[i], arc->dec->litSyms[i], 64*i, 64, 64 );
+	QtmInitModel( &arc->dec->ctx, arc->dec->ctxSyms, 0, 27, 27 );
+	QtmInitModel( &arc->dec->dist_full, arc->dec->distSyms[0], 0, QTM_ENTRIES_MAX,
+				  quantum_nclasses((unsigned)arc->window) );
+	QtmInitModel( &arc->dec->dist_4k, arc->dec->distSyms[1], 0, QTM_ENTRIES_MAX,
+				  quantum_nclasses((unsigned)((arc->window < 0x1000UL) ? arc->window : 0x1000UL)) );
+	QtmInitModel( &arc->dec->dist_256k, arc->dec->distSyms[2], 0, QTM_ENTRIES_MAX,
+				  quantum_nclasses((unsigned)((arc->window < 0x40000UL) ? arc->window : 0x40000UL)) );
 
 	// the coder is initialised once for the whole archive
 	if( fseek( fp, (long)arc->dataoff, SEEK_SET ) != 0 )
 		goto fail;
-	quantum_arith_init( arc->dec );
+	if( !QtmArithInit( &arc->dec->arith, quantum_getbit, &arc->dec->in ) )
+		goto fail;
 
 	return true;
 
@@ -499,7 +354,7 @@ bool QuantumDecodeMember( QuantumArchive* arc, int index, const char* outpath )
 
 	while( remaining > 0 )
 	{
-		int tok, k;
+		int tok, k, sym;
 
 		if( d->in.overrun > QUANTUM_MAXPAD )
 		{
@@ -508,11 +363,22 @@ bool QuantumDecodeMember( QuantumArchive* arc, int index, const char* outpath )
 			ok = false;
 			break;
 		}
-		tok = quantum_model_decode( &d->token, d );
+		if( !QtmDecodeSymbol( &d->token, &d->arith, quantum_getbit, &d->in, &tok ) )
+		{
+			ok = false;
+			break;
+		}
 		if( tok < 4 )
 		{
 			// a literal: the token is the group of the byte
-			unsigned char b = (unsigned char)quantum_model_decode( &d->literal[tok], d );
+			unsigned char b;
+			if( !QtmDecodeSymbol( &d->literal[tok], &d->arith,
+								  quantum_getbit, &d->in, &sym ) )
+			{
+				ok = false;
+				break;
+			}
+			b = (unsigned char)sym;
 			quantum_win_put( d, b );
 			produced++;
 			remaining--;
@@ -523,9 +389,17 @@ bool QuantumDecodeMember( QuantumArchive* arc, int index, const char* outpath )
 		{
 			// a match of 3 bytes, its distance is coded with the model
 			// of the distances below 4 K
-			unsigned cls = (unsigned)quantum_model_decode( &d->dist_4k, d );
-			unsigned raw = quantum_bits( &d->in, DIST_BITS[cls] );
-			unsigned long dist = DIST_BASE[cls] + raw + 1;
+			unsigned cls, raw;
+			unsigned long dist;
+			if( !QtmDecodeSymbol( &d->dist_4k, &d->arith,
+								  quantum_getbit, &d->in, &sym ) )
+			{
+				ok = false;
+				break;
+			}
+			cls = (unsigned)sym;
+			raw = quantum_bits( &d->in, quantum_pos_bits((int)cls) );
+			dist = quantum_pos_base((int)cls) + raw + 1;
 			for( k=0; k<3; k++ )
 			{
 				unsigned char b = d->win[ (d->winpos - dist) & (d->winsize-1) ];
@@ -540,9 +414,17 @@ bool QuantumDecodeMember( QuantumArchive* arc, int index, const char* outpath )
 		{
 			// a match of 4 bytes, its distance is coded with the model
 			// of the distances below 256 K
-			unsigned cls = (unsigned)quantum_model_decode( &d->dist_256k, d );
-			unsigned raw = quantum_bits( &d->in, DIST_BITS[cls] );
-			unsigned long dist = DIST_BASE[cls] + raw + 1;
+			unsigned cls, raw;
+			unsigned long dist;
+			if( !QtmDecodeSymbol( &d->dist_256k, &d->arith,
+								  quantum_getbit, &d->in, &sym ) )
+			{
+				ok = false;
+				break;
+			}
+			cls = (unsigned)sym;
+			raw = quantum_bits( &d->in, quantum_pos_bits((int)cls) );
+			dist = quantum_pos_base((int)cls) + raw + 1;
 			for( k=0; k<4; k++ )
 			{
 				unsigned char b = d->win[ (d->winpos - dist) & (d->winsize-1) ];
@@ -556,13 +438,27 @@ bool QuantumDecodeMember( QuantumArchive* arc, int index, const char* outpath )
 		else
 		{
 			// a match of 5 to 259 bytes
-			int ctxcls = quantum_model_decode( &d->ctx, d );
-			unsigned raw = quantum_bits( &d->in, CTX_BITS[ctxcls] );
-			unsigned long len = CTX_BASE[ctxcls] + raw + 5;
-			unsigned cls = (unsigned)quantum_model_decode( &d->dist_full, d );
-			unsigned long dist;
-			raw = quantum_bits( &d->in, DIST_BITS[cls] );
-			dist = DIST_BASE[cls] + raw + 1;
+			int ctxcls;
+			unsigned raw, cls;
+			unsigned long len, dist;
+			if( !QtmDecodeSymbol( &d->ctx, &d->arith,
+								  quantum_getbit, &d->in, &ctxcls ) )
+			{
+				ok = false;
+				break;
+			}
+			// the raw length bits come out before the distance symbol
+			raw = quantum_bits( &d->in, QtmLengthExtra[ctxcls] );
+			len = QtmLengthBase[ctxcls] + raw + 5;
+			if( !QtmDecodeSymbol( &d->dist_full, &d->arith,
+								  quantum_getbit, &d->in, &sym ) )
+			{
+				ok = false;
+				break;
+			}
+			cls = (unsigned)sym;
+			raw = quantum_bits( &d->in, quantum_pos_bits((int)cls) );
+			dist = quantum_pos_base((int)cls) + raw + 1;
 			for( k=0; k<(int)len; k++ )
 			{
 				unsigned char b = d->win[ (d->winpos - dist) & (d->winsize-1) ];

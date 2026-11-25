@@ -95,6 +95,7 @@ OBJS = \
     $(OBJDIR)\QipDecode.obj \
     $(OBJDIR)\QipTool.obj \
     $(OBJDIR)\OpenArchive_OpenQip.obj \
+    $(OBJDIR)\QuantumCore.obj \
     $(OBJDIR)\QuantumDecode.obj \
     $(OBJDIR)\QuantumTool.obj \
     $(OBJDIR)\Is3Decode.obj \
@@ -472,6 +473,9 @@ $(OBJDIR)\QipTool.obj : QipTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\OpenArchive_OpenQip.obj : OpenArchive\OpenQip.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QuantumCore.obj : QuantumCore.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\QuantumDecode.obj : QuantumDecode.cpp

@@ -2,6 +2,7 @@
 #define AFX_QUANTUMDECODE_H__QUANTUM_ENGINE_INCLUDED__
 
 #include "Tool.h"
+#include "QuantumCore.h"
 
 // A reader for the Quantum archives of Cinematronics / Dynamix (Quantum
 // 0.90 and 0.96, 1993-1995), which are produced by PAQ.EXE and read by
@@ -63,16 +64,9 @@ struct QuantumFile
 	int		badname;					// the stored path was not usable
 };
 
-// One adaptive model: a decreasing array of cumulative counts and the
-// mapping from the rank to the symbol.
-struct QuantumModel
-{
-	int				n;						// the number of the symbols
-	unsigned short	cum[QUANTUM_MAXSYM+1];	// the cumulative counts
-	unsigned char	sym[QUANTUM_MAXSYM];	// the symbol of every rank
-	unsigned char	inv[256];				// the rank of every symbol
-	int				counter;				// to the next full rescale
-};
+// The frequency models and the arithmetic coder are shared with the
+// Cabinet Quantum engine (QuantumCore.h); only the bit source and the
+// model sizes described above belong to this format.
 
 // The bit reader.  When the input is exhausted it serves zero bits and
 // counts them, so that a truncated archive is detected instead of being
@@ -93,13 +87,17 @@ struct QuantumBitIn
 struct QuantumDec
 {
 	QuantumBitIn	in;
-	unsigned		low, high, code;
-	QuantumModel	token;			// the 7 token symbols
-	QuantumModel	literal[4];		// one literal model per group of 64
-	QuantumModel	ctx;				// the 27 length classes
-	QuantumModel	dist_full;		// the distance classes of the window
-	QuantumModel	dist_4k;			// the distance classes below 4 K
-	QuantumModel	dist_256k;		// the distance classes below 256 K
+	QtmArith		arith;
+	QtmModel		token;			// the 7 token symbols
+	QtmModel		literal[4];		// one literal model per group of 64
+	QtmModel		ctx;			// the 27 length classes
+	QtmModel		dist_full;		// the distance classes of the window
+	QtmModel		dist_4k;		// the distance classes below 4 K
+	QtmModel		dist_256k;		// the distance classes below 256 K
+	QtmSym			tokenSyms[8];
+	QtmSym			litSyms[4][QUANTUM_MAXSYM+1];
+	QtmSym			ctxSyms[28];
+	QtmSym			distSyms[3][QTM_ENTRIES_MAX+1];
 	unsigned char*	win;			// the sliding window
 	unsigned long	winpos;
 	unsigned long	winsize;

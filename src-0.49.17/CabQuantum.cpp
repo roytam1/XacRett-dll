@@ -1,44 +1,12 @@
 #include "stdafx.h"
 #include "CabQuantum.h"
+#include "QuantumCore.h"
 
 #define QTM_FRAME_SIZE		32768
 #define QTM_INPUT_MAX		65536
 
-// The position slots: the base of every slot and the number of extra
-// bits that go with it.
-static const unsigned int qtmPositionBase[42] = {
-	  0,   1,   2,   3,   4,   6,   8,  12,  16,  24,  32,  48,  64,  96, 128, 192,
-	256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096, 6144, 8192, 12288, 16384, 24576,
-	32768, 49152, 65536, 98304, 131072, 196608, 262144, 393216, 524288, 786432, 1048576, 1572864
-};
-static const unsigned char qtmExtraBits[42] = {
-	 0,  0,  0,  0,  1,  1,  2,  2,  3,  3,  4,  4,  5,  5,  6,  6,
-	 7,  7,  8,  8,  9,  9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14,
-	15, 15, 16, 16, 17, 17, 18, 18, 19, 19
-};
-
-// The lengths of the variable length matches.
-static const unsigned char qtmLengthBase[27] = {
-	  0,  1,  2,  3,  4,  5,  6,  8, 10, 12, 14, 18, 22, 26,
-	 30, 38, 46, 54, 62, 78, 94, 110, 126, 158, 190, 222, 254
-};
-static const unsigned char qtmLengthExtra[27] = {
-	0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2,
-	3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0
-};
-
-struct CabQtmSym
-{
-	unsigned short	sym;
-	unsigned short	cumfreq;
-};
-
-struct CabQtmModel
-{
-	int				shiftsLeft;
-	int				entries;
-	CabQtmSym*		syms;
-};
+// The codec (models, arithmetic coder and tables) is shared with the .Q
+// archives; only the framing and the model sizes live here.
 
 struct CabQuantumDecoder
 {
@@ -62,21 +30,21 @@ struct CabQuantumDecoder
 	unsigned long	frameTodo;
 
 	// the arithmetic coder
-	unsigned short	H, L, C;
+	QtmArith		arith;
 	int				headerRead;
 
 	// the models
-	CabQtmModel	model0, model1, model2, model3;
-	CabQtmModel	model4, model5, model6, model6len, model7;
-	CabQtmSym		m0sym[64+1];
-	CabQtmSym		m1sym[64+1];
-	CabQtmSym		m2sym[64+1];
-	CabQtmSym		m3sym[64+1];
-	CabQtmSym		m4sym[24+1];
-	CabQtmSym		m5sym[36+1];
-	CabQtmSym		m6sym[42+1];
-	CabQtmSym		m6lsym[27+1];
-	CabQtmSym		m7sym[7+1];
+	QtmModel	model0, model1, model2, model3;
+	QtmModel	model4, model5, model6, model6len, model7;
+	QtmSym			m0sym[64+1];
+	QtmSym			m1sym[64+1];
+	QtmSym			m2sym[64+1];
+	QtmSym			m3sym[64+1];
+	QtmSym			m4sym[24+1];
+	QtmSym			m5sym[36+1];
+	QtmSym			m6sym[42+1];
+	QtmSym			m6lsym[27+1];
+	QtmSym			m7sym[7+1];
 };
 
 // ------------------------------------------------------------------
@@ -173,106 +141,18 @@ static void qtmAlign( CabQuantumDecoder *d )
 }
 
 // ------------------------------------------------------------------
-// The models.
-// ------------------------------------------------------------------
+// The bit source of the shared arithmetic decoder.
 
-static void qtmInitModel( CabQtmModel *m, CabQtmSym *syms, int start, int len )
+static int qtm_getbit( void* ctx )
 {
-	int i;
+	CabQuantumDecoder* d = (CabQuantumDecoder*)ctx;
+	unsigned int bit;
 
-	m->shiftsLeft = 4;
-	m->entries = len;
-	m->syms = syms;
-	for( i=0; i<=len; i++ ) {
-		syms[i].sym = (unsigned short)(start+i);
-		syms[i].cumfreq = (unsigned short)(len-i);
+	if( !qtmGetBits( d, 1, &bit ) ) {
+		d->eof = 1;
+		return -1;
 	}
-}
-
-// When the frequencies have grown too big, they are halved and the
-// symbols are put in the order of their frequencies again.
-static void qtmUpdateModel( CabQtmModel *m )
-{
-	CabQtmSym tmp;
-	int i, j;
-
-	if( --m->shiftsLeft ) {
-		for( i=m->entries-1; i>=0; i-- ) {
-			m->syms[i].cumfreq >>= 1;
-			if( m->syms[i].cumfreq <= m->syms[i+1].cumfreq ) {
-				m->syms[i].cumfreq = (unsigned short)(m->syms[i+1].cumfreq+1);
-			}
-		}
-	}
-	else {
-		m->shiftsLeft = 50;
-		for( i=0; i<m->entries; i++ ) {
-			m->syms[i].cumfreq -= m->syms[i+1].cumfreq;
-			m->syms[i].cumfreq++;
-			m->syms[i].cumfreq >>= 1;
-		}
-		// the symbols are put in the order of their frequencies
-		for( i=0; i<m->entries-1; i++ ) {
-			for( j=i+1; j<m->entries; j++ ) {
-				if( m->syms[i].cumfreq < m->syms[j].cumfreq ) {
-					tmp = m->syms[i];
-					m->syms[i] = m->syms[j];
-					m->syms[j] = tmp;
-				}
-			}
-		}
-		for( i=m->entries-1; i>=0; i-- ) {
-			m->syms[i].cumfreq += m->syms[i+1].cumfreq;
-		}
-	}
-}
-
-// Read one symbol from a model.
-static int qtmGetSymbol( CabQuantumDecoder *d, CabQtmModel *m, int *var )
-{
-	unsigned int range, symf;
-	unsigned short H = d->H, L = d->L, C = d->C;
-	int i;
-
-	range = (unsigned int)(((H-L) & 0xFFFF) + 1);
-	symf = (unsigned int)(((((unsigned int)(C-L+1) * m->syms[0].cumfreq) - 1) / range) & 0xFFFF);
-
-	for( i=1; i<m->entries; i++ ) {
-		if( m->syms[i].cumfreq <= symf ) break;
-	}
-	*var = m->syms[i-1].sym;
-
-	range = (unsigned int)(H-L) + 1;
-	symf = m->syms[0].cumfreq;
-	H = (unsigned short)( L + ((m->syms[i-1].cumfreq * range) / symf) - 1 );
-	L = (unsigned short)( L + ((m->syms[i].cumfreq   * range) / symf) );
-
-	do { m->syms[--i].cumfreq += 8; } while( i>0 );
-	if( m->syms[0].cumfreq > 3800 ) qtmUpdateModel( m );
-
-	// put the coder back in line
-	for(;;) {
-		if( (L & 0x8000) != (H & 0x8000) ) {
-			if( (L & 0x4000) && !(H & 0x4000) ) {
-				C ^= 0x4000;
-				L &= 0x3FFF;
-				H |= 0x4000;
-			}
-			else break;
-		}
-		L = (unsigned short)( L << 1 );
-		H = (unsigned short)( (H << 1) | 1 );
-		{
-			unsigned int bit;
-			if( !qtmGetBits( d, 1, &bit ) ) return 0;
-			C = (unsigned short)( (C << 1) | bit );
-		}
-	}
-
-	d->H = H;
-	d->L = L;
-	d->C = C;
-	return 1;
+	return (int)bit;
 }
 
 // ------------------------------------------------------------------
@@ -303,15 +183,15 @@ CabQuantumDecoder* CabQuantumCreate( int windowBits,
 
 	// the models: the size of the match models depends on the window
 	i = windowBits * 2;
-	qtmInitModel( &d->model0,    &d->m0sym[0],   0, 64 );
-	qtmInitModel( &d->model1,    &d->m1sym[0],  64, 64 );
-	qtmInitModel( &d->model2,    &d->m2sym[0], 128, 64 );
-	qtmInitModel( &d->model3,    &d->m3sym[0], 192, 64 );
-	qtmInitModel( &d->model4,    &d->m4sym[0],   0, (i>24) ? 24 : i );
-	qtmInitModel( &d->model5,    &d->m5sym[0],   0, (i>36) ? 36 : i );
-	qtmInitModel( &d->model6,    &d->m6sym[0],   0, i );
-	qtmInitModel( &d->model6len, &d->m6lsym[0],  0, 27 );
-	qtmInitModel( &d->model7,    &d->m7sym[0],   0, 7 );
+	QtmInitModel( &d->model0,    &d->m0sym[0],   0, 64, 64 );
+	QtmInitModel( &d->model1,    &d->m1sym[0],  64, 64, 64 );
+	QtmInitModel( &d->model2,    &d->m2sym[0], 128, 64, 64 );
+	QtmInitModel( &d->model3,    &d->m3sym[0], 192, 64, 64 );
+	QtmInitModel( &d->model4,    &d->m4sym[0],   0, (i>24) ? 24 : i, (i>24) ? 24 : i );
+	QtmInitModel( &d->model5,    &d->m5sym[0],   0, (i>36) ? 36 : i, (i>36) ? 36 : i );
+	QtmInitModel( &d->model6,    &d->m6sym[0],   0, i, i );
+	QtmInitModel( &d->model6len, &d->m6lsym[0],  0, 27, 27 );
+	QtmInitModel( &d->model7,    &d->m7sym[0],   0, 7, 7 );
 
 	return d;
 }
@@ -365,11 +245,7 @@ bool CabQuantumDecode( CabQuantumDecoder* d, unsigned char *out, unsigned long l
 
 		// the header of a frame, which starts the arithmetic coder
 		if( !d->headerRead ) {
-			unsigned int v;
-			d->H = 0xFFFF;
-			d->L = 0;
-			if( !qtmGetBits( d, 16, &v ) ) return false;
-			d->C = (unsigned short)v;
+			if( !QtmArithInit( &d->arith, qtm_getbit, d ) ) return false;
 			d->headerRead = 1;
 		}
 
@@ -384,13 +260,13 @@ bool CabQuantumDecode( CabQuantumDecoder* d, unsigned char *out, unsigned long l
 			int selector, sym, extra, matchLength;
 			unsigned int matchOffset;
 
-			if( !qtmGetSymbol( d, &d->model7, &selector ) ) return false;
+			if( !QtmDecodeSymbol( &d->model7, &d->arith, qtm_getbit, d, &selector ) ) return false;
 			if( selector < 4 ) {
 				// a literal byte
-				CabQtmModel* m = (selector==0) ? &d->model0 :
-								 (selector==1) ? &d->model1 :
-								 (selector==2) ? &d->model2 : &d->model3;
-				if( !qtmGetSymbol( d, m, &sym ) ) return false;
+				QtmModel* m = (selector==0) ? &d->model0 :
+							  (selector==1) ? &d->model1 :
+							  (selector==2) ? &d->model2 : &d->model3;
+				if( !QtmDecodeSymbol( m, &d->arith, qtm_getbit, d, &sym ) ) return false;
 				d->window[d->windowPosn++] = (unsigned char)sym;
 				d->frameTodo--;
 				continue;
@@ -399,26 +275,26 @@ bool CabQuantumDecode( CabQuantumDecoder* d, unsigned char *out, unsigned long l
 			switch( selector )
 			{
 			case 4:		// a match of three bytes
-				if( !qtmGetSymbol( d, &d->model4, &sym ) ) return false;
-				if( !qtmGetManyBits( d, qtmExtraBits[sym], (unsigned int*)&extra ) ) return false;
-				matchOffset = qtmPositionBase[sym] + (unsigned int)extra + 1;
+				if( !QtmDecodeSymbol( &d->model4, &d->arith, qtm_getbit, d, &sym ) ) return false;
+				if( !qtmGetManyBits( d, QtmPositionExtra[sym], (unsigned int*)&extra ) ) return false;
+				matchOffset = QtmPositionBase[sym] + (unsigned int)extra + 1;
 				matchLength = 3;
 				break;
 
 			case 5:		// a match of four bytes
-				if( !qtmGetSymbol( d, &d->model5, &sym ) ) return false;
-				if( !qtmGetManyBits( d, qtmExtraBits[sym], (unsigned int*)&extra ) ) return false;
-				matchOffset = qtmPositionBase[sym] + (unsigned int)extra + 1;
+				if( !QtmDecodeSymbol( &d->model5, &d->arith, qtm_getbit, d, &sym ) ) return false;
+				if( !qtmGetManyBits( d, QtmPositionExtra[sym], (unsigned int*)&extra ) ) return false;
+				matchOffset = QtmPositionBase[sym] + (unsigned int)extra + 1;
 				matchLength = 4;
 				break;
 
 			case 6:		// a match of a length that is coded as well
-				if( !qtmGetSymbol( d, &d->model6len, &sym ) ) return false;
-				if( !qtmGetManyBits( d, qtmLengthExtra[sym], (unsigned int*)&extra ) ) return false;
-				matchLength = qtmLengthBase[sym] + extra + 5;
-				if( !qtmGetSymbol( d, &d->model6, &sym ) ) return false;
-				if( !qtmGetManyBits( d, qtmExtraBits[sym], (unsigned int*)&extra ) ) return false;
-				matchOffset = qtmPositionBase[sym] + (unsigned int)extra + 1;
+				if( !QtmDecodeSymbol( &d->model6len, &d->arith, qtm_getbit, d, &sym ) ) return false;
+				if( !qtmGetManyBits( d, QtmLengthExtra[sym], (unsigned int*)&extra ) ) return false;
+				matchLength = QtmLengthBase[sym] + extra + 5;
+				if( !QtmDecodeSymbol( &d->model6, &d->arith, qtm_getbit, d, &sym ) ) return false;
+				if( !qtmGetManyBits( d, QtmPositionExtra[sym], (unsigned int*)&extra ) ) return false;
+				matchOffset = QtmPositionBase[sym] + (unsigned int)extra + 1;
 				break;
 
 			default:

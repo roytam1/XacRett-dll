@@ -4202,6 +4202,41 @@ byte identical to the original `UNPAQ.EXE`** (14 files compared).  The
 negatives (truncations, flipped bits, garbage) fail loudly with no
 output, no hang and no crash.
 
+## Quantum: one shared codec core for .Q and Cabinet Quantum
+
+The two Quantum engines use the **same codec**.  The model, the carry-less
+arithmetic coder and the length/position tables now live once in
+`QuantumCore.cpp/.h`; `QuantumDecode.cpp` (.Q archives) and `CabQuantum.cpp`
+(Cabinet method 2) keep only their framing and model sizes.
+
+Evidence that the streams really are identical: a Python transliteration
+of the .Q decoder, fed the CAB Quantum bitstream of
+`fixtures/cab/LICENCE-quantum.cab`, reproduced all 18,340 output bytes
+when the distance-full model had CAB's 42 entries; with the .Q model
+cardinality it diverged at byte 34.  So only two things differ:
+
+- **framing**: CAB cuts the data into 32 KB frames with a 16-bit coder
+  header and a 0xFF padded tail each; .Q is one continuous stream with a
+  16-bit CRC behind every member;
+- **model sizes**: CAB caps the 4K/256K distance models at 24/36 and
+  sizes the full one at `2*windowBits`; .Q derives all of them with
+  `nclasses()`, which yields a 43-entry table for the full model at
+  window 21.
+
+The bit readers look different but produce the same bit sequence (CAB
+reads 16-bit words big-endian, .Q reads bytes MSB-first), so both now
+call `QtmDecodeSymbol` through a `QtmGetBit` callback.  Reading raw
+bits between two arithmetic symbols matters: in a token-6 match the
+length extras are consumed *before* the distance symbol is decoded.
+
+Verified after the refactor: a 16-file A/B over both .Q fixtures and both
+Quantum CAB fixtures is byte-identical to the pre-change DLL; listings
+are unchanged; three corruption negatives fail exactly as before
+(0x8013, same partial output); `runnewmatrix.py` still shows only the six
+known-stale zstd-sandwich failures; VC6 full build/link 0 FAIL and VC4
+compiles all three units.  Both new files were added to `XacRett.dsp`,
+`Makefile.vc4` and `Makefile.win64`.
+
 ## InstallShield 3 (.Z archives) -- DONE
 
 `ARCHIVETYPE_IS3` 84 (`CIs3Tool` / `COpenIs3`, engine `Is3Decode.h/.cpp`).
