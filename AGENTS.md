@@ -4339,6 +4339,29 @@ applies: this tree's Deflate64 patch makes `uncompress()` unusable, so use
 `inflateInit2(-15)` explicitly.  Generation is TEMP-only (`uha_compress_gen.py`,
 `uha_cfix.py`, `uha_initcalls.py`); the sources carry a "Generated" banner.
 
+## Brotli file providers: .br, .tar.br, .cpio.br
+
+`ARCHIVETYPE_BR` 85 / `TBR` 86 / `CPIOBR` 87 (`BrotliDecode.h/.cpp`,
+`BrTool.cpp`, `OpenArchive/OpenBr.cpp`, plus `CTbrTool`/`COpenTbr` in the
+tar pair and `CCpioBrTool`/`COpenCpioBr` in the cpio pair).  The three
+registration pairs sit at the very END of `DllSub`, after IS3: a `.br`
+stream has no magic, so `CBrTool::Check` is a bounded 4 KB decode and must
+not preempt any stricter provider in the fallback sweep.  `IsType("br")`
+plus that Check is enough: for `.tar.br` / `.cpio.br` the inherited
+CTarTool/CCpioTool Check decodes and validates the container, so they win.
+
+`BrotliDecode.cpp` now owns the dictionary blob and `BrotliEnsureDictionary()`;
+`CZipTool::UnBrotli` calls it too, so ZIP method 0x81 and the new providers
+share one 123 KB buffer.  The stream decoder is multi-stream tolerant and
+accepts concatenated members, like `.zst`.  Standalone listing shows one
+member with size 0 (no size field in the format) and `mode='brotli'`.
+
+Verified with `fixtures/brotli/` (LICENCE + tar/cpio of text, binary,
+empty file, nested path): extraction matches the expected trees byte for
+byte, corrupt/truncated streams fail loudly, and `platform.ja`, `omni.ja`,
+`runnewmatrix.py` and the 357-archive UHARC corpus are unchanged.  VC6
+build/link 0 FAIL; VC4 compiles all nine touched units.
+
 ## Reproducing the compressed tables
 
 Both table-compression steps are reproducible entirely from the tree:

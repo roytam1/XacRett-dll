@@ -329,6 +329,18 @@ SOURCE=.\ImpTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\BrTool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\BrotliDecode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenBr.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\Is3Decode.cpp
 # End Source File
 # Begin Source File

@@ -98,6 +98,9 @@ OBJS = \
     $(OBJDIR)\QuantumCore.obj \
     $(OBJDIR)\QuantumDecode.obj \
     $(OBJDIR)\QuantumTool.obj \
+    $(OBJDIR)\BrTool.obj \
+    $(OBJDIR)\BrotliDecode.obj \
+    $(OBJDIR)\OpenArchive_OpenBr.obj \
     $(OBJDIR)\Is3Decode.obj \
     $(OBJDIR)\Is3Tool.obj \
     $(OBJDIR)\OpenArchive_OpenIs3.obj \
@@ -495,6 +498,15 @@ $(OBJDIR)\QuantumDecode.obj : QuantumDecode.cpp
 
 $(OBJDIR)\QuantumTool.obj : QuantumTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+$(OBJDIR)\BrTool.obj : BrTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\BrotliDecode.obj : BrotliDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenBr.obj : OpenArchive\OpenBr.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
 $(OBJDIR)\Is3Decode.obj : Is3Decode.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 $(OBJDIR)\Is3Tool.obj : Is3Tool.cpp

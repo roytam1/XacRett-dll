@@ -203,6 +203,23 @@ private:
 	bool tmpLive;
 };
 
+class CTbrTool : public CTarTool
+{
+// .tar.br via whole-file Brotli decode to a temp file
+// (same design as CTzstTool: full tar validation reused).
+public:
+	CTbrTool() : CTarTool("Tar+Brotli Extract") {tmpPath[0]=0; tmpLive=false;};
+	bool IsType( const char* ext )
+		{return 0==stricmp(ext,"br") || 0==stricmp(ext,"tbr");}
+protected:
+	bool   TarOpen(const char* fname);
+	size_t TarRead(void* red,size_t size);
+	void   TarClose();
+private:
+	char tmpPath[MAX_PATH];
+	bool tmpLive;
+};
+
 class CTazTool : public CTarTool
 {
 // see complib.h

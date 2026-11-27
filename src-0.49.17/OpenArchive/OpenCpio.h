@@ -112,4 +112,17 @@ private:
 	bool tmpLive;
 };
 
+class COpenCpioBr : public COpenCpio
+{
+public:
+	COpenCpioBr() : COpenCpio() {tmpPath[0]=0; tmpLive=false;};
+protected:
+	virtual bool   CpioOpen(const char* fname);
+	virtual size_t CpioRead(void* red,size_t size);
+	virtual void   CpioClose();
+private:
+	char tmpPath[MAX_PATH];
+	bool tmpLive;
+};
+
 #endif

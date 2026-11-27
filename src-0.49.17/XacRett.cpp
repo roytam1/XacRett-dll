@@ -166,8 +166,11 @@ using namespace std;   //こいつを入れないと使えません。
 #include "OpenArchive\OpenQip.h"
 #include "QuantumTool.h"
 #include "Is3Tool.h"
+#include "BrTool.h"
+#include "BrotliDecode.h"
 #include "OpenArchive\OpenQuantum.h"
 #include "OpenArchive\OpenIs3.h"
+#include "OpenArchive\OpenBr.h"
 #include "OpenArchive\OpenDummy.h"//未対応用のダミー
 
 #ifndef _DEBUG
@@ -750,6 +753,18 @@ void DllSub(void)//ロードする
 
 	t=t->AddTail( new CIs3Tool );
 	o=o->AddTail( new COpenIs3);
+	ArchiveListMap[t]=o;
+
+	t=t->AddTail( new CTbrTool );
+	o=o->AddTail( new COpenTbr);
+	ArchiveListMap[t]=o;
+
+	t=t->AddTail( new CCpioBrTool );
+	o=o->AddTail( new COpenCpioBr);
+	ArchiveListMap[t]=o;
+
+	t=t->AddTail( new CBrTool );
+	o=o->AddTail( new COpenBr);
 	ArchiveListMap[t]=o;
 
 	g_pToolList->Msg=RegisterWindowMessage(WM_ARCEXTRACT);
@@ -1382,6 +1397,12 @@ int ArcNameToNum(LPCSTR buffer )
 		return ARCHIVETYPE_QUANTUM;
 	else if (lstrcmp(buffer,"Is3 Extract")==0)
 		return ARCHIVETYPE_IS3;
+	else if (lstrcmp(buffer,"Brotli Extract")==0)
+		return ARCHIVETYPE_BR;
+	else if (lstrcmp(buffer,"Tar+Brotli Extract")==0)
+		return ARCHIVETYPE_TBR;
+	else if (lstrcmp(buffer,"Cpio+Brotli Extract")==0)
+		return ARCHIVETYPE_CPIOBR;
 	else
 		return ARCHIVETYPE_UNKNOWN ;
 }

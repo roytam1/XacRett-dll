@@ -139,25 +139,6 @@ OBJS = \
     $(OBJDIR)\BsaCodec_cpp.obj \
     $(OBJDIR)\BsaDecode_cpp.obj \
     $(OBJDIR)\BsaTool_cpp.obj \
-    $(OBJDIR)\UhaTool_cpp.obj \
-    $(OBJDIR)\QipDecode_cpp.obj \
-    $(OBJDIR)\QipTool_cpp.obj \
-    $(OBJDIR)\QuantumCore_cpp.obj \
-    $(OBJDIR)\QuantumDecode_cpp.obj \
-    $(OBJDIR)\QuantumTool_cpp.obj \
-    $(OBJDIR)\Is3Decode_cpp.obj \
-    $(OBJDIR)\Is3Tool_cpp.obj \
-    $(OBJDIR)\uharc_UhaCrypt_cpp.obj \
-    $(OBJDIR)\uharc_UhaDecode_cpp.obj \
-    $(OBJDIR)\uharc_UhaDec0_cpp.obj \
-    $(OBJDIR)\uharc_UhaDec2_cpp.obj \
-    $(OBJDIR)\uharc_UhaDec3_cpp.obj \
-    $(OBJDIR)\uharc_UhaDec5_cpp.obj \
-    $(OBJDIR)\uharc_UhaDec4_06_cpp.obj \
-    $(OBJDIR)\uharc_UhaDec4_04_cpp.obj \
-    $(OBJDIR)\uharc_UhaDec4_03_cpp.obj \
-    $(OBJDIR)\uharc_uha04_dec4_seed_c.obj \
-    $(OBJDIR)\uharc_uha03_dec4_dg_c.obj \
     $(OBJDIR)\Bz2Tool_cpp.obj \
     $(OBJDIR)\CabDecode_cpp.obj \
     $(OBJDIR)\CabLzx_cpp.obj \
@@ -194,6 +175,11 @@ OBJS = \
     $(OBJDIR)\GzTool_cpp.obj \
     $(OBJDIR)\HqxTool_cpp.obj \
     $(OBJDIR)\ImpTool_cpp.obj \
+    $(OBJDIR)\BrTool_cpp.obj \
+    $(OBJDIR)\BrotliDecode_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenBr_cpp.obj \
+    $(OBJDIR)\Is3Decode_cpp.obj \
+    $(OBJDIR)\Is3Tool_cpp.obj \
     $(OBJDIR)\IshTool_cpp.obj \
     $(OBJDIR)\IsoTool_cpp.obj \
     $(OBJDIR)\IsTool_cpp.obj \
@@ -216,7 +202,12 @@ OBJS = \
     $(OBJDIR)\MSCompressTool_cpp.obj \
     $(OBJDIR)\PackzTool_cpp.obj \
     $(OBJDIR)\PitTool_cpp.obj \
+    $(OBJDIR)\QipDecode_cpp.obj \
+    $(OBJDIR)\QipTool_cpp.obj \
     $(OBJDIR)\QPakTool_cpp.obj \
+    $(OBJDIR)\QuantumCore_cpp.obj \
+    $(OBJDIR)\QuantumDecode_cpp.obj \
+    $(OBJDIR)\QuantumTool_cpp.obj \
     $(OBJDIR)\Rar3Tool_cpp.obj \
     $(OBJDIR)\RarTool_cpp.obj \
     $(OBJDIR)\RezTool_cpp.obj \
@@ -232,6 +223,16 @@ OBJS = \
     $(OBJDIR)\StdAfx_cpp.obj \
     $(OBJDIR)\TarTool_cpp.obj \
     $(OBJDIR)\Tool_cpp.obj \
+    $(OBJDIR)\uharc_UhaCrypt_cpp.obj \
+    $(OBJDIR)\uharc_UhaDec0_cpp.obj \
+    $(OBJDIR)\uharc_UhaDec2_cpp.obj \
+    $(OBJDIR)\uharc_UhaDec3_cpp.obj \
+    $(OBJDIR)\uharc_UhaDec4_03_cpp.obj \
+    $(OBJDIR)\uharc_UhaDec4_04_cpp.obj \
+    $(OBJDIR)\uharc_UhaDec4_06_cpp.obj \
+    $(OBJDIR)\uharc_UhaDec5_cpp.obj \
+    $(OBJDIR)\uharc_UhaDecode_cpp.obj \
+    $(OBJDIR)\UhaTool_cpp.obj \
     $(OBJDIR)\UnixDecoderTool_cpp.obj \
     $(OBJDIR)\XacRett_cpp.obj \
     $(OBJDIR)\XzDecode_cpp.obj \
@@ -245,22 +246,10 @@ OBJS = \
     $(OBJDIR)\ZooTool_cpp.obj \
     $(OBJDIR)\ZstdTool_cpp.obj \
     $(OBJDIR)\OpenArchive_OpenBsa_cpp.obj \
-    $(OBJDIR)\OpenArchive_OpenUha_cpp.obj \
+    $(OBJDIR)\OpenArchive_OpenIs3_cpp.obj \
     $(OBJDIR)\OpenArchive_OpenQip_cpp.obj \
     $(OBJDIR)\OpenArchive_OpenQuantum_cpp.obj \
-    $(OBJDIR)\OpenArchive_OpenIs3_cpp.obj \
-    $(OBJDIR)\brotli_common_constants_c.obj \
-    $(OBJDIR)\brotli_common_context_c.obj \
-    $(OBJDIR)\brotli_common_dictionary_c.obj \
-    $(OBJDIR)\brotli_common_platform_c.obj \
-    $(OBJDIR)\brotli_common_shared_dictionary_c.obj \
-    $(OBJDIR)\brotli_common_transform_c.obj \
-    $(OBJDIR)\brotli_dec_bit_reader_c.obj \
-    $(OBJDIR)\brotli_dec_decode_c.obj \
-    $(OBJDIR)\brotli_dec_huffman_c.obj \
-    $(OBJDIR)\brotli_dec_prefix_c.obj \
-    $(OBJDIR)\brotli_dec_state_c.obj \
-    $(OBJDIR)\brotli_dec_static_init_c.obj \
+    $(OBJDIR)\OpenArchive_OpenUha_cpp.obj \
     $(OBJDIR)\zlib_adler32_c.obj \
     $(OBJDIR)\zlib_crc32_c.obj \
     $(OBJDIR)\zlib_gzclose_c.obj \
@@ -402,7 +391,21 @@ OBJS = \
     $(OBJDIR)\lhasa_lzs_decoder_c.obj \
     $(OBJDIR)\lhasa_null_decoder_c.obj \
     $(OBJDIR)\lhasa_pm1_decoder_c.obj \
-    $(OBJDIR)\lhasa_pm2_decoder_c.obj
+    $(OBJDIR)\lhasa_pm2_decoder_c.obj \
+    $(OBJDIR)\brotli_dec_bit_reader_c.obj \
+    $(OBJDIR)\brotli_common_constants_c.obj \
+    $(OBJDIR)\brotli_common_context_c.obj \
+    $(OBJDIR)\brotli_dec_decode_c.obj \
+    $(OBJDIR)\brotli_common_dictionary_c.obj \
+    $(OBJDIR)\brotli_dec_huffman_c.obj \
+    $(OBJDIR)\brotli_common_platform_c.obj \
+    $(OBJDIR)\brotli_dec_prefix_c.obj \
+    $(OBJDIR)\brotli_common_shared_dictionary_c.obj \
+    $(OBJDIR)\brotli_dec_state_c.obj \
+    $(OBJDIR)\brotli_dec_static_init_c.obj \
+    $(OBJDIR)\brotli_common_transform_c.obj \
+    $(OBJDIR)\uharc_uha03_dec4_dg_c.obj \
+    $(OBJDIR)\uharc_uha04_dec4_seed_c.obj
 
 all : dirs $(OBJS) $(OBJDIR)\XacRett.res $(UNRARLIB) $(OUTDIR)\XacRett.dll
 
@@ -472,63 +475,6 @@ $(OBJDIR)\BsaDecode_cpp.obj : BsaDecode.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\BsaTool_cpp.obj : BsaTool.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\UhaTool_cpp.obj : UhaTool.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\QipDecode_cpp.obj : QipDecode.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\QipTool_cpp.obj : QipTool.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\QuantumCore_cpp.obj : QuantumCore.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\QuantumDecode_cpp.obj : QuantumDecode.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\QuantumTool_cpp.obj : QuantumTool.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\Is3Decode_cpp.obj : Is3Decode.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\Is3Tool_cpp.obj : Is3Tool.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\uharc_UhaCrypt_cpp.obj : uharc\UhaCrypt.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\uharc_UhaDecode_cpp.obj : uharc\UhaDecode.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\uharc_UhaDec0_cpp.obj : uharc\UhaDec0.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\uharc_UhaDec2_cpp.obj : uharc\UhaDec2.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\uharc_UhaDec3_cpp.obj : uharc\UhaDec3.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\uharc_UhaDec5_cpp.obj : uharc\UhaDec5.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\uharc_UhaDec4_06_cpp.obj : uharc\UhaDec4_06.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\uharc_UhaDec4_04_cpp.obj : uharc\UhaDec4_04.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\uharc_UhaDec4_03_cpp.obj : uharc\UhaDec4_03.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\uharc_uha04_dec4_seed_c.obj : uharc\uha04_dec4_seed.c
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\uharc_uha03_dec4_dg_c.obj : uharc\uha03_dec4_dg.c
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\Bz2Tool_cpp.obj : Bz2Tool.cpp
@@ -639,6 +585,21 @@ $(OBJDIR)\HqxTool_cpp.obj : HqxTool.cpp
 $(OBJDIR)\ImpTool_cpp.obj : ImpTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
+$(OBJDIR)\BrTool_cpp.obj : BrTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\BrotliDecode_cpp.obj : BrotliDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\OpenArchive_OpenBr_cpp.obj : OpenArchive\OpenBr.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\Is3Decode_cpp.obj : Is3Decode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\Is3Tool_cpp.obj : Is3Tool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
 $(OBJDIR)\IshTool_cpp.obj : IshTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
@@ -705,7 +666,22 @@ $(OBJDIR)\PackzTool_cpp.obj : PackzTool.cpp
 $(OBJDIR)\PitTool_cpp.obj : PitTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
+$(OBJDIR)\QipDecode_cpp.obj : QipDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QipTool_cpp.obj : QipTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
 $(OBJDIR)\QPakTool_cpp.obj : QPakTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QuantumCore_cpp.obj : QuantumCore.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QuantumDecode_cpp.obj : QuantumDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\QuantumTool_cpp.obj : QuantumTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\Rar3Tool_cpp.obj : Rar3Tool.cpp
@@ -753,6 +729,36 @@ $(OBJDIR)\TarTool_cpp.obj : TarTool.cpp
 $(OBJDIR)\Tool_cpp.obj : Tool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
+$(OBJDIR)\uharc_UhaCrypt_cpp.obj : uharc\UhaCrypt.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_UhaDec0_cpp.obj : uharc\UhaDec0.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_UhaDec2_cpp.obj : uharc\UhaDec2.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_UhaDec3_cpp.obj : uharc\UhaDec3.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_UhaDec4_03_cpp.obj : uharc\UhaDec4_03.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_UhaDec4_04_cpp.obj : uharc\UhaDec4_04.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_UhaDec4_06_cpp.obj : uharc\UhaDec4_06.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_UhaDec5_cpp.obj : uharc\UhaDec5.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_UhaDecode_cpp.obj : uharc\UhaDecode.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\UhaTool_cpp.obj : UhaTool.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
 $(OBJDIR)\UnixDecoderTool_cpp.obj : UnixDecoderTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
@@ -792,7 +798,7 @@ $(OBJDIR)\ZstdTool_cpp.obj : ZstdTool.cpp
 $(OBJDIR)\OpenArchive_OpenBsa_cpp.obj : OpenArchive\OpenBsa.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
-$(OBJDIR)\OpenArchive_OpenUha_cpp.obj : OpenArchive\OpenUha.cpp
+$(OBJDIR)\OpenArchive_OpenIs3_cpp.obj : OpenArchive\OpenIs3.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\OpenArchive_OpenQip_cpp.obj : OpenArchive\OpenQip.cpp
@@ -801,43 +807,7 @@ $(OBJDIR)\OpenArchive_OpenQip_cpp.obj : OpenArchive\OpenQip.cpp
 $(OBJDIR)\OpenArchive_OpenQuantum_cpp.obj : OpenArchive\OpenQuantum.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
-$(OBJDIR)\OpenArchive_OpenIs3_cpp.obj : OpenArchive\OpenIs3.cpp
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\brotli_common_constants_c.obj : brotli\common\constants.c
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\brotli_common_context_c.obj : brotli\common\context.c
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\brotli_common_dictionary_c.obj : brotli\common\dictionary.c
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\brotli_common_platform_c.obj : brotli\common\platform.c
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\brotli_common_shared_dictionary_c.obj : brotli\common\shared_dictionary.c
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\brotli_common_transform_c.obj : brotli\common\transform.c
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\brotli_dec_bit_reader_c.obj : brotli\dec\bit_reader.c
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\brotli_dec_decode_c.obj : brotli\dec\decode.c
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\brotli_dec_huffman_c.obj : brotli\dec\huffman.c
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\brotli_dec_prefix_c.obj : brotli\dec\prefix.c
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\brotli_dec_state_c.obj : brotli\dec\state.c
-	$(CC) $(CFLAGS_CPP) /Fo$@ $**
-
-$(OBJDIR)\brotli_dec_static_init_c.obj : brotli\dec\static_init.c
+$(OBJDIR)\OpenArchive_OpenUha_cpp.obj : OpenArchive\OpenUha.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\zlib_adler32_c.obj : zlib\adler32.c
@@ -1266,6 +1236,48 @@ $(OBJDIR)\lhasa_pm1_decoder_c.obj : lhasa\pm1_decoder.c
 $(OBJDIR)\lhasa_pm2_decoder_c.obj : lhasa\pm2_decoder.c
 	$(CC) $(CFLAGS_LHASA) /Fo$@ $**
 
+$(OBJDIR)\brotli_dec_bit_reader_c.obj : brotli\dec\bit_reader.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_constants_c.obj : brotli\common\constants.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_context_c.obj : brotli\common\context.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_dec_decode_c.obj : brotli\dec\decode.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_dictionary_c.obj : brotli\common\dictionary.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_dec_huffman_c.obj : brotli\dec\huffman.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_platform_c.obj : brotli\common\platform.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_dec_prefix_c.obj : brotli\dec\prefix.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_shared_dictionary_c.obj : brotli\common\shared_dictionary.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_dec_state_c.obj : brotli\dec\state.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_dec_static_init_c.obj : brotli\dec\static_init.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_transform_c.obj : brotli\common\transform.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_uha03_dec4_dg_c.obj : uharc\uha03_dec4_dg.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\uharc_uha04_dec4_seed_c.obj : uharc\uha04_dec4_seed.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
 $(OBJDIR)\XacRett.res : XacRett.rc
 	$(RC) $(RCFLAGS) /fo$@ $**
 
@@ -1507,4 +1519,4 @@ vars :
 	@echo COMPATFLAG = $(COMPATFLAG)
 	@echo CFLAGS     = $(CFLAGS)
 	@echo UNRAR_CFLAGS = $(UNRAR_CFLAGS)
-	@echo objects    = 285
+	@echo objects    = 288

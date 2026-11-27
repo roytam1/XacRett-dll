@@ -4,6 +4,7 @@
 #include "LzmaTool.h"
 #include "XzTool.h"
 #include "ZstdTool.h"
+#include "BrotliDecode.h"
 #include "LzDecode.h"
 
 struct TarHeader
@@ -921,6 +922,31 @@ size_t CTzstTool::TarRead(void* red,size_t size)
 	return CTarTool::TarRead(red, size);
 }
 void CTzstTool::TarClose()
+{
+	CTarTool::TarClose();
+	if( tmpLive ) { DeleteFile(tmpPath); tmpPath[0]=0; tmpLive = false; }
+}
+
+bool CTbrTool::TarOpen(const char* fname)
+{
+	char tmp[MAX_PATH];
+	DWORD n;
+	if( tmpPath[0] ) { DeleteFile(tmpPath); tmpPath[0]=0; }
+	tmpLive = false;
+	n = GetTempPath(MAX_PATH, tmp);
+	if( n==0 || n+20>=MAX_PATH ) return false;
+	lstrcat(tmp, "XacRettTbr.tmp");
+	if( !BrotliDecodeFile(fname, tmp) ) { DeleteFile(tmp); return false; }
+	lstrcpy(tmpPath, tmp);
+	if( !CTarTool::TarOpen(tmpPath) ) { DeleteFile(tmpPath); tmpPath[0]=0; return false; }
+	tmpLive = true;
+	return true;
+}
+size_t CTbrTool::TarRead(void* red,size_t size)
+{
+	return CTarTool::TarRead(red, size);
+}
+void CTbrTool::TarClose()
 {
 	CTarTool::TarClose();
 	if( tmpLive ) { DeleteFile(tmpPath); tmpPath[0]=0; tmpLive = false; }

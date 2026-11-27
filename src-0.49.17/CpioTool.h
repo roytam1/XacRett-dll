@@ -169,4 +169,21 @@ private:
 	bool tmpLive;
 };
 
+// .cpio.br via whole-file Brotli decode to a temp file,
+// then plain cpio over it (inherited Check/Extract just work).
+class CCpioBrTool : public CCpioTool
+{
+public:
+	CCpioBrTool() : CCpioTool("Cpio+Brotli Extract") {tmpPath[0]=0; tmpLive=false;};
+	bool IsType( const char* ext )
+		{return 0==stricmp(ext,"br");}
+protected:
+	virtual bool   CpioOpen(const char* fname);
+	virtual size_t CpioRead(void* red,size_t size);
+	virtual void   CpioClose();
+private:
+	char tmpPath[MAX_PATH];
+	bool tmpLive;
+};
+
 #endif

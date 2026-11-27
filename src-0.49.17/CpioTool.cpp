@@ -4,6 +4,7 @@
 #include "LzmaTool.h"
 #include "XzTool.h"
 #include "ZstdTool.h"
+#include "BrotliDecode.h"
 
 bool CCpioTool::Check( const char* fname, unsigned long fsize )
 {
@@ -450,6 +451,31 @@ size_t CCpioZstTool::CpioRead(void* red,size_t size)
 	return CCpioTool::CpioRead(red, size);
 }
 void CCpioZstTool::CpioClose()
+{
+	CCpioTool::CpioClose();
+	if( tmpLive ) { DeleteFile(tmpPath); tmpPath[0]=0; tmpLive = false; }
+}
+
+bool CCpioBrTool::CpioOpen(const char* fname)
+{
+	char tmp[MAX_PATH];
+	DWORD n;
+	if( tmpPath[0] ) { DeleteFile(tmpPath); tmpPath[0]=0; }
+	tmpLive = false;
+	n = GetTempPath(MAX_PATH, tmp);
+	if( n==0 || n+20>=MAX_PATH ) return false;
+	lstrcat(tmp, "XacRettCpioBr.tmp");
+	if( !BrotliDecodeFile(fname, tmp) ) { DeleteFile(tmp); return false; }
+	lstrcpy(tmpPath, tmp);
+	if( !CCpioTool::CpioOpen(tmpPath) ) { DeleteFile(tmpPath); tmpPath[0]=0; return false; }
+	tmpLive = true;
+	return true;
+}
+size_t CCpioBrTool::CpioRead(void* red,size_t size)
+{
+	return CCpioTool::CpioRead(red, size);
+}
+void CCpioBrTool::CpioClose()
 {
 	CCpioTool::CpioClose();
 	if( tmpLive ) { DeleteFile(tmpPath); tmpPath[0]=0; tmpLive = false; }
