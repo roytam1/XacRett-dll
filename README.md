@@ -43,7 +43,7 @@ Command-style extraction:
 Identification:
 
 - `int XacRettGetArchiveType(LPCSTR path)` — returns an `ARCHIVETYPE_*`
-  number (`XacRett.h`, currently `0`–`70`), or `0` (`UNKNOWN`).
+  number (`XacRett.h`, currently `0`-`87`), or `0` (`UNKNOWN`).
 - `BOOL XacRettCheckArchive(LPCSTR path, int mode)` — nonzero if the
   file is a supported archive.
 - `BOOL XacRettQueryFunctionList(int func)` — reports which `ISARC_*`
@@ -65,22 +65,24 @@ Housekeeping:
 - `WORD XacRettGetVersion()` / `XacRettGetSubVersion()` — `49` / `17`.
 - `BOOL XacRettGetRunning()` — nonzero while an operation runs.
 
-## Supported formats (73 types)
+## Supported formats (87 types)
 
-Multi-file archives: ACE (store/LZ77/blocked+filters), ARC (m1–m9),
+Multi-file archives: ACE (store/LZ77/blocked+filters), ARC (m1-m9),
 ARJ, AR, RAR, CAB (MSZIP/Quantum/LZX), LZH/LZS/PMA (all methods),
-ZIP (0/8/9/10/12/14/18/93/95/98/99, incl. WinZip AES), ZOO, GCA, SQX,
-YZ1, AIN (M1–M4), LBR (stored/squeezed/crunched/CrLZH),
-TAR + Tbz/Tgz/TaZ/Taz/Tlzma/Txz/Tzst/Tlz, CPIO (+gz/Z/bz2), ISO, DMG,
-ALZ, JAK, IS (InstallShield), IMP, ISH, REZ, ZAC, ASD, QPAK, CPT,
-DZ, BGA, ARG, BEL, JAM, YNC, ASK, LZX, and more —
-see `ARCHIVETYPE_*` in `src-0.49.17/XacRett.h` for the full list.
+ZIP (0/8/9/10/12/14/18/93/95/98/99/129, incl. WinZip AES and Mozilla
+JAR method 0x81 = Brotli), 7z, ZOO, GCA, SQX, YZ1, AIN (M1-M4),
+LBR (stored/squeezed/crunched/CrLZH), UHA (0.2-0.6), ALZ, EGG,
+DGC/DGD, BSA/BSN, QIP, Quantum, IS3 (InstallShield 3 .Z),
+TAR + Tbz/Tgz/TaZ/Taz/Tlzma/Txz/Tzst/Tlz/Tbr,
+CPIO (+gz/Z/bz2/lzma/xz/zst/brotli), ISO, DMG, JAK, IS (InstallShield),
+IMP, ISH, REZ, ZAC, ASD, QPAK, CPT, DZ, BGA, ARG, BEL, JAM, YNC,
+ASK, LZX, and more - see `ARCHIVETYPE_*` in `src-0.49.17/XacRett.h`.
 
-Single-stream codecs: GZ (deflate), BZ2, LZMA, XZ, ZSTD, lzip (+ `.tar.*`
-companions), Z/LZW (compress), JCALG1,
-aPLib, SZDD (MSCompress), PACKZ, Freeze, Jam, BLZ, SPL (splitter),
-plus text encodings (BinHex, Base64, uuencode, yEnc, Boo, AtoB) and
-plain containers (MacBinary, shar, Fish, Hqx, Mime).
+Single-stream codecs: GZ (deflate), BZ2, LZMA, XZ, ZSTD, Brotli (`.br`),
+lzip (+ `.tar.*` companions), Z/LZW (compress), JCALG1, aPLib,
+SZDD (MSCompress), PACKZ, Freeze, Jam, BLZ, SPL (splitter), plus text
+encodings (BinHex, Base64, uuencode, yEnc, Boo, AtoB) and plain
+containers (MacBinary, shar, Fish, Hqx, Mime).
 
 Notable behaviors: official 0.49.17 cannot extract ARC methods 4–9
 (analyzed in `AGENTS.md`; this tree deliberately fixes it);
@@ -147,9 +149,21 @@ to the `.dsp`. Result: `XacRett.dll`, i386, `FileVersion 0.49.17`,
   cannot open them at all (it crashes); a pre-existing off-by-one
   that crashed the host after every successful YZ1 extraction is
   fixed here too.
+- Brotli: ZIP method 0x81 (Mozilla JAR `platform.ja`, 1481/1481
+  byte-exact) and standalone `.br` / `.tar.br` / `.cpio.br`
+  (`fixtures/brotli/`, types 85/86/87). The 122784-byte RFC 7932
+  dictionary is stored as a 58168-byte raw-deflate blob, inflated once;
+  generators and pristine UHARC tables are tracked for reproducibility.
+- UHARC static tables are likewise compressed (269519 -> 70004 bytes,
+  DLL -200 KB), with the 357-archive corpus still 357/357 byte-exact.
+- CAB: the Windows Update `omni.ja`-style rearranged ZIP container and
+  `Windows11.0-KB5127690-x64-NDP481.cab` verified; the latter's 2733
+  members match 7-Zip 25.01 byte for byte.
 - See `AGENTS.md` for build/encoding constraints, per-format findings,
   reference handling (clean-room ports, reference-use-only sources),
-  and the pre-commit checklist.
+  and the tracked table-compression generators (`uharc/mktables.py`,
+  `brotli/common/mkdictionary.py`);
+  the pre-commit checklist.
 
 ## References and provenance
 
@@ -161,7 +175,7 @@ where each one came from and what it proves.
   official `XacRett.dll` 0.49.17 — comparison targets, not sources.
 - Vendored decode sources live in-tree (`unrar-7.2.7`, `yz32lib`,
   `ZData-recon`, `lhasa`, `unsqx`, `fdi`, `jcalg1lib`, `ZData`,
-  `pkdcl`, `lzma`, `wzaes`, `ppmd8`, `xceedbwt`, `zstd`);
+  `pkdcl`, `lzma`, `wzaes`, `ppmd8`, `xceedbwt`, `zstd`, `brotli`);
   clean-room ports (`LbrTool`, `AinCodec`/`AinTool`, `AceBlock`,
   `jcalg1lib`,
   `complib` glue) were written from reference documents and validated
