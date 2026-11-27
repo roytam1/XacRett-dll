@@ -249,6 +249,18 @@ OBJS = \
     $(OBJDIR)\OpenArchive_OpenQip_cpp.obj \
     $(OBJDIR)\OpenArchive_OpenQuantum_cpp.obj \
     $(OBJDIR)\OpenArchive_OpenIs3_cpp.obj \
+    $(OBJDIR)\brotli_common_constants_c.obj \
+    $(OBJDIR)\brotli_common_context_c.obj \
+    $(OBJDIR)\brotli_common_dictionary_c.obj \
+    $(OBJDIR)\brotli_common_platform_c.obj \
+    $(OBJDIR)\brotli_common_shared_dictionary_c.obj \
+    $(OBJDIR)\brotli_common_transform_c.obj \
+    $(OBJDIR)\brotli_dec_bit_reader_c.obj \
+    $(OBJDIR)\brotli_dec_decode_c.obj \
+    $(OBJDIR)\brotli_dec_huffman_c.obj \
+    $(OBJDIR)\brotli_dec_prefix_c.obj \
+    $(OBJDIR)\brotli_dec_state_c.obj \
+    $(OBJDIR)\brotli_dec_static_init_c.obj \
     $(OBJDIR)\zlib_adler32_c.obj \
     $(OBJDIR)\zlib_crc32_c.obj \
     $(OBJDIR)\zlib_gzclose_c.obj \
@@ -479,8 +491,10 @@ $(OBJDIR)\QuantumDecode_cpp.obj : QuantumDecode.cpp
 
 $(OBJDIR)\QuantumTool_cpp.obj : QuantumTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
 $(OBJDIR)\Is3Decode_cpp.obj : Is3Decode.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
 $(OBJDIR)\Is3Tool_cpp.obj : Is3Tool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
@@ -786,7 +800,44 @@ $(OBJDIR)\OpenArchive_OpenQip_cpp.obj : OpenArchive\OpenQip.cpp
 
 $(OBJDIR)\OpenArchive_OpenQuantum_cpp.obj : OpenArchive\OpenQuantum.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
 $(OBJDIR)\OpenArchive_OpenIs3_cpp.obj : OpenArchive\OpenIs3.cpp
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_constants_c.obj : brotli\common\constants.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_context_c.obj : brotli\common\context.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_dictionary_c.obj : brotli\common\dictionary.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_platform_c.obj : brotli\common\platform.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_shared_dictionary_c.obj : brotli\common\shared_dictionary.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_transform_c.obj : brotli\common\transform.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_dec_bit_reader_c.obj : brotli\dec\bit_reader.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_dec_decode_c.obj : brotli\dec\decode.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_dec_huffman_c.obj : brotli\dec\huffman.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_dec_prefix_c.obj : brotli\dec\prefix.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_dec_state_c.obj : brotli\dec\state.c
+	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_dec_static_init_c.obj : brotli\dec\static_init.c
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
 
 $(OBJDIR)\zlib_adler32_c.obj : zlib\adler32.c
@@ -1456,4 +1507,4 @@ vars :
 	@echo COMPATFLAG = $(COMPATFLAG)
 	@echo CFLAGS     = $(CFLAGS)
 	@echo UNRAR_CFLAGS = $(UNRAR_CFLAGS)
-	@echo objects    = 269
+	@echo objects    = 285

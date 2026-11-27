@@ -47,6 +47,7 @@ enum ZipMethod
 			// 13 reserved
 	Lzma=14,	// 14
 	Bwt=18,	// 18 Xceed BWT
+	Brotli=129,	// 129 Brotli (Mozilla JAR)
 	Zstd=93,	// 93 Zstd
 	Xz=95,	// 95 XZ
 	Ppmd=98,	// 98 PPMd
@@ -247,6 +248,8 @@ private: //-- Zipì‡ïîèàóùóp -----------------------
 	void UnPpmd( DWORD usz, DWORD csz );
 	// bwt (xceedbwt.c)
 	void UnBwt( DWORD usz, DWORD csz, DWORD crc );
+	// brotli (Google Brotli 1.2.0, ZIP method 0x81)
+	void UnBrotli( DWORD usz, DWORD csz );
 	// zstd (zstd 1.5.6, ZIP method 93)
 	void UnZstd( DWORD usz, DWORD csz );
 	// xz (method 95: XZ container over Lzma2Dec)

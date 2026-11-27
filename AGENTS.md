@@ -218,6 +218,23 @@ call, so keep applying them:
   still extracts; ours returns rc=0 with no warnings. No code change was
   needed. (WinRAR is not installed here; 7-Zip plus the CEN CRCs are the
   oracles.)
+- ZIP method **0x81** (`MOZ_JAR_BROTLI`, Mozilla's private ID) is decoded
+  with the vendored Brotli 1.2.0 decoder (`src-0.49.17/brotli/`, MIT,
+  decoder subset; KI.README has the two VC6 shims). `CZipTool::UnBrotli`
+  uses the **streaming** API - the one-shot `BrotliDecoderDecompress`
+  failed in the DLL even though the same objects worked standalone.
+  Gate exemptions were added in `CZipTool::Check`, both `read_header`
+  copies, the AES-inner allow-list and the `OpenZip` mode switch
+  (`mode='brotli'`). Fixture `fixtures/zip/platform.ja` (1481 members,
+  1325 Brotli + 156 stored): all files match an independent Python
+  brotli/zlib oracle byte for byte; `omni.ja` and `runnewmatrix.py` are
+  unchanged; VC4 compiles all 15 touched units.
+- VC6 optimizer trap: `brotli/dec/huffman.c` needs `#pragma optimize("",
+  off)` under `_MSC_VER == 1200`.  At `/O2` VC6 miscompiles the Huffman
+  table builder and valid streams fail with `FORMAT_CL_SPACE` (-6); with
+  the pragma (or `/Od`) the same unit decodes correctly.  The first
+  working cross-check was a standalone harness linked against the exact
+  DLL objects, which isolated the fault to the optimizer, not the glue.
 - ZIP method 10 (DCL Implode) is implemented via vendored `pkdcl.c`/
   `pkdcl.h` (`src-0.49.17/pkdcl/`, PKDCLX 1.1.2, MIT-0, taken from
   the Xtro-Zip `unzip60` reference tree). `CZipTool::UnDcl` feeds

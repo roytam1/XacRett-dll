@@ -1,0 +1,28 @@
+Brotli 1.2.0 - decoder subset, MIT license (see LICENSE)
+=========================================================
+
+Source: https://github.com/google/brotli/archive/refs/tags/v1.2.0.tar.gz
+
+Only the decoder half is vendored: c/dec/*.c plus the c/common units it
+needs, and decoder public headers.  The encoder and tools are not present.
+
+Layout note: decode.h, port.h, types.h and shared_dictionary.h are placed
+directly in brotli/ (not brotli/include/brotli/) so that the upstream
+`#include <brotli/decode.h>` resolves with this tree's plain /I"." flag.
+
+VC6 changes (both mechanical, ASCII):
+  * dec/decode.c: two declarations hoisted to the top of their blocks;
+    VC6's C compiler rejects declarations after statements.
+  * dec/huffman.c: `#pragma optimize("", off)` guarded on _MSC_VER == 1200.
+    Measured: at /O2 VC6 miscompiles this unit and valid streams fail with
+    BROTLI_DECODER_ERROR_FORMAT_CL_SPACE (-6); with the pragma (or /Od)
+    the same unit decodes correctly.  Huffman table construction is not a
+    hot path here.
+
+The ZIP provider calls the streaming API (BrotliDecoderDecompressStream),
+not the one-shot BrotliDecoderDecompress: the one-shot form failed in the
+DLL even when the same objects decoded correctly in a standalone test.
+
+Verified with `fixtures/zip/platform.ja`: 1325 members use ZIP method 0x81
+(Mozilla's MOZ_JAR_BROTLI) and 156 are stored; all 1481 extracted files
+match an independent Python brotli/zlib oracle byte for byte.

@@ -172,6 +172,18 @@ OBJS = \
     $(OBJDIR)\ZipTool.obj \
     $(OBJDIR)\ZooTool.obj \
     $(OBJDIR)\ZstdTool.obj \
+    $(OBJDIR)\brotli_common_constants.obj \
+    $(OBJDIR)\brotli_common_context.obj \
+    $(OBJDIR)\brotli_common_dictionary.obj \
+    $(OBJDIR)\brotli_common_platform.obj \
+    $(OBJDIR)\brotli_common_shared_dictionary.obj \
+    $(OBJDIR)\brotli_common_transform.obj \
+    $(OBJDIR)\brotli_dec_bit_reader.obj \
+    $(OBJDIR)\brotli_dec_decode.obj \
+    $(OBJDIR)\brotli_dec_huffman.obj \
+    $(OBJDIR)\brotli_dec_prefix.obj \
+    $(OBJDIR)\brotli_dec_state.obj \
+    $(OBJDIR)\brotli_dec_static_init.obj \
     $(OBJDIR)\zlib_adler32.obj \
     $(OBJDIR)\zlib_crc32.obj \
     $(OBJDIR)\zlib_gzclose.obj \
@@ -702,6 +714,42 @@ $(OBJDIR)\ZooTool.obj : ZooTool.cpp
 
 $(OBJDIR)\ZstdTool.obj : ZstdTool.cpp
 	$(CC) $(CFLAGS_CPP) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_constants.obj : brotli\common\constants.c
+	$(CC) $(CFLAGS) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_context.obj : brotli\common\context.c
+	$(CC) $(CFLAGS) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_dictionary.obj : brotli\common\dictionary.c
+	$(CC) $(CFLAGS) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_platform.obj : brotli\common\platform.c
+	$(CC) $(CFLAGS) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_shared_dictionary.obj : brotli\common\shared_dictionary.c
+	$(CC) $(CFLAGS) /Fo$@ $**
+
+$(OBJDIR)\brotli_common_transform.obj : brotli\common\transform.c
+	$(CC) $(CFLAGS) /Fo$@ $**
+
+$(OBJDIR)\brotli_dec_bit_reader.obj : brotli\dec\bit_reader.c
+	$(CC) $(CFLAGS) /Fo$@ $**
+
+$(OBJDIR)\brotli_dec_decode.obj : brotli\dec\decode.c
+	$(CC) $(CFLAGS) /Fo$@ $**
+
+$(OBJDIR)\brotli_dec_huffman.obj : brotli\dec\huffman.c
+	$(CC) $(CFLAGS) /Fo$@ $**
+
+$(OBJDIR)\brotli_dec_prefix.obj : brotli\dec\prefix.c
+	$(CC) $(CFLAGS) /Fo$@ $**
+
+$(OBJDIR)\brotli_dec_state.obj : brotli\dec\state.c
+	$(CC) $(CFLAGS) /Fo$@ $**
+
+$(OBJDIR)\brotli_dec_static_init.obj : brotli\dec\static_init.c
+	$(CC) $(CFLAGS) /Fo$@ $**
 
 $(OBJDIR)\zlib_adler32.obj : zlib\adler32.c
 	$(CC) $(CFLAGS) /Fo$@ $**

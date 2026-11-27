@@ -1,6 +1,7 @@
 
 #include "stdafx.h"
 #include "ZipTool.h"
+#include <brotli/decode.h>
 #include "LzmaDecode.h"
 #include "XzDecode.h"
 #include "libbzip2/bzlib.h"
@@ -29,7 +30,7 @@ bool CZipTool::Check( const char* fname, unsigned long fsize )
 		if( hdr[i+1] != 'K'  )continue;
 		if( hdr[i+2] != 0x03 )continue;
 		if( hdr[i+3] != 0x04 )continue;
-		if( hdr[i+8]+(hdr[i+9]<<8) > BZip2 && hdr[i+8]+(hdr[i+9]<<8)!=Lzma && hdr[i+8]+(hdr[i+9]<<8)!=Aes && hdr[i+8]+(hdr[i+9]<<8)!=Ppmd && hdr[i+8]+(hdr[i+9]<<8)!=Bwt && hdr[i+8]+(hdr[i+9]<<8)!=Xz && hdr[i+8]+(hdr[i+9]<<8)!=Zstd )continue;
+		if( hdr[i+8]+(hdr[i+9]<<8) > BZip2 && hdr[i+8]+(hdr[i+9]<<8)!=Lzma && hdr[i+8]+(hdr[i+9]<<8)!=Aes && hdr[i+8]+(hdr[i+9]<<8)!=Ppmd && hdr[i+8]+(hdr[i+9]<<8)!=Bwt && hdr[i+8]+(hdr[i+9]<<8)!=Xz && hdr[i+8]+(hdr[i+9]<<8)!=Zstd && hdr[i+8]+(hdr[i+9]<<8)!=Brotli )continue;
 		if( hdr[i+26]==0 && hdr[i+27]==0 )continue;
 		break;
 	}
@@ -155,7 +156,7 @@ bool CZipTool::Extract( const char* fname,const char* ddir )
 				}
 				// refuse unsupported inner methods cleanly: skip, keep going
 				if( hdr.aesMethod==Tokenized || hdr.aesMethod==Aes || hdr.aesMethod==Bwt ||
-				    (hdr.aesMethod>BZip2 && hdr.aesMethod!=Lzma && hdr.aesMethod!=Ppmd && hdr.aesMethod!=Xz && hdr.aesMethod!=Zstd) )
+				    (hdr.aesMethod>BZip2 && hdr.aesMethod!=Lzma && hdr.aesMethod!=Ppmd && hdr.aesMethod!=Xz && hdr.aesMethod!=Zstd && hdr.aesMethod!=Brotli) )
 					{ fclose( out ); DeleteFile( name ); needaes = false; fseek( zip, posnext, SEEK_SET ); continue; }
 			}
 			else 			if( hdr.flg&1 ) // 暗号化されてるのでパスワードをセット
@@ -203,6 +204,7 @@ bool CZipTool::Extract( const char* fname,const char* ddir )
 			case Ppmd:UnPpmd( hdr.usz, decCsz );	break;
 			case Bwt:UnBwt( hdr.usz, decCsz, hdr.crc );	break;
 			case Zstd:UnZstd( hdr.usz, decCsz );	break;
+			case Brotli:UnBrotli( hdr.usz, decCsz );	break;
 			case Xz:UnXz( hdr.usz, decCsz );	break;
 			}
 
@@ -346,7 +348,7 @@ bool CZipTool::read_header( ZipLocalHeader* hdr,unsigned char* buf )
 	char* pp;
 	for( pp=hdr->fnm; *pp!=0; pp++ );
 
-	if( (hdr->mhd > BZip2 && hdr->mhd!=Lzma && hdr->mhd!=Aes && hdr->mhd!=Ppmd && hdr->mhd!=Bwt && hdr->mhd!=Xz && hdr->mhd!=Zstd) || hdr->mhd==Tokenized )
+	if( (hdr->mhd > BZip2 && hdr->mhd!=Lzma && hdr->mhd!=Aes && hdr->mhd!=Ppmd && hdr->mhd!=Bwt && hdr->mhd!=Xz && hdr->mhd!=Zstd && hdr->mhd!=Brotli) || hdr->mhd==Tokenized )
 		{ if(del)delete [] buf; return false; }
 	if( pp-hdr->fnm != l )
 		{ if(del)delete [] buf; return false; }
@@ -1298,6 +1300,43 @@ void CZipTool::UnXz( DWORD usz, DWORD csz )
 	io.left = csz;
 	XzDecodeStream( xzZipFill, &io, xzZipWrite, &io, usz, true );
 }
+////////////////////////////////////////////////////////////////
+// Brotli (Google Brotli 1.2.0, ZIP method 0x81 / MOZ_JAR_BROTLI)
+////////////////////////////////////////////////////////////////
+
+void CZipTool::UnBrotli( DWORD usz, DWORD csz )
+{
+	BYTE *in, *out;
+	DWORD off = 0;
+	size_t got = 0;
+	BrotliDecoderResult r;
+
+	if( csz==0 ) return; // empty member: the Extract size check decides
+	in = new BYTE[csz];
+	while( off < csz )
+	{
+		int n = zipread( in+off, (int)(csz-off) );
+		if( n<=0 ) { delete [] in; return; }
+		off += (DWORD)n;
+	}
+	out = new BYTE[usz ? usz : 1];
+	{
+		BrotliDecoderState* bs = BrotliDecoderCreateInstance(NULL,NULL,NULL);
+		size_t ai = (size_t)csz;
+		const uint8_t* ni = (const uint8_t*)in;
+		size_t ao = (size_t)(usz ? usz : 1);
+		uint8_t* no = (uint8_t*)out;
+		r = BrotliDecoderDecompressStream( bs, &ai, &ni, &ao, &no, NULL );
+		got = (size_t)(no - (uint8_t*)out);
+		BrotliDecoderDestroyInstance( bs );
+	}
+	delete [] in;
+	if( r!=BROTLI_DECODER_RESULT_SUCCESS || got!=(size_t)usz )
+		{ delete [] out; return; } // short/bad output fails the Extract size check
+	if( got!=0 ) zipwrite( out, (int)got );
+	delete [] out;
+}
+
 ////////////////////////////////////////////////////////////////
 // Zstd (zstd 1.5.6, ZIP method 93: one zstd frame per member)
 ////////////////////////////////////////////////////////////////
