@@ -23,6 +23,19 @@ The ZIP provider calls the streaming API (BrotliDecoderDecompressStream),
 not the one-shot BrotliDecoderDecompress: the one-shot form failed in the
 DLL even when the same objects decoded correctly in a standalone test.
 
+Dictionary size
+---------------
+The RFC 7932 static dictionary is 122784 bytes, which is almost all of the
+DLL size added by Brotli.  common/dictionary.c defines
+BROTLI_EXTERNAL_DICTIONARY_DATA (Brotli's own switch), so the raw array in
+dictionary_inc.h is NOT linked.  Instead common/dictionary_blob.h holds a
+58168-byte RAW-deflate blob (zlib level 6) of that array; CZipTool inflates
+it once on first use with inflateInit2(-15) and hands it to
+BrotliSetDictionaryData.  Raw deflate is required: this tree patches zlib
+MAX_WBITS to 16 for Deflate64, so uncompress()/inflateInit() cannot read a
+zlib-wrapped stream.  Net DLL saving measured: 1794048 -> 1732608 bytes.
+dictionary_inc.h is kept only as the source of the blob and for provenance.
+
 Verified with `fixtures/zip/platform.ja`: 1325 members use ZIP method 0x81
 (Mozilla's MOZ_JAR_BROTLI) and 156 are stored; all 1481 extracted files
 match an independent Python brotli/zlib oracle byte for byte.

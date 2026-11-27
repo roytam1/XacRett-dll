@@ -2,6 +2,8 @@
 #include "stdafx.h"
 #include "ZipTool.h"
 #include <brotli/decode.h>
+#include "brotli/common/dictionary.h"
+#include "brotli/common/dictionary_blob.h"
 #include "LzmaDecode.h"
 #include "XzDecode.h"
 #include "libbzip2/bzlib.h"
@@ -1301,11 +1303,44 @@ void CZipTool::UnXz( DWORD usz, DWORD csz )
 	XzDecodeStream( xzZipFill, &io, xzZipWrite, &io, usz, true );
 }
 ////////////////////////////////////////////////////////////////
+// The static dictionary is stored compressed (58 KB instead of 123 KB)
+// and inflated once on first use.  Brotli exposes this through its
+// BROTLI_EXTERNAL_DICTIONARY_DATA build switch.
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+// The static dictionary is stored compressed (58 KB instead of 123 KB)
+// and inflated once on first use.  Brotli exposes this through its
+// BROTLI_EXTERNAL_DICTIONARY_DATA build switch.  Use RAW deflate:
+// this tree patches zlib MAX_WBITS to 16 for Deflate64, so uncompress()
+// (which calls inflateInit with MAX_WBITS) cannot read a zlib wrapper.
+////////////////////////////////////////////////////////////////
+static BYTE* xacBrotliDict = NULL;
+static void xacBrotliEnsureDict()
+{
+	if( xacBrotliDict ) return;
+	BYTE* p = new BYTE[XAC_BROTLI_DICT_SIZE];
+	z_stream s;
+	memset( &s, 0, sizeof(s) );
+	s.next_in = (Bytef*)kXacBrotliDictionaryZ;
+	s.avail_in = (uInt)sizeof(kXacBrotliDictionaryZ);
+	s.next_out = p;
+	s.avail_out = XAC_BROTLI_DICT_SIZE;
+	if( Z_OK!=inflateInit2( &s, -15 ) ||
+		Z_STREAM_END!=inflate( &s, Z_FINISH ) ||
+		s.total_out!=XAC_BROTLI_DICT_SIZE )
+		{ inflateEnd( &s ); delete [] p; return; } // fails loudly below
+	inflateEnd( &s );
+	BrotliSetDictionaryData( (const uint8_t*)p );
+	xacBrotliDict = p;
+}
+
+////////////////////////////////////////////////////////////////
 // Brotli (Google Brotli 1.2.0, ZIP method 0x81 / MOZ_JAR_BROTLI)
 ////////////////////////////////////////////////////////////////
 
 void CZipTool::UnBrotli( DWORD usz, DWORD csz )
 {
+	xacBrotliEnsureDict();
 	BYTE *in, *out;
 	DWORD off = 0;
 	size_t got = 0;

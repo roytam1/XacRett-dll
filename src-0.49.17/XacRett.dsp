@@ -176,82 +176,6 @@ SOURCE=.\BsaTool.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\UhaTool.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\QipDecode.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\QipTool.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\QuantumCore.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\QuantumDecode.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\QuantumTool.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\Is3Decode.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\Is3Tool.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\UhaCrypt.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\UhaDecode.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\UhaDec0.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\UhaDec2.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\UhaDec3.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\UhaDec5.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\UhaDec4_06.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\UhaDec4_04.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\UhaDec4_03.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\uha04_dec4_seed.c
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\uha03_dec4_dg.c
-# End Source File
-# Begin Source File
-
 SOURCE=.\Bz2Tool.cpp
 # End Source File
 # Begin Source File
@@ -405,6 +329,14 @@ SOURCE=.\ImpTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\Is3Decode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\Is3Tool.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\IshTool.cpp
 # End Source File
 # Begin Source File
@@ -494,7 +426,27 @@ SOURCE=.\PitTool.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\QipDecode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\QipTool.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\QPakTool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\QuantumCore.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\QuantumDecode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\QuantumTool.cpp
 # End Source File
 # Begin Source File
 
@@ -556,6 +508,46 @@ SOURCE=.\TarTool.cpp
 # Begin Source File
 
 SOURCE=.\Tool.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaCrypt.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDec0.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDec2.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDec3.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDec4_03.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDec4_04.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDec4_06.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDec5.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDecode.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\UhaTool.cpp
 # End Source File
 # Begin Source File
 
@@ -695,66 +687,6 @@ SOURCE=.\BsaTool.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\UhaTool.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\QipDecode.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\QipTool.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\QuantumCore.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\QuantumDecode.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\QuantumTool.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\Is3Decode.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\Is3Tool.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\UhaCrypt.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\UhaDecode.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\UhaDec0.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\UhaDec2.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\UhaDec3.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\UhaDec5.h
-# End Source File
-# Begin Source File
-
-SOURCE=.\uharc\UhaDec4.h
-# End Source File
-# Begin Source File
-
 SOURCE=.\Bz2Tool.h
 # End Source File
 # Begin Source File
@@ -863,6 +795,14 @@ SOURCE=.\ImpTool.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\Is3Decode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\Is3Tool.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\IshTool.h
 # End Source File
 # Begin Source File
@@ -947,15 +887,7 @@ SOURCE=.\OpenArchive\OpenBsa.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\OpenArchive\OpenUha.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\OpenArchive\OpenQip.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\OpenArchive\OpenQuantum.cpp
+SOURCE=.\OpenArchive\OpenBsa.h
 # End Source File
 # Begin Source File
 
@@ -963,11 +895,11 @@ SOURCE=.\OpenArchive\OpenIs3.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\OpenArchive\OpenBsa.h
+SOURCE=.\OpenArchive\OpenIs3.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\OpenArchive\OpenUha.h
+SOURCE=.\OpenArchive\OpenQip.cpp
 # End Source File
 # Begin Source File
 
@@ -975,11 +907,19 @@ SOURCE=.\OpenArchive\OpenQip.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\OpenArchive\OpenQuantum.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\OpenArchive\OpenQuantum.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\OpenArchive\OpenIs3.h
+SOURCE=.\OpenArchive\OpenUha.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\OpenArchive\OpenUha.h
 # End Source File
 # Begin Source File
 
@@ -991,7 +931,27 @@ SOURCE=.\PitTool.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\QipDecode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\QipTool.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\QPakTool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\QuantumCore.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\QuantumDecode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\QuantumTool.h
 # End Source File
 # Begin Source File
 
@@ -1052,6 +1012,38 @@ SOURCE=.\TarTool.h
 # Begin Source File
 
 SOURCE=.\Tool.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaCrypt.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDec0.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDec2.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDec3.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDec4.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDec5.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\UhaDecode.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\UhaTool.h
 # End Source File
 # Begin Source File
 
@@ -2575,6 +2567,178 @@ SOURCE=.\lhasa\pm2_decoder.c
 
 !ENDIF 
 
+# End Source File
+# End Group
+# Begin Group "brotli"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\brotli\dec\bit_reader.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# PROP Intermediate_Dir "Release\brotli"
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\brotli\common\constants.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# PROP Intermediate_Dir "Release\brotli"
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\brotli\common\context.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# PROP Intermediate_Dir "Release\brotli"
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\brotli\dec\decode.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# PROP Intermediate_Dir "Release\brotli"
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\brotli\common\dictionary.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# PROP Intermediate_Dir "Release\brotli"
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\brotli\dec\huffman.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# PROP Intermediate_Dir "Release\brotli"
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\brotli\common\platform.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# PROP Intermediate_Dir "Release\brotli"
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\brotli\dec\prefix.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# PROP Intermediate_Dir "Release\brotli"
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\brotli\common\shared_dictionary.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# PROP Intermediate_Dir "Release\brotli"
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\brotli\dec\state.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# PROP Intermediate_Dir "Release\brotli"
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\brotli\dec\static_init.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# PROP Intermediate_Dir "Release\brotli"
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\brotli\common\transform.c
+
+!IF  "$(CFG)" == "XacRett - Win32 Release"
+
+# PROP Intermediate_Dir "Release\brotli"
+
+!ELSEIF  "$(CFG)" == "XacRett - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# End Group
+# Begin Group "uharc"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\uharc\uha03_dec4_dg.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\uharc\uha04_dec4_seed.c
 # End Source File
 # End Group
 # Begin Source File

@@ -228,7 +228,15 @@ call, so keep applying them:
   (`mode='brotli'`). Fixture `fixtures/zip/platform.ja` (1481 members,
   1325 Brotli + 156 stored): all files match an independent Python
   brotli/zlib oracle byte for byte; `omni.ja` and `runnewmatrix.py` are
-  unchanged; VC4 compiles all 15 touched units.
+  unchanged; VC4 compiles all 15 touched units.  The 122784-byte RFC 7932
+  dictionary is NOT linked: `dictionary.c` defines Brotli's own
+  `BROTLI_EXTERNAL_DICTIONARY_DATA` switch, and a 58168-byte RAW-deflate
+  blob in `brotli/common/dictionary_blob.h` is inflated once on first use
+  with `inflateInit2(-15)` and passed to `BrotliSetDictionaryData`.  Raw
+  deflate is mandatory here - the tree's Deflate64 patch sets `MAX_WBITS`
+  to 16, so `uncompress()` (which calls `inflateInit`) returns Z_DATA_ERROR
+  on a normal zlib stream.  DLL: 1794048 -> 1732608 bytes (61 KB saved),
+  with all 1481 files still byte-exact.
 - VC6 optimizer trap: `brotli/dec/huffman.c` needs `#pragma optimize("",
   off)` under `_MSC_VER == 1200`.  At `/O2` VC6 miscompiles the Huffman
   table builder and valid streams fail with `FORMAT_CL_SPACE` (-6); with

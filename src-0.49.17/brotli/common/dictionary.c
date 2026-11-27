@@ -7,6 +7,10 @@
 #include "dictionary.h"
 #include "platform.h"
 
+/* XacRett supplies the RFC 7932 dictionary at runtime from a
+   zlib-compressed blob; the 122784-byte raw array is not linked. */
+#define BROTLI_EXTERNAL_DICTIONARY_DATA
+
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
 #endif
