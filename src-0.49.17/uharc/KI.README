@@ -31,3 +31,10 @@ inflated once into the original arrays on the first ...Init() call of each
 decoder.  The data-only units export uha03_dg_init() / uha04_seed_init()
 for their consumers.  DLL size: 1,732,608 -> 1,531,904 bytes (-200 KB).
 Verified byte-identical over all 357 UHARC corpus archives.
+
+To regenerate: run `python mktables.py` in this directory.  It reads the
+pristine sources from `tables_original/` and overwrites the eight
+generated files; the eight outputs are byte-for-byte reproducible.  The
+script is one-shot by design - it never reads its own output, so it may be
+run repeatedly.  `tables_original/` is data provenance only and is not in
+XacRett.dsp, so it adds nothing to the DLL.

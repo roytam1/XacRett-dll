@@ -1,6 +1,6 @@
 /* Generated from dictionary_inc.h (RFC 7932 static dictionary, 122784 B)
    with zlib level 6, RAW deflate (wbits=-15).  Do not edit by hand.
-   Regenerate with the TEMP helper br_mkblob2.py. */
+   Regenerate with the tracked mkdictionary.py. */
 #ifndef AFX_BROTLI_DICTIONARY_BLOB_H__INCLUDED__
 #define AFX_BROTLI_DICTIONARY_BLOB_H__INCLUDED__
 

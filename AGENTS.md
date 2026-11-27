@@ -4339,6 +4339,20 @@ applies: this tree's Deflate64 patch makes `uncompress()` unusable, so use
 `inflateInit2(-15)` explicitly.  Generation is TEMP-only (`uha_compress_gen.py`,
 `uha_cfix.py`, `uha_initcalls.py`); the sources carry a "Generated" banner.
 
+## Reproducing the compressed tables
+
+Both table-compression steps are reproducible entirely from the tree:
+
+- Brotli: `python src-0.49.17/brotli/common/mkdictionary.py` regenerates
+  `dictionary_blob.h` from the still-tracked `dictionary_inc.h`.
+- UHARC: `python src-0.49.17/uharc/mktables.py` regenerates all eight
+  compressed files from `src-0.49.17/uharc/tables_original/` (the pristine
+  pre-compression sources, kept as provenance and not in `XacRett.dsp`).
+  Both scripts were verified to reproduce the committed files byte for
+  byte in a scratch copy.  They are one-shot/destructive by design: they
+  read only the pristine sources, never their own output, so they are safe
+  to re-run.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).

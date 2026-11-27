@@ -35,6 +35,8 @@ BrotliSetDictionaryData.  Raw deflate is required: this tree patches zlib
 MAX_WBITS to 16 for Deflate64, so uncompress()/inflateInit() cannot read a
 zlib-wrapped stream.  Net DLL saving measured: 1794048 -> 1732608 bytes.
 dictionary_inc.h is kept only as the source of the blob and for provenance.
+To regenerate: run `python mkdictionary.py` in `common/`; it reproduces
+dictionary_blob.h byte for byte from dictionary_inc.h.
 
 Verified with `fixtures/zip/platform.ja`: 1325 members use ZIP method 0x81
 (Mozilla's MOZ_JAR_BROTLI) and 156 are stored; all 1481 extracted files
