@@ -202,6 +202,22 @@ call, so keep applying them:
   listings (matches official behavior), all-exotic archives fail
   `Check` honestly with no crash. No ZIP64 central-dir attrs;
   no spans.
+- ZIPs with a **rearranged central directory** (Mozilla JAR / `omni.ja`)
+  are already handled: the workarea `omni.ja` puts its 2268-entry CEN at
+  offset 4 (after a 4-byte prefix), a second EOCD right behind it, and all
+  local member records AFTER that, starting at 208445. `dlltest list`
+  shows all 2268 members with the right sizes/CRCs, and a full extraction
+  matches 7-Zip 25.01 byte for byte (2268 files) as well as every CRC-32
+  and size recorded in the CEN (2268/2268). Six more real `omni.ja` files
+  in the workarea (Basilisk x86/x64, Icedove, Mailnews, Pale Moon;
+  2191..4796 members) also match 7-Zip exactly. Three synthetic variants
+  with the CEN records reversed / shuffled / rotated, and one with the
+  local member records physically reversed and every CEN local offset
+  repointed, all extract to the identical tree. 7-Zip reports
+  `Headers Error` and `Unconfirmed start of archive` on this layout but
+  still extracts; ours returns rc=0 with no warnings. No code change was
+  needed. (WinRAR is not installed here; 7-Zip plus the CEN CRCs are the
+  oracles.)
 - ZIP method 10 (DCL Implode) is implemented via vendored `pkdcl.c`/
   `pkdcl.h` (`src-0.49.17/pkdcl/`, PKDCLX 1.1.2, MIT-0, taken from
   the Xtro-Zip `unzip60` reference tree). `CZipTool::UnDcl` feeds
