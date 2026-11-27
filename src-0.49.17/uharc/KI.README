@@ -21,3 +21,13 @@ Layout:
 
 All code is C89-compatible, ASCII-only (SJIS-safe), no dependencies
 beyond the CRT; decoder state is per-instance.
+
+Static tables
+-------------
+The original ROM/DGROUP images and Huffman/price tables were 269,519
+bytes of const data.  They are now stored as per-translation-unit
+raw-deflate blobs (zlib level 6, inflateInit2(-15), 70,004 bytes total),
+inflated once into the original arrays on the first ...Init() call of each
+decoder.  The data-only units export uha03_dg_init() / uha04_seed_init()
+for their consumers.  DLL size: 1,732,608 -> 1,531,904 bytes (-200 KB).
+Verified byte-identical over all 357 UHARC corpus archives.

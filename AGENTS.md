@@ -4325,6 +4325,20 @@ truncation, payload flip, junk) refuse loud with no output and no hang;
 VC6 full build 0 FAIL and the other providers (ZIP m10 DCL, 7z, RAR,
 CAB LZX, UHARC, tar, GCA) still extract.  VC4 compiles all three units.
 
+## UHARC static tables are compressed too
+
+The UHARC cores carried 269,519 bytes of `const` ROM/DGROUP images and
+Huffman/price tables.  Each translation unit now stores its tables as one
+raw-deflate blob (zlib level 6, 70,004 bytes total), inflated once into
+the original arrays on the first `...Init()` call; the data-only units
+export `uha03_dg_init()` / `uha04_seed_init()`.  DLL: 1,732,608 ->
+1,531,904 bytes (-200 KB), with the 357-archive UHARC corpus still
+357/357 byte-identical to the pre-change DLL.  VC6 build/link 0 FAIL and
+VC4 compiles all six touched units.  The same raw-deflate rule as Brotli
+applies: this tree's Deflate64 patch makes `uncompress()` unusable, so use
+`inflateInit2(-15)` explicitly.  Generation is TEMP-only (`uha_compress_gen.py`,
+`uha_cfix.py`, `uha_initcalls.py`); the sources carry a "Generated" banner.
+
 ## Pre-commit checklist
 
 1. Byte-diff audit clean (no SJIS churn).
